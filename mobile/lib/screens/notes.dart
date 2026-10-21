@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../api.dart';
+import '../audio_file.dart';
 import '../chrome.dart';
 import '../prefs.dart';
 import '../diarize.dart';
@@ -1266,6 +1267,223 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 }
 
+/// An audio file transcribed into a meeting note (#634): a recording made
+/// elsewhere — a voice memo, a call, an interview — runs through the same
+/// recognition and speaker separation as a recorded meeting, with its
+/// progress through the file on screen and a way to cancel. The result is
+/// saved like a meeting, so it can be summarised where the instance offers
+/// it. The audio is neither uploaded nor kept: a picker's copy is removed
+/// once the run ends, whatever its outcome.
+class AudioFileScreen extends StatefulWidget {
+  const AudioFileScreen({super.key, required this.api, required this.path, required this.name, this.transcription});
+
+  final CoveyApi api;
+
+  /// The picked file, where it lies (on iOS and Android the picker's copy).
+  final String path;
+
+  /// The file's name, which becomes the note's title without its extension.
+  final String name;
+
+  /// A test's stand-in for decoder and recogniser.
+  final AudioFileTranscription? transcription;
+
+  @override
+  State<AudioFileScreen> createState() => _AudioFileScreenState();
+}
+
+class _AudioFileScreenState extends State<AudioFileScreen> {
+  late final AudioFileTranscription _job =
+      widget.transcription ?? AudioFileTranscription(api: widget.api, path: widget.path);
+  final _names = <String, String>{};
+  bool _done = false;
+  bool _saving = false;
+  bool _saveFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _job.addListener(_changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _job.removeListener(_changed);
+    // Leaving the screen ends the run; it cleans up after itself.
+    _job.cancel();
+    super.dispose();
+  }
+
+  Future<void> _run() async {
+    bool ok;
+    try {
+      ok = await _job.run();
+    } finally {
+      await discardPickedCopy(widget.path);
+    }
+    if (!mounted || _job.cancelled) return;
+    setState(() => _done = true);
+    if (ok) await _save();
+  }
+
+  String _label(String key) => _names[key] ?? context.t('mobile.sprecherN', args: {'n': key.substring(1)});
+
+  bool get _labelled => _job.segments.map((s) => s.key).toSet().length > 1;
+
+  String get _title {
+    final dot = widget.name.lastIndexOf('.');
+    return dot > 0 ? widget.name.substring(0, dot) : widget.name;
+  }
+
+  Future<void> _save() async {
+    var text = _job.segments.map((s) => s.text).join(' ');
+    if (_labelled && !_saveFailed) {
+      _names.addAll(await askSpeakerNames(context, _job.segments));
+      if (!mounted) return;
+    }
+    if (_labelled) text = meetingBody(joinTurns(_job.segments), _label);
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    if (text.trim().isEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(context.t('mobile.nichtsErkannt'))));
+      nav.pop();
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final n = await widget.api.createNote(
+        kind: 'meeting',
+        title: _title,
+        body: text,
+        durationSeconds: _job.duration.inSeconds,
+      );
+      nav.pop(n);
+    } on ApiException catch (e) {
+      // The transcript stays on screen and can be saved again.
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      setState(() {
+        _saving = false;
+        _saveFailed = true;
+      });
+    }
+  }
+
+  void _cancel() {
+    _job.cancel();
+    Navigator.of(context).pop();
+  }
+
+  String? _failure(BuildContext context) {
+    if (!_done || _saveFailed) return null;
+    if (_job.unsupported != null) return context.t('mobile.audioDateiNichtLesbar');
+    if (_job.failure != null) return dictationFailure(context, _job.failure, _job.detail);
+    final d = _job.detail;
+    if (d != null) return context.t('mobile.audioDateiFehler', args: {'error': d});
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final failed = _failure(context);
+    final d = _job.dictation;
+    final progress = _job.progress;
+    final transcript = _job.segments.map((s) => s.text).join(' ');
+    return Scaffold(
+      appBar: ChromeAppBar(title: Text(context.t('mobile.audioDatei'))),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(widget.name, style: context.type.titleLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 12),
+              if (failed != null)
+                Text(failed, style: context.type.bodyLarge?.copyWith(color: c.textDanger))
+              else ...[
+                // How far into the file, against its length: the screen's
+                // one large thing, as the clock is in a meeting.
+                Text(
+                  _job.duration == Duration.zero
+                      ? _duration(_job.position.inSeconds)
+                      : '${_duration(_job.position.inSeconds)} / ${_duration(_job.duration.inSeconds)}',
+                  style: context.type.headlineMedium?.copyWith(
+                    fontSize: 40,
+                    letterSpacing: -1.5,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: d != null && d.preparing ? d.progress : progress,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  d != null && d.preparing
+                      ? modelLoadingText(context, d)
+                      : _job.running && d != null && d.running
+                      ? '${context.t('mobile.audioDateiLaeuft')}${progress == null ? '' : ' · ${(progress * 100).floor()} %'}'
+                      : context.t('common.loading'),
+                  style: context.type.labelLarge?.copyWith(color: c.textSecondary),
+                ),
+                const SizedBox(height: 14),
+                Text(context.t('mobile.audioDateiHinweis'), style: context.type.bodySmall),
+              ],
+              const SizedBox(height: 20),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    child: !_labelled
+                        ? Text(
+                            transcript.isEmpty ? context.t('mobile.nochNichtsGehoert') : transcript,
+                            style: context.type.bodyLarge?.copyWith(
+                              color: transcript.isEmpty ? c.textMuted : c.textPrimary,
+                            ),
+                          )
+                        : _Turns(turns: joinTurns(_job.segments), label: _label),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_saveFailed)
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: Icon(AppIcons.save.of(context)),
+                  label: Text(context.t('mobile.speichern')),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
+                )
+              else if (failed != null)
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
+                  child: Text(context.t('mobile.fertig')),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: _saving || _done ? null : _cancel,
+                  icon: Icon(AppIcons.stop.of(context)),
+                  label: Text(context.t('team.abbrechen')),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Consecutive segments of one speaker as one turn (#364, #367); empty
 /// segments drop out.
 List<({String key, String text})> joinTurns(Iterable<({String key, String text})> segments) {
@@ -1282,7 +1500,8 @@ List<({String key, String text})> joinTurns(Iterable<({String key, String text})
 }
 
 /// A meeting note's text: each turn a paragraph that begins with who spoke,
-/// in bold — the shape the instance summarises.
+/// in bold — the shape a recorded meeting and a transcribed audio file
+/// (#634) share, and the one the instance summarises.
 String meetingBody(List<({String key, String text})> turns, String Function(String key) label) =>
     [for (final t in turns) '**${label(t.key)}:** ${t.text}'].join('\n\n');
 

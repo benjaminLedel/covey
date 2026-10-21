@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../activity.dart';
 import '../anywhere.dart';
 import '../api.dart';
+import '../audio_file.dart';
 import '../live.dart';
 import '../chrome.dart';
 import '../face.dart';
@@ -256,6 +258,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 subtitle: context.t('mobile.meetingHinweis'),
                 onTap: () => Navigator.pop(context, 'meeting'),
               ),
+              // A recording made elsewhere (#634), where the platform has a
+              // decoder for it.
+              if (PlatformAudioFileDecoder.supported)
+                GroupRow(
+                  leading: Icon(AppIcons.file.of(context), color: context.colors.textAccent),
+                  title: context.t('mobile.audioDatei'),
+                  subtitle: context.t('mobile.audioDateiHinweis'),
+                  onTap: () => Navigator.pop(context, 'audio'),
+                ),
               // The day's review (#368), from what the Mac recorded — also on
               // the phone, since the activity lives on the instance.
               GroupRow(
@@ -309,9 +320,18 @@ class _HomeScreenState extends State<HomeScreen> {
       _show(NotePage(key: UniqueKey(), api: widget.api, onChanged: reload), note: true);
       return;
     }
+    Widget? screen;
+    if (kind == 'audio') {
+      // Audio only; on iOS and Android the picker hands over a copy, which
+      // the screen removes when it is done with it.
+      final picked = (await FilePicker.pickFiles(type: FileType.audio)).firstOrNull;
+      final path = picked?.path;
+      if (picked == null || path == null || !mounted) return;
+      screen = AudioFileScreen(api: widget.api, path: path, name: picked.name);
+    }
     final saved = await Navigator.of(
       context,
-    ).push<Note>(MaterialPageRoute(builder: (_) => MeetingScreen(api: widget.api)));
+    ).push<Note>(MaterialPageRoute(builder: (_) => screen ?? MeetingScreen(api: widget.api)));
     if (saved == null || !mounted) return;
     setState(() => _space = notesIndex);
     await _notes.currentState?.reload();

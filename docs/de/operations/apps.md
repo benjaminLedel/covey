@@ -110,9 +110,12 @@ Die App ist eine Codebasis, aber mehrere Funktionen beruhen auf macOS-Schnittste
 | Aktivitätsprotokoll | — | — | ja | — |
 | Einen Agenten anrufen (Test) | — | — | ja | — |
 | Der eigene Ton des Computers neben dem Mikrofon in einer Notiz | — | — | ja | — |
+| Eine Audiodatei in eine Notiz transkribieren | ja | ja | ja | — |
 | Sich selbst aktualisieren | TestFlight, für Tester | — | Sparkle | — |
 
 Das Diktat wird auf dem Gerät mit sherpa-onnx erkannt; das Sprachmodell kommt von der Instanz, wenn zum ersten Mal jemand diktiert ([Sprachmodell](operations.md#sprachmodell)).
+
+**Eine Audiodatei transkribieren.** Das + in den Notizen bietet *Audiodatei transkribieren*: Eine anderswo gemachte Aufnahme — ein Sprachmemo, ein auf einem anderen Gerät aufgezeichnetes Gespräch, ein Interview — wird ausgewählt, auf dem Gerät vom Decoder des Systems gelesen (AVFoundation auf iPhone, iPad und Mac, MediaCodec unter Android) und durch dieselbe Erkennung und Sprechertrennung geschickt wie ein aufgezeichnetes Meeting. Heraus kommt eine Meeting-Notiz mit dem Dateinamen als Titel und den Stimmen als Sprechern; wo die Instanz es anbietet, lässt sie sich zusammenfassen. Der Bildschirm zeigt, wie weit die Erkennung in der Datei ist, und kann abbrechen; eine lange Datei wird blockweise gelesen, während die Erkennung nachzieht, sodass eine Stunde nicht mehr Speicher braucht als eine Minute. Welche Formate gehen, entscheidet das System — m4a/AAC, mp3, wav und flac überall, caf und aiff auf Apples Systemen, ogg und opus unter Android; eine Datei, die das System nicht lesen kann, wird mit einer Meldung abgelehnt. Der Ton wird weder hochgeladen noch aufbewahrt: Auf dem Mac wird die Datei dort gelesen, wo sie liegt (der Mac-App-Store-Build in der Sandbox über das Leserecht, das der Öffnen-Dialog gewährt), auf iPhone, iPad und Android wird die Kopie, die die Dateiauswahl anlegt, gelöscht, sobald das Transkript geschrieben oder der Lauf abgebrochen ist. Unter Windows gibt es dafür noch keinen Decoder.
 
 ## Weiter
 

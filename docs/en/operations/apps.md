@@ -110,9 +110,12 @@ The app is one code base, but several features are built on macOS APIs and exist
 | Activity log | — | — | yes | — |
 | Calling an agent (trial) | — | — | yes | — |
 | The computer's own audio beside the microphone in a note | — | — | yes | — |
+| Transcribing an audio file into a note | yes | yes | yes | — |
 | Updating itself | TestFlight, for testers | — | Sparkle | — |
 
 Dictation is recognised on the device with sherpa-onnx; the speech model comes from the instance the first time somebody dictates ([speech model](operations.md#speech-model)).
+
+**Transcribing an audio file.** The + in Notes offers *Transcribe audio file*: a recording made elsewhere — a voice memo, a call recorded on another device, an interview — is picked, decoded on the device by the system's own decoder (AVFoundation on the iPhone, iPad and Mac, MediaCodec on Android), and run through the same recognition and speaker separation as a recorded meeting. The result is a meeting note titled after the file, with the voices as speakers, and can be summarised where the instance offers it. The screen shows how far into the file recognition has come and can cancel; a long file is read in blocks while recognition catches up, so memory stays the same for an hour as for a minute. Which formats work is the system's matter — m4a/AAC, mp3, wav and flac on all of them, caf and aiff on Apple's, ogg and opus on Android; a file the system cannot read is refused with a message. The audio is neither uploaded nor kept: on the Mac the file is read where it lies (the sandboxed Mac App Store build through the read access the open panel grants), and on the iPhone, iPad and Android the copy the file picker makes is deleted once the transcript is written or the run is cancelled. Windows has no decoder for it yet.
 
 ## Further reading
 
