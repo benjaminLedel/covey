@@ -38,6 +38,17 @@ func (s *Server) handleHire(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	/* Nobody is hired into a state in which they can never run (#648): an
+	   agent without a seat goes on its engine's default one first — a draft
+	   the HR agent made before it set seats itself, too, and a second click
+	   on one hired that way. */
+	if a.RuntimeID == nil {
+		s.attachDefaultRuntime(r.Context(), a.OrgID, a)
+		if a, err = s.Registry.Get(r.Context(), id); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
 	// Idempotent: hiring somebody who already works here is not an error, it is a
 	// second click. The date stays the day it happened.
 	if !a.Draft() {
