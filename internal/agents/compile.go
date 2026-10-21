@@ -592,7 +592,14 @@ Called like every other action:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/list_targets -d '{}'`" + `
    — which target systems this organisation has connected, with their scopes, and
      which engines exist. Use ONLY these in an ACCESS.md; a system nobody has
-     connected makes a draft look finished when it is not.
+     connected makes a draft look finished when it is not. For a system that is
+     switched on, ` + "`credentials`" + ` says whether a new colleague could use it
+     today: "in place", "not needed", or "missing" with the names of the
+     secrets nobody has stored. Switched on with credentials missing is not
+     usable: draft the colleague so that it works with what is there (a text
+     handed over in the chat or as a file instead of a mail sent from the
+     mailbox), and say in your report which secret a human has to store to
+     take the next step.
 
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/get_agent_config -d '{\"agent\":\"<slug>\"}'`" + `
    — read a colleague's config. Do this for two or three existing agents before
