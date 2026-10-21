@@ -638,8 +638,14 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 		}
 		agenten = append(agenten, m.ID)
 	}
+	/* An answer to an open question answers it (#638) — without a model
+	   deciding, and with the person's own words: the triage resumed a task
+	   only when it picked the right short id, and with its paraphrase; with
+	   the triage off the answer became a new task and the question stayed
+	   open for good. */
+	frage := s.offeneFrage(ctx, conv, agenten, replyTo)
 	triage := false
-	if len(agenten) > 0 {
+	if len(agenten) > 0 && frage == nil {
 		mode, err := s.Chat.Mode(ctx, conv.OrgID)
 		if err != nil {
 			return out, err
@@ -652,6 +658,16 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	}
 	if replyTo != nil {
 		msg.ReplyTo = &replyTo.ID
+	}
+	if frage != nil {
+		// Marked as antwortZustellen marks an answer given on the task.
+		msg.Meta = map[string]string{}
+		for k, v := range meta {
+			msg.Meta[k] = v
+		}
+		msg.Meta["answer_to"] = frage.task.String()
+		msg.Meta["question"] = frage.message.String()
+		msg.TaskID = &frage.task
 	}
 	if triage {
 		msg.TriageState = chat.StatePending
@@ -671,6 +687,22 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	out.msg = msg
 	if len(agenten) == 0 {
 		s.chatEreignis(conv.OrgID, uuid.Nil, conv.ID, "message", nil)
+		return out, nil
+	}
+	if frage != nil {
+		if _, err := s.Backlog.AddNote(ctx, frage.task, "human:"+wer.email, text); err != nil {
+			return out, err
+		}
+		t, err := s.Backlog.Answer(ctx, frage.task, wer.email, msg.ForAgent())
+		switch {
+		case err == nil:
+			out.tasks = append(out.tasks, t)
+		case errors.Is(err, backlog.ErrInvalidTransition):
+			// Answered a moment ago by somebody else — the note stands.
+		default:
+			return out, err
+		}
+		s.chatEreignis(conv.OrgID, frage.agent, conv.ID, "task", nil)
 		return out, nil
 	}
 	if !triage {
@@ -705,6 +737,67 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	}
 	out.pending = true
 	return out, nil
+}
+
+// offeneFrageRef is the question a message answers: the parked task, the
+// question message in the conversation, and the agent it belongs to.
+type offeneFrageRef struct {
+	task, message, agent uuid.UUID
+}
+
+/*
+offeneFrage finds the open question a person's message answers (#638), or nil.
+
+  - A reply to a question message answers that question, in any
+    conversation, as long as its task still waits and its agent is
+    addressed.
+  - In a direct conversation a plain message answers the agent's question
+    there while it is the last thing the agent said and its task, opened
+    from this conversation, still waits — that is how a chat is answered:
+    under the question, not with a button.
+
+A reply to anything else, a group without a reply, and a question whose task
+has moved on all answer nothing, and the message goes its usual way.
+*/
+func (s *Server) offeneFrage(ctx context.Context, conv chat.Conversation, agenten []uuid.UUID, replyTo *chat.Message) *offeneFrageRef {
+	if len(agenten) == 0 {
+		return nil
+	}
+	var f offeneFrageRef
+	var err error
+	switch {
+	case replyTo != nil:
+		if replyTo.Kind != chat.MessageQuestion || replyTo.TaskID == nil {
+			return nil
+		}
+		err = s.Pool.QueryRow(ctx, `SELECT t.id, t.agent_id FROM backlog_tasks t
+			WHERE t.id = $1 AND t.state = 'blocked' AND t.agent_id = ANY($2)`,
+			*replyTo.TaskID, agenten).Scan(&f.task, &f.agent)
+		f.message = replyTo.ID
+	case conv.Kind == chat.KindDirect && len(agenten) == 1:
+		/* Only a question of a task from this very conversation, and only
+		   while it is the last thing the agent said here: a question a run
+		   from elsewhere parked in the supervisor's conversation — waiting
+		   on a customer, say — must not swallow the next request. */
+		err = s.Pool.QueryRow(ctx, `SELECT m.id, t.id, t.agent_id FROM conversation_messages m
+			JOIN backlog_tasks t ON t.id = m.task_id
+			WHERE m.conversation_id = $1 AND m.kind = $2 AND t.agent_id = $3
+			  AND t.conversation_id = $1 AND t.state = 'blocked'
+			  AND NOT EXISTS (SELECT 1 FROM conversation_messages n
+			                   WHERE n.conversation_id = $1 AND n.author_kind = $4
+			                     AND n.created_at > m.created_at)
+			ORDER BY m.created_at DESC LIMIT 1`,
+			conv.ID, chat.MessageQuestion, agenten[0], chat.MemberAgent).Scan(&f.message, &f.task, &f.agent)
+	default:
+		return nil
+	}
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			s.Log.Warn("chat: the open question could not be read", "conversation", conv.ID, "err", err)
+		}
+		return nil
+	}
+	return &f
 }
 
 // triageLaufFrist: so lange darf ein Zug dauern. Ein Modell, das länger
