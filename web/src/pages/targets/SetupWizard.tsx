@@ -178,6 +178,7 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
         {current === "access" && (
           <AccessStep
             system={s.name}
+            credentials={credentials}
             agents={s.agents}
             available={s.scopes ?? []}
             agentId={agentId}
@@ -268,8 +269,9 @@ function CredentialStep({
       <p className="text-xs secondary">{t("targets.wizard.credHint")}</p>
       {credentials.map((c) => (
         <div key={c.key} className="tgt-cred">
-          <label className="mono text-xs">
-            {c.key}
+          <label className="text-xs">
+            {c.kind === "url" ? t("targets.wizard.credUrl") : t("targets.wizard.credToken")}
+            <span className="mono muted"> · {c.key}</span>
             {c.optional && <span className="muted"> · {t("targets.wizard.optional")}</span>}
             {c.stored && <span className="ok-text"> · {t("targets.wizard.stored")}</span>}
           </label>
@@ -301,6 +303,7 @@ function CredentialStep({
    as with any change in the editor, only without the detour. */
 function AccessStep({
   system,
+  credentials,
   agents,
   available,
   agentId,
@@ -310,6 +313,7 @@ function AccessStep({
   onSaved,
 }: {
   system: string;
+  credentials: SetupCredential[];
   agents: SetupAgent[];
   available: string[];
   agentId: string;
@@ -339,11 +343,19 @@ function AccessStep({
     return (body ? body + "\n" : "") + line + "\n";
   }, [before, line, system]);
 
+  /* Access is the ACCESS.md line AND the stored organisation-wide
+     credentials (#654): an org-wide value reaches an agent only through an
+     assignment, and without one the agent was "set up" and still denied —
+     its own connection test said so. */
   const save = useMutation({
-    mutationFn: () =>
-      put(`/agents/${agentId}/config`, {
+    mutationFn: async () => {
+      await put(`/agents/${agentId}/config`, {
         files: { ...(cfg.data?.files ?? {}), "ACCESS.md": after },
-      }),
+      });
+      for (const c of credentials.filter((c) => c.stored)) {
+        await put(`/secrets/${encodeURIComponent(c.key)}/agents/${agentId}`, {});
+      }
+    },
     onSuccess: onSaved,
   });
 
@@ -379,13 +391,15 @@ function AccessStep({
 
       {agentId && (
         <>
-          <div className="tgt-diff">
-            <div className="text-xs muted">ACCESS.md</div>
-            <pre className="tgt-doc">{after}</pre>
-          </div>
           <button className="btn sm primary" disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? t("targets.wizard.saving") : t("targets.wizard.writeAccess")}
           </button>
+          {save.isSuccess && <p className="text-xs ok-text">{t("targets.wizard.accessGiven")}</p>}
+          {/* The file stays one click away — config as code, not hidden. */}
+          <details className="tgt-diff">
+            <summary className="text-xs muted">{t("targets.wizard.showFile")}</summary>
+            <pre className="tgt-doc">{after}</pre>
+          </details>
         </>
       )}
     </>
