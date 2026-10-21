@@ -54,7 +54,10 @@ abstract class SpeechEngine {
 /// [feedSegment], [closeSegment]; while a segment grows it reports what it
 /// has so far through [segmentPartial].
 abstract class SegmentedEngine implements SpeechEngine {
-  final _recorder = AudioRecorder();
+  /// The microphone, made only when it is the source: a meeting's Mac audio
+  /// or an audio file (#634) never opens it.
+  AudioRecorder? _rec;
+  AudioRecorder get _recorder => _rec ??= AudioRecorder();
   StreamSubscription<Uint8List>? _mic;
 
   late String modelPath;
@@ -92,6 +95,15 @@ abstract class SegmentedEngine implements SpeechEngine {
   /// Where the audio comes from: the microphone unless set — a meeting's
   /// second source is the Mac's own audio (#364). 16 kHz mono PCM16.
   Stream<Uint8List> Function()? source;
+
+  /// The source waits while a segment is being recognised (#634): an audio
+  /// file decodes far faster than it is recognised, and without the pause
+  /// its whole length would pile up in memory. Time in a paced source is the
+  /// audio's own: a segment's moment is its position after [start], not the
+  /// clock. A paced recogniser makes no previews either — nobody watches a
+  /// segment grow that is fed in a blink.
+  bool paced = false;
+  DateTime _origin = DateTime.now();
 
   /// Each finished segment's text with the moment its speech began, for a
   /// transcript merged from two sources (#364), and its speaker embedding
@@ -138,7 +150,8 @@ abstract class SegmentedEngine implements SpeechEngine {
     _current = '';
     _held.clear();
     _resetSegment();
-    _log('listening with $kind');
+    _origin = DateTime.now();
+    _log('listening with $kind${paced ? ', paced' : ''}');
 
     await prepare();
     await _openNext();
@@ -185,7 +198,9 @@ abstract class SegmentedEngine implements SpeechEngine {
     final voiced = rms >= math.max(3 * _floor, 0.004);
     _segBytes += chunk.length;
     if (voiced) {
-      _segSpeechAt ??= DateTime.now().subtract(Duration(milliseconds: chunk.length * 1000 ~/ _bytesPerSecond));
+      _segSpeechAt ??= paced
+          ? _origin.add(Duration(milliseconds: (_audioBytes() - chunk.length) * 1000 ~/ _bytesPerSecond))
+          : DateTime.now().subtract(Duration(milliseconds: chunk.length * 1000 ~/ _bytesPerSecond));
       _segVoiced = true;
       _voicedBytes += chunk.length;
       _silentBytes = 0;
@@ -194,7 +209,10 @@ abstract class SegmentedEngine implements SpeechEngine {
     }
     if (_switching || _stopping) return;
     final pause = _segVoiced && _silentBytes >= _pauseBytes && _segBytes >= _minSegBytes;
-    if (pause || _segBytes >= _maxSegBytes) _cut = _nextSegment();
+    if (pause || _segBytes >= _maxSegBytes) {
+      if (paced) _mic?.pause();
+      _cut = _nextSegment();
+    }
   }
 
   void _resetSegment() {
@@ -234,6 +252,7 @@ abstract class SegmentedEngine implements SpeechEngine {
       _log('segment switch failed: $e');
     } finally {
       _switching = false;
+      if (paced) _mic?.resume();
     }
   }
 
@@ -279,7 +298,7 @@ abstract class SegmentedEngine implements SpeechEngine {
   @override
   void dispose() {
     unawaited(stop().catchError((_) => '').then((_) => release()));
-    unawaited(_recorder.dispose());
+    unawaited(_rec?.dispose());
   }
 }
 
@@ -332,6 +351,7 @@ class Dictation extends ChangeNotifier {
     this.source,
     this.onSegment,
     this.diarize = false,
+    this.paced = false,
   }) : _model = model ?? SpeechModel.instance;
 
   /// Tell the voices apart (#367): the speakers' model is fetched and each
@@ -341,6 +361,10 @@ class Dictation extends ChangeNotifier {
 
   /// Another audio source than the microphone (#364).
   final Stream<Uint8List> Function()? source;
+
+  /// Whether [source] waits for the recogniser — an audio file (#634); see
+  /// [SegmentedEngine.paced].
+  final bool paced;
 
   /// Each finished segment with the moment its speech began (#364) and its
   /// voice (#367).
@@ -404,6 +428,7 @@ class Dictation extends ChangeNotifier {
     return engine = SherpaEngine(kind)
       ..keepLoaded = keepModelLoaded
       ..source = source
+      ..paced = paced
       ..onSegment = onSegment;
   }
 

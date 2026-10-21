@@ -70,7 +70,7 @@ class SherpaEngine extends SegmentedEngine {
     _decodedBytes = 0;
     _tick?.cancel();
     final id = _segmentId;
-    _tick = Timer.periodic(_interval, (_) => _preview(id));
+    if (!paced) _tick = Timer.periodic(_interval, (_) => _preview(id));
   }
 
   void _preview(int id) {
