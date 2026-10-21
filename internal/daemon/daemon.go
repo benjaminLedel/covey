@@ -678,11 +678,11 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	}
 	if res.Status == "blocked" {
 		_ = c.send(TypeBlocked, Blocked{TaskID: task.TaskID, CorrelationKey: res.CorrelationKey,
-			Question: res.Question, SessionID: res.SessionID})
+			Question: res.Question, SessionID: res.SessionID, Reply: res.Reply})
 		return
 	}
 	_ = c.send(TypeTaskDone, TaskDone{TaskID: task.TaskID, Status: res.Status,
-		Result: res.Result, Error: res.Error, Memory: res.Memory, SessionID: res.SessionID})
+		Result: res.Result, Error: res.Error, Memory: res.Memory, SessionID: res.SessionID, Reply: res.Reply})
 }
 
 // reportUsage answers the control plane's question about the engine's own

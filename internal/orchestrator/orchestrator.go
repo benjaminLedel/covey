@@ -2757,11 +2757,15 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return true, err
 		}
-		if _, err := o.Backlog.Block(ctx, taskID, b.CorrelationKey, b.SessionID, b.Question); err != nil {
+		question := b.Question
+		if o.fromConversation(ctx, taskID) {
+			question = replyWithQuestion(b.Reply, b.Question)
+		}
+		if _, err := o.Backlog.Block(ctx, taskID, b.CorrelationKey, b.SessionID, question); err != nil {
 			return true, err
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
-			map[string]string{"status": "blocked", "correlation_key": b.CorrelationKey, "question": b.Question})
+			map[string]string{"status": "blocked", "correlation_key": b.CorrelationKey, "question": question})
 		o.publishTask(taskID, agent)
 		return true, nil
 
@@ -2782,6 +2786,9 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			state = backlog.StateFailed
 		}
 		result := d.Result
+		if d.Status == "done" && strings.TrimSpace(d.Reply) != "" && o.fromConversation(ctx, taskID) {
+			result = strings.TrimSpace(d.Reply)
+		}
 		if d.Status == "escalated" {
 			result = "ESCALATED: " + result
 			if name, err := o.Registry.SupervisorName(ctx, agent.ID); err == nil && name != "" {

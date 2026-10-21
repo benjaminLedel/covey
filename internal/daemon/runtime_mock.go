@@ -25,6 +25,7 @@ import (
 //	[mock:fail <error-text>]
 //	[mock:result <text>]
 //	[mock:memory <text>]
+//	[mock:reply <text>]                      → the text above the status line (#650)
 //	[mock:maxturns <handover-state>]         → run ends at the turn limit
 //	[mock:maxturns-always <handover-state>]  → likewise, on every resumption too
 //	[mock:prompt]                            → returns the system prompt as the result
@@ -63,7 +64,7 @@ func init() {
 // the parameter. A bare `]` still gets the group no further, so two directives
 // on one line stay separate.
 var mockDirective = regexp.MustCompile(
-	`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*((?:[^\[\]]|\[[^\]]*\])*)\]`)
+	`\[mock:(action|block|fail|result|memory|reply|sleep|maxturns-always|maxturns|prompt)\s*((?:[^\[\]]|\[[^\]]*\])*)\]`)
 
 func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
 	res := RunResult{
@@ -196,6 +197,10 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 			res.Result = arg
 		case "memory":
 			res.Memory = arg
+		case "reply":
+			// The text a real run writes above its status line (#650); put it
+			// before a block directive, which ends the run.
+			res.Reply = arg
 		}
 	}
 	if res.Result == "" {

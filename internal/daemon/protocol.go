@@ -247,6 +247,9 @@ type Blocked struct {
 	CorrelationKey string `json:"correlation_key"`
 	Question       string `json:"question,omitempty"`
 	SessionID      string `json:"session_id,omitempty"` // runtime session for --resume
+	// Reply is what the run wrote before its status line (#650). Empty from
+	// a daemon that predates it.
+	Reply string `json:"reply,omitempty"`
 }
 
 // TaskDone closes a task. Status "incomplete" is the special case of a run cut
@@ -262,6 +265,9 @@ type TaskDone struct {
 	Error     string `json:"error,omitempty"`
 	Memory    string `json:"memory,omitempty"` // episode for the memory (M7)
 	SessionID string `json:"session_id,omitempty"`
+	// Reply is what the run wrote before its status line (#650). Empty from
+	// a daemon that predates it.
+	Reply string `json:"reply,omitempty"`
 }
 
 // SetStage moves a task on the kanban board into a (possibly new) stage. Purely
