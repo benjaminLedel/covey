@@ -217,8 +217,9 @@ export type ChatEntry = {
   at: string;
   /** Nur im Browser gesetzt: abgeschickt, vom Server noch nicht bestätigt. */
   unterwegs?: boolean;
-  /** The drafts a hiring task produced — only on a result of the People
-   *  department (#327). Hiring is on the agent's page; there is no action. */
+  /** The drafts a hiring task of the People department produced (#327), on
+   *  the task's latest entry — a result or a question (#645). Hiring is on
+   *  the agent's page; there is no action. */
   drafts?: EntwurfKurz[];
   /** On a result or an error: what the agent said about it in the chat
    *  (#411), told from the report in `text`, which stays one click away. */

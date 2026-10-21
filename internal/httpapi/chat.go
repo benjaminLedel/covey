@@ -66,8 +66,8 @@ type chatEntry struct {
 	Author    string     `json:"author"`
 	Text      string     `json:"text"`
 	At        time.Time  `json:"at"`
-	/* The drafts a hiring task produced (#327). Only on a result of the
-	   People department, read off the recording where the platform wrote them
+	/* The drafts a hiring task produced (#327). Only on the latest entry of
+	   a task of the People department — a result or a question (#645) — read off the recording where the platform wrote them
 	   (hiring.go, rule 3) — never off what the agent reported. The way to the
 	   draft is the agent page, where hiring already is; there is no hire
 	   action, and the thread does not pretend otherwise. */
@@ -295,7 +295,7 @@ func alsEintrag(m chat.Message, email string) chatEntry {
 }
 
 /*
-entwuerfeAnhaengen puts the drafts a hiring task produced onto its result
+entwuerfeAnhaengen puts the drafts a hiring task produced onto its latest entry
 
 	(#327). Only for the People department — for everyone else the query would
 	be a query for nothing — and read off the recording, where the platform
@@ -307,10 +307,18 @@ func (s *Server) entwuerfeAnhaengen(ctx context.Context, agentID uuid.UUID, entr
 	if err != nil || a.Slug != peopleSlug {
 		return nil
 	}
+	/* The drafts stand on a task's latest entry (#645) — a question too: a
+	   run that drafts and then asks one more thing ends parked, and its
+	   draft had no card until some later run ended with a result. Once per
+	   task, not on every question it asked before. */
+	letzter := map[uuid.UUID]int{}
 	var tasks []uuid.UUID
-	for _, e := range entries {
-		if e.Kind == "result" && e.TaskID != nil {
-			tasks = append(tasks, *e.TaskID)
+	for i, e := range entries {
+		if (e.Kind == "result" || e.Kind == "question") && e.TaskID != nil {
+			if _, ok := letzter[*e.TaskID]; !ok {
+				tasks = append(tasks, *e.TaskID)
+			}
+			letzter[*e.TaskID] = i
 		}
 	}
 	if len(tasks) == 0 {
@@ -345,10 +353,8 @@ func (s *Server) entwuerfeAnhaengen(ctx context.Context, agentID uuid.UUID, entr
 	if rows.Err() != nil {
 		return rows.Err()
 	}
-	for i := range entries {
-		if entries[i].Kind == "result" && entries[i].TaskID != nil {
-			entries[i].Drafts = je[*entries[i].TaskID]
-		}
+	for taskID, i := range letzter {
+		entries[i].Drafts = je[taskID]
 	}
 	return nil
 }
