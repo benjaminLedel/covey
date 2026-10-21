@@ -2711,7 +2711,7 @@
     "einstellenOhne": "请先完成设置",
     "einstellenEntwurf": "先录用她",
     "einstellenLeerTitel": "{{name}} 负责起草新同事。",
-    "einstellenLeerText": "描述新同事应该做什么。{{name}} 会查看此处已接入的系统，询问缺少的信息并起草。草稿会连同其页面链接显示在这里；录用由你决定。",
+    "einstellenLeerText": "描述新同事应该做什么，或者告诉 {{name}} 你平常一周都在做什么，让它为你推荐人选。{{name}} 会查看此处已接入的系统，询问缺少的信息并起草。草稿会连同其页面链接显示在这里；录用由你决定。",
     "entwurfPruefen": "审核并录用",
     "eingestellt": "已录用",
     "alleOffenen": "查看收件箱中所有未处理事项",

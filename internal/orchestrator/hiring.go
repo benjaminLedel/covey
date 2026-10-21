@@ -37,6 +37,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 	"github.com/google/uuid"
 
 	"covey/internal/agents"
@@ -280,13 +281,50 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 }
 
 // hiringTarget is one connectable target system as the drafting agent sees it:
-// enough to write an honest ACCESS.md, and nothing about credentials.
+// enough to write an honest ACCESS.md, and of its credentials only whether
+// they are in place — the names of the missing ones, never a value.
 type hiringTarget struct {
 	Name        string   `json:"name"`
 	Label       string   `json:"label"`
 	Description string   `json:"description,omitempty"`
 	Scopes      []string `json:"scopes,omitempty"`
 	Enabled     bool     `json:"enabled"`
+	// Credentials says whether a new colleague could use the system today
+	// (#642): "not needed", "in place", or "missing" with Missing naming
+	// the secrets nobody has stored for the organisation. "Switched on" read
+	// as "usable", and a drafted colleague failed at its first action.
+	Credentials string   `json:"credentials,omitempty"`
+	Missing     []string `json:"missing_secrets,omitempty"`
+}
+
+// credentialState is what hiringTarget.Credentials says about a system: kind
+// is the store's (builtin, custom, mcp), stored the organisation-wide secret
+// names. An agent's own secrets do not count — a new colleague does not get
+// them. An MCP server carries its endpoint and may need no auth, and a
+// system whose secret only raises its limits works without one: both are
+// "not needed" unless something is stored.
+func credentialState(name, kind string, stored map[string]bool) (string, []string) {
+	d, known := target.Describe(name)
+	switch {
+	case known && d.NoCredentials:
+		return "not needed", nil
+	case kind == "mcp", known && d.CredentialsOptional:
+		if stored[name+"_token"] {
+			return "in place", nil
+		}
+		return "not needed", nil
+	}
+	var missing []string
+	if !stored[name+"_token"] {
+		missing = append(missing, name+"_token")
+	}
+	if !stored[name+"_url"] && !(known && d.BaseURLOptional) {
+		missing = append(missing, name+"_url")
+	}
+	if len(missing) > 0 {
+		return "missing", missing
+	}
+	return "in place", nil
 }
 
 // hiringTargets reports what the organisation actually has. That is the point
@@ -294,13 +332,30 @@ type hiringTarget struct {
 // connected looks finished and is not.
 func (o *Orchestrator) hiringTargets(ctx context.Context, agent agents.Agent) map[string]any {
 	out := []hiringTarget{}
+	// Names only, organisation-wide only; without the store nothing is known,
+	// and nothing is claimed.
+	var stored map[string]bool
+	if o.Secrets != nil {
+		if all, err := o.Secrets.List(ctx, agent.OrgID, ""); err == nil {
+			stored = map[string]bool{}
+			for _, st := range all {
+				if st.AgentID == nil {
+					stored[st.Key] = true
+				}
+			}
+		}
+	}
 	plugins, err := o.Targets.List(ctx, agent.OrgID)
 	if err == nil {
 		for _, p := range plugins {
-			out = append(out, hiringTarget{
+			t := hiringTarget{
 				Name: p.Name, Label: p.Label, Description: p.Description,
 				Scopes: p.Scopes, Enabled: p.Enabled,
-			})
+			}
+			if p.Enabled && stored != nil {
+				t.Credentials, t.Missing = credentialState(p.Name, p.Kind, stored)
+			}
+			out = append(out, t)
 		}
 	}
 	engines := []string{}

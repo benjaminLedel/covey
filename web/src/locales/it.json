@@ -2711,7 +2711,7 @@
     "einstellenOhne": "prima da configurare",
     "einstellenEntwurf": "prima assumila",
     "einstellenLeerTitel": "{{name}} prepara i nuovi colleghi.",
-    "einstellenLeerText": "Descrivi cosa deve fare il nuovo collega. {{name}} guarda cosa è collegato qui, chiede ciò che manca e prepara una bozza. La bozza compare qui con il collegamento alla sua pagina; assumere spetta a te.",
+    "einstellenLeerText": "Descrivi cosa deve fare il nuovo collega, oppure racconta a {{name}} cosa fai in una settimana normale e lascia che ti proponga qualcuno. {{name}} guarda cosa è collegato qui, chiede ciò che manca e prepara una bozza. La bozza compare qui con il collegamento alla sua pagina; assumere spetta a te.",
     "entwurfPruefen": "Verificare e assumere",
     "eingestellt": "assunto",
     "alleOffenen": "Tutti i punti aperti nella posta",

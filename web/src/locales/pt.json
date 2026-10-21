@@ -2711,7 +2711,7 @@
     "einstellenOhne": "configurar primeiro",
     "einstellenEntwurf": "contrate-a primeiro",
     "einstellenLeerTitel": "{{name}} prepara novos colegas.",
-    "einstellenLeerText": "Descreva o que o novo colega deve fazer. {{name}} vê o que está ligado aqui, pergunta o que falta e prepara um rascunho. O rascunho aparece aqui com o caminho para a sua página; contratar é consigo.",
+    "einstellenLeerText": "Descreva o que o novo colega deve fazer — ou conte a {{name}} o que faz numa semana normal e deixe que lhe proponha alguém. {{name}} vê o que está ligado aqui, pergunta o que falta e prepara um rascunho. O rascunho aparece aqui com o caminho para a sua página; contratar é consigo.",
     "entwurfPruefen": "Rever e contratar",
     "eingestellt": "contratado",
     "alleOffenen": "Todos os pontos abertos na caixa",

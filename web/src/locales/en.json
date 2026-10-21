@@ -2711,7 +2711,7 @@
     "einstellenOhne": "set up first",
     "einstellenEntwurf": "hire her first",
     "einstellenLeerTitel": "{{name}} drafts new colleagues.",
-    "einstellenLeerText": "Describe what the new colleague should do. {{name}} looks at what is connected here, asks what is missing, and drafts. The draft appears here with the way to its page; hiring is yours.",
+    "einstellenLeerText": "Describe what the new colleague should do — or tell {{name}} what you do in an ordinary week and let it suggest someone. {{name}} looks at what is connected here, asks what is missing, and drafts. The draft appears here with the way to its page; hiring is yours.",
     "entwurfPruefen": "Review and hire",
     "eingestellt": "hired",
     "alleOffenen": "All open points in the inbox",

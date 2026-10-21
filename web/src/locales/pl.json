@@ -2711,7 +2711,7 @@
     "einstellenOhne": "najpierw skonfiguruj",
     "einstellenEntwurf": "najpierw ją zatrudnij",
     "einstellenLeerTitel": "{{name}} przygotowuje nowych współpracowników.",
-    "einstellenLeerText": "Opisz, co ma robić nowy współpracownik. {{name}} sprawdza, co jest tu podłączone, dopytuje o brakujące informacje i przygotowuje szkic. Szkic pojawi się tutaj z odnośnikiem do jego strony; zatrudnienie należy do Ciebie.",
+    "einstellenLeerText": "Opisz, co ma robić nowy współpracownik, albo opowiedz {{name}}, czym zajmujesz się w zwykłym tygodniu, i pozwól coś zaproponować. {{name}} sprawdza, co jest tu podłączone, dopytuje o brakujące informacje i przygotowuje szkic. Szkic pojawi się tutaj z odnośnikiem do jego strony; zatrudnienie należy do Ciebie.",
     "entwurfPruefen": "Sprawdź i zatrudnij",
     "eingestellt": "zatrudniony",
     "alleOffenen": "Wszystkie otwarte punkty w skrzynce",

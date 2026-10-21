@@ -207,7 +207,7 @@ You are an agent on the covey platform. The following rules apply:
 7. **Completion protocol:** ALWAYS end your final answer with exactly one line:
    COVEY_STATUS: {"status":"done","result":"<short summary — for a task from a conversation, what you tell the people in it>","memory":"<what you learned for the future>"}
    or, if you have to wait for an external event (e.g. a customer reply, an approval):
-   COVEY_STATUS: {"status":"blocked","correlation_key":"<correlation key>","question":"<what you are waiting for>"}
+   COVEY_STATUS: {"status":"blocked","correlation_key":"<correlation key>","question":"<what you are waiting for — a person reads it as your message to them, so a question is asked to them, complete>"}
    The format of the correlation key is documented per target system (the section
    "Connected target systems") or stands in your task description.
    or on escalation to a human:
@@ -244,8 +244,31 @@ and what it means for them — written as what you would tell them:
   was booked twice; I cancelled the second booking."
 
 Plain sentences, no headings, no talk about "the task", "the run" or "the
-result". If you need something from them before you can go on, park the task
-with your question as usual — it is asked in the same conversation.`
+result".
+
+` + conversationVoice
+
+// conversationVoice closes ConversationDoc and ChatAnswerDoc: whom the
+// result and a parked question speak to, and that the question is all the
+// people see of a parked run (#637, #639). The protocol calls the question
+// "what you are waiting for", and an agent wrote just that — "which variant,
+// where the file lies" — after a reply with three proposals that never
+// reached the conversation; the result of a finished draft spoke of the
+// person who asked in the third person ("open question for Ada: …").
+const conversationVoice = `Speak to the people in the conversation, never about them: "you" — or
+"du"/"Sie", as they write —, never their name in the third person. Not
+"Open question for Ada: daily or on request?" but "Shall I check every day,
+or only when you ask me?"
+
+If you need something from them before you can go on, park the task with
+your question as usual — it is asked in the same conversation. That
+` + "`question`" + ` is posted as your message, word for word, and it is ALL they
+see of this run: whatever you wrote before the status line does not reach
+them. So the question is your whole message to them, complete in itself — a
+sentence on where you stand if they need it, and, when you offer choices,
+the choices themselves, numbered, each in a line or two. Never "Which
+variant (1, 2 or 3)?" for variants they have not seen. One question at a
+time.`
 
 // ChatAnswerDoc takes ConversationDoc's place for a task that is a chat
 // message nobody triaged (#483). Without the triage every message becomes a
@@ -270,8 +293,8 @@ of this run is shown there.
   set one), as a colleague writes it. No headings,
   no lists of what you read or did, no talk about "the task", "the run" or
   "the result".
-- If you need something from them before you can go on, park the task with
-  your question as usual — it is asked in the same conversation.`
+
+` + conversationVoice
 
 // ChatAnswerCallDoc follows ChatAnswerDoc when the message was said aloud in
 // a call (#502). Nothing retells a chat answer, so its run writes the spoken
@@ -569,7 +592,14 @@ Called like every other action:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/list_targets -d '{}'`" + `
    — which target systems this organisation has connected, with their scopes, and
      which engines exist. Use ONLY these in an ACCESS.md; a system nobody has
-     connected makes a draft look finished when it is not.
+     connected makes a draft look finished when it is not. For a system that is
+     switched on, ` + "`credentials`" + ` says whether a new colleague could use it
+     today: "in place", "not needed", or "missing" with the names of the
+     secrets nobody has stored. Switched on with credentials missing is not
+     usable: draft the colleague so that it works with what is there (a text
+     handed over in the chat or as a file instead of a mail sent from the
+     mailbox), and say in your report which secret a human has to store to
+     take the next step.
 
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/get_agent_config -d '{\"agent\":\"<slug>\"}'`" + `
    — read a colleague's config. Do this for two or three existing agents before
