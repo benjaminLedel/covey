@@ -17,6 +17,7 @@ class MainFlutterWindow: NSWindow {
   private let cameraSheet = CameraSheet()
   private var notices: LocalNotices?
   private var voice: SpeechVoice?
+  private var audioFiles: AudioFileDecoder?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -76,6 +77,10 @@ class MainFlutterWindow: NSWindow {
     // A call's voice (#494): the agent's replies spoken by the system's
     // synthesiser, on the Mac.
     voice = SpeechVoice(messenger: flutterViewController.engine.binaryMessenger)
+
+    // An audio file transcribed into a note (#634): decoded here, recognised
+    // in Dart like a meeting (mobile/darwin/AudioFileDecoder.swift).
+    audioFiles = AudioFileDecoder(messenger: flutterViewController.engine.binaryMessenger)
 
     // The profile photo (#377): the Mac has no system camera screen to
     // borrow, so the app opens a small camera sheet of its own.
