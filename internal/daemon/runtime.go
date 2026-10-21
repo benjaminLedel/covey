@@ -123,6 +123,10 @@ type RunResult struct {
 	CacheReadTokens     int64
 	CacheCreationTokens int64
 	Model               string
+	// Reply is what the run wrote before its status line (#650): for a task
+	// from a conversation, the message itself — the status line's result and
+	// question are a summary of it.
+	Reply string
 }
 
 // Measured reports whether a run brought back anything worth booking.
@@ -215,6 +219,16 @@ func ParseStatusLine(output string) (covey_status, bool) {
 	return st, true
 }
 
+// replyBefore is the text of a run's final message before its last
+// COVEY_STATUS line, trimmed (#650).
+func replyBefore(output string) string {
+	idx := strings.LastIndex(output, statusMarker)
+	if idx < 0 {
+		return ""
+	}
+	return strings.TrimSpace(output[:idx])
+}
+
 // applyStatus transfers the COVEY_STATUS line into the RunResult.
 func applyStatus(res *RunResult, output string) {
 	st, ok := ParseStatusLine(output)
@@ -223,6 +237,7 @@ func applyStatus(res *RunResult, output string) {
 		res.Result = strings.TrimSpace(output)
 		return
 	}
+	res.Reply = replyBefore(output)
 	switch st.Status {
 	case "blocked":
 		if st.CorrelationKey == "" {

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -164,5 +165,24 @@ func TestARunWithoutAPriceStillCounts(t *testing.T) {
 		if got := tc.res.Measured(); got != tc.want {
 			t.Errorf("%s: Measured() = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// TestApplyStatusKeepsTheReply is #650: the text above the status line is the
+// run's reply to the person, and it travels beside the status line's fields.
+func TestApplyStatusKeepsTheReply(t *testing.T) {
+	var res RunResult
+	applyStatus(&res, "Hier die Übersicht:\n\n| Thema | Anzahl |\n|---|---|\n| Login | 4 |\n\nCOVEY_STATUS: {\"status\":\"done\",\"result\":\"Übersicht geliefert\"}")
+	if res.Status != "done" || res.Result != "Übersicht geliefert" {
+		t.Fatalf("the status line's fields: %+v", res)
+	}
+	if !strings.HasPrefix(res.Reply, "Hier die Übersicht:") || !strings.HasSuffix(res.Reply, "| Login | 4 |") {
+		t.Fatalf("the reply is the text above the status line, trimmed: %q", res.Reply)
+	}
+
+	res = RunResult{}
+	applyStatus(&res, "COVEY_STATUS: {\"status\":\"blocked\",\"correlation_key\":\"k\",\"question\":\"Welche?\"}")
+	if res.Reply != "" || res.Question != "Welche?" {
+		t.Fatalf("nothing above the line, no reply: %+v", res)
 	}
 }
