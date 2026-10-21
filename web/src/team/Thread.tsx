@@ -351,8 +351,9 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
         zeile={
           agent.data && (
             <>
+              {/* A job title that is the department's name is said once (#640). */}
               {(agent.data.job_title || abteilung) && (
-                <span>{[agent.data.job_title, abteilung].filter(Boolean).join(", ")}</span>
+                <span>{[...new Set([agent.data.job_title, abteilung].filter(Boolean))].join(", ")}</span>
               )}
               <Zustand
                 zustand={agent.data.killed ? "killed" : agent.data.status === "sleeping" ? "sleeping" : "working"}
