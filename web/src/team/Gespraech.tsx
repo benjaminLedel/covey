@@ -386,7 +386,10 @@ export default function Gespraech({ id, me }: { id: string; me: Principal }) {
             multiple
             hidden
             onChange={(ev) => {
-              setDateien((a) => [...a, ...Array.from(ev.target.files ?? [])]);
+              // Taken off the input before it is cleared (#652): the updater
+              // may run after that, and would add an empty list.
+              const gewaehlt = Array.from(ev.target.files ?? []);
+              setDateien((a) => [...a, ...gewaehlt]);
               ev.target.value = "";
             }}
           />

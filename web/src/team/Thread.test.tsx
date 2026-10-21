@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import Thread from "./Thread";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
@@ -73,5 +73,26 @@ describe("Thread", () => {
     const form = init!.body as FormData;
     expect(form.get("text")).toBe("Hier der Export.");
     expect((form.get("file") as File).name).toBe("export.csv");
+  });
+  it("nimmt eine gewählte Datei auch an, wenn React die Änderung später ausführt (#652)", async () => {
+    mockFetch({
+      [`/api/v1/agents/${AGENT}/thread`]: { entries: [], pending: false, tasks: [], marks: {} },
+      [`/api/v1/agents/${AGENT}`]: { id: AGENT, slug: "ada", display_name: "Ada", status: "sleeping" },
+    });
+    const { container } = renderWithProviders(<Thread agentId={AGENT} me={testPrincipal()} />);
+    await screen.findByText(/Noch nichts mit Ada besprochen/);
+    const eingabe = container.querySelector('input[type="file"]') as HTMLInputElement;
+    // As in a browser: clearing the value empties the file list.
+    const datei = new File(["a,b"], "export.csv", { type: "text/csv" });
+    let geleert = false;
+    Object.defineProperty(eingabe, "files", { configurable: true, get: () => (geleert ? [] : [datei]) });
+    Object.defineProperty(eingabe, "value", { configurable: true, get: () => "", set: () => { geleert = true; } });
+    // A state update already pending in the same batch: React then runs the
+    // file updater later instead of at once — the page's normal case.
+    act(() => {
+      fireEvent.change(container.querySelector(".tm-eingabe textarea")!, { target: { value: "Hier der Export." } });
+      fireEvent.change(eingabe);
+    });
+    expect(await screen.findByText("export.csv")).toBeInTheDocument();
   });
 });
