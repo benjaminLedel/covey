@@ -2711,7 +2711,7 @@
     "einstellenOhne": "à configurer d'abord",
     "einstellenEntwurf": "la recruter d'abord",
     "einstellenLeerTitel": "{{name}} prépare les nouveaux collègues.",
-    "einstellenLeerText": "Décrivez ce que le nouveau collègue doit faire. {{name}} regarde ce qui est connecté ici, demande ce qui manque et prépare une ébauche. Elle apparaît ici avec le chemin vers sa page ; recruter vous revient.",
+    "einstellenLeerText": "Décrivez ce que le nouveau collègue doit faire — ou racontez à {{name}} ce que vous faites dans une semaine ordinaire et laissez-le vous proposer quelqu'un. {{name}} regarde ce qui est connecté ici, demande ce qui manque et prépare une ébauche. Elle apparaît ici avec le chemin vers sa page ; recruter vous revient.",
     "entwurfPruefen": "Vérifier et recruter",
     "eingestellt": "recruté",
     "alleOffenen": "Tous les points ouverts dans la boîte",

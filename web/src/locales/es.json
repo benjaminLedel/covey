@@ -2711,7 +2711,7 @@
     "einstellenOhne": "configurar primero",
     "einstellenEntwurf": "primero contrátela",
     "einstellenLeerTitel": "{{name}} redacta nuevos colegas.",
-    "einstellenLeerText": "Describa qué debe hacer el nuevo colega. {{name}} revisa lo que está conectado aquí, pregunta lo que falta y redacta. El borrador aparece aquí con el camino a su página; contratar es cosa suya.",
+    "einstellenLeerText": "Describa qué debe hacer el nuevo colega, o cuéntele a {{name}} qué hace en una semana normal y deje que le proponga a alguien. {{name}} revisa lo que está conectado aquí, pregunta lo que falta y redacta. El borrador aparece aquí con el camino a su página; contratar es cosa suya.",
     "entwurfPruefen": "Revisar y contratar",
     "eingestellt": "contratado",
     "alleOffenen": "Todos los puntos abiertos en la bandeja",
