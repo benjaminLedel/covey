@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -112,6 +113,31 @@ type runView struct {
 	Had       map[string]string            `json:"had,omitempty"`
 	Vars      map[string]map[string]string `json:"vars,omitempty"`
 	Log       []workflow.Entry             `json:"log,omitempty"`
+	// Parked is set while the colleague on the step waits on a person (#656).
+	Parked *parkedView `json:"parked,omitempty"`
+}
+
+// parkedView is the question the step's task parked on. Asked is empty when
+// the question reaches nobody (an agent without a human supervisor).
+type parkedView struct {
+	TaskID   string    `json:"task_id"`
+	Question string    `json:"question"`
+	Since    time.Time `json:"since"`
+	Asked    string    `json:"asked,omitempty"`
+}
+
+// withParked adds to a working run whether its step waits on a person. A
+// failed read leaves the run as it is: the view is still right, only less
+// telling.
+func (s *Server) withParked(r *http.Request, slug string, run workflow.Run, v runView) runView {
+	p, ok, err := s.Workflows.Parked(r.Context(), principalFrom(r).OrgID, slug, run)
+	if err != nil {
+		slog.Warn("workflow run: reading its parked step failed", "workflow", slug, "run", run.ID, "err", err)
+	}
+	if ok {
+		v.Parked = &parkedView{TaskID: p.TaskID.String(), Question: p.Question, Since: p.Since, Asked: p.Asked}
+	}
+	return v
 }
 
 func viewOf(st workflow.Stored, runs []workflow.Run, full bool) workflowView {
@@ -382,7 +408,7 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 		if openOnly && (run.State == workflow.StateDone || run.State == workflow.StateFailed) {
 			continue
 		}
-		out = append(out, runViewOf(run, false))
+		out = append(out, s.withParked(r, r.PathValue("slug"), run, runViewOf(run, false)))
 	}
 	rank := func(v runView) int {
 		switch {
@@ -420,7 +446,7 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "run not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, runViewOf(run, true))
+	writeJSON(w, http.StatusOK, s.withParked(r, r.PathValue("slug"), run, runViewOf(run, true)))
 }
 
 // handleStartRun — POST /api/v1/workflows/{slug}/runs {case, vars}: start a

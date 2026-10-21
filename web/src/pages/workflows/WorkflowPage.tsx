@@ -232,6 +232,9 @@ function Editor({ me }: { me: Principal }) {
       const step = doc?.blocks[r.step];
       const age = Math.max(0, now - new Date(r.since).getTime());
       const mine = step?.type === "approval" && r.state === "waiting" && namesMe(step.cfg.who, me);
+      // A colleague who parked the step on a question waits on a person, it
+      // is not hung (#656) — unless the question reaches nobody.
+      const parked = r.parked;
       const c: Case = {
         id: r.id,
         no: r.case,
@@ -239,9 +242,17 @@ function Editor({ me }: { me: Principal }) {
         by: r.assignee ?? "",
         since: fmtDelta(age),
         age,
-        state: r.state === "working" ? "working" : r.state === "queued" ? "queued" : "waiting",
-        level: r.stuck || r.unstaffed ? "bad" : mine ? "warn" : "ok",
-        why: r.stuck ? t("workflows.live.whyStuck") : r.unstaffed ? t("workflows.live.whyUnstaffed") : undefined,
+        state: parked ? "waiting" : r.state === "working" ? "working" : r.state === "queued" ? "queued" : "waiting",
+        level: parked ? (parked.asked ? "warn" : "bad") : r.stuck || r.unstaffed ? "bad" : mine ? "warn" : "ok",
+        why: parked
+          ? parked.asked
+            ? t("workflows.live.whyAsked", { name: parked.asked })
+            : t("workflows.live.whyAskedNobody")
+          : r.stuck
+            ? t("workflows.live.whyStuck")
+            : r.unstaffed
+              ? t("workflows.live.whyUnstaffed")
+              : undefined,
         mine,
       };
       (out[r.step] ??= []).push(c);
@@ -365,7 +376,7 @@ function Editor({ me }: { me: Principal }) {
     available,
     exitLabel,
   };
-  const stuck = runs.filter((r) => isOpen(r) && (r.stuck || r.unstaffed)).length;
+  const stuck = runs.filter((r) => isOpen(r) && (r.stuck || r.unstaffed) && !r.parked?.asked).length;
 
   // Where a run waits on a person, the card it puts into their chat.
   let waiting: React.ReactNode = null;
@@ -390,6 +401,21 @@ function Editor({ me }: { me: Principal }) {
             : undefined
         }
       />
+    );
+  } else if (current?.parked) {
+    // The colleague's question, answered in the direct conversation with them.
+    const who = agents.find((a) => a.slug === current.assignee)?.display_name || current.assignee || "";
+    const kind = `${t("workflows.chat.kindQuestion", { name: who })} · ${current.case}`;
+    waiting = current.parked.asked ? (
+      <DecisionCard recipient={current.parked.asked} kind={kind} question={current.parked.question} options={[]} />
+    ) : (
+      <div className="wf-chatcard">
+        <div className="wf-card">
+          <div className="wf-card-kind">{kind}</div>
+          <div className="wf-card-q">{current.parked.question}</div>
+          <div className="wf-card-ctx">{t("workflows.live.whyAskedNobody")}</div>
+        </div>
+      </div>
     );
   }
 

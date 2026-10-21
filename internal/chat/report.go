@@ -17,8 +17,9 @@ import (
  * question it parks on goes to the direct conversation between the agent and
  * its supervisor, because somebody has to answer it. An agent whose
  * supervisor is another agent, or who has none, has nobody to ask in a
- * conversation; the question stays on the task, visible in the backlog and
- * in the inbox.
+ * conversation; the question stays on the task, visible in the backlog, in
+ * the work record and — for a workflow's step — in the run (#656). Not in
+ * the inbox: that holds approvals and proposals only.
  *
  * Both are read as due work from the database, not handed over by the run
  * that ends: a restart between the end of a run and the report must not lose

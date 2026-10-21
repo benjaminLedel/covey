@@ -2029,6 +2029,9 @@ export type WorkflowRun = {
   had?: Record<string, string>;
   vars?: Record<string, Record<string, string>>;
   log?: { at: string; step: string; text: string }[];
+  // The colleague on the step waits on a person's answer (#656); asked is
+  // empty when the question reaches nobody.
+  parked?: { task_id: string; question: string; since: string; asked?: string };
 };
 export type WorkflowApproval = {
   workflow: string;

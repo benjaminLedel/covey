@@ -3503,7 +3503,9 @@
       "groupQueued": "待機列 · 次の分が先頭",
       "groupWaiting": "待機中",
       "whyStuck": "許容時間超過",
-      "whyUnstaffed": "このロールの担当者がいません"
+      "whyUnstaffed": "このロールの担当者がいません",
+      "whyAsked": "{{name}} の回答待ち",
+      "whyAskedNobody": "質問していますが、誰にも届いていません"
     },
     "run": {
       "title": "実行 {{no}}",
@@ -3521,6 +3523,7 @@
     },
     "chat": {
       "kindApproval": "承認",
+      "kindQuestion": "{{name}} からの質問",
       "decidedAs": "判断:{{choice}}。",
       "previewOf": "{{name}} さんのチャットではこう表示されます",
       "digestKind": "サマリー · 1日1回",
