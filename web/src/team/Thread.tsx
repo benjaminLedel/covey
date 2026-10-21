@@ -757,7 +757,10 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
             multiple
             hidden
             onChange={(ev) => {
-              setAnhaenge((a) => [...a, ...Array.from(ev.target.files ?? [])]);
+              // Taken off the input before it is cleared (#652): the updater
+              // may run after that, and would add an empty list.
+              const gewaehlt = Array.from(ev.target.files ?? []);
+              setAnhaenge((a) => [...a, ...gewaehlt]);
               ev.target.value = "";
             }}
           />
