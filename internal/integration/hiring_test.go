@@ -496,3 +496,55 @@ func sortedFileNames(files map[string]string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// TestEinGezeichneterKollegeHatEinenPlatz is #648: a colleague the HR agent
+// drafted had no seat, was hired, and every wake was refused for a missing
+// credential while the chat said its workplace was starting. Drafted by the
+// agent it now sits on its engine's default seat; a draft without one — made
+// before — gets it when it is hired.
+func TestEinGezeichneterKollegeHatEinenPlatz(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	drafter, err := s.registry.Create(ctx, s.orgID, "personal-648", "Personal", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, drafter.ID, map[string]string{
+		"SOUL.md":   "# Personal",
+		"ACCESS.md": "- system: covey scope: agents:write",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.backlog.Create(ctx, s.orgID, drafter.ID, "Entwerfen",
+		`[mock:action covey/create_agent {"display_name":"Platzkollege","slug":"platzkollege","runtime":"mock"}]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 30*time.Second, func() bool {
+		st := s.taskState(task.ID)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+	gezeichnet, err := s.registry.GetBySlug(ctx, s.orgID, "platzkollege")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gezeichnet.RuntimeID == nil {
+		t.Fatal("a colleague drafted by the HR agent has to sit on its engine's seat")
+	}
+
+	// A draft without a seat — as the HR agent made them before — gets one
+	// when it is hired.
+	alt, err := s.registry.CreateDraft(ctx, s.orgID, "ohne-platz", "Ohne Platz", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alt.RuntimeID != nil {
+		t.Fatalf("the old way left the seat empty: %v", alt.RuntimeID)
+	}
+	admin := teamLogin(t, s)
+	admin.expect(http.MethodPost, "/api/v1/agents/"+alt.ID.String()+"/hire", nil, http.StatusOK)
+	if got, _ := s.registry.Get(ctx, alt.ID); got.RuntimeID == nil {
+		t.Fatal("hiring has to put the agent on a seat")
+	}
+}

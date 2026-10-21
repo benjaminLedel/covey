@@ -365,6 +365,25 @@ func (o *Orchestrator) hiringTargets(ctx context.Context, agent agents.Agent) ma
 	return map[string]any{"systems": out, "engines": engines}
 }
 
+// hiringSeat puts a drafted colleague on its engine's default seat (#648), as
+// the console and the import do (httpapi.attachDefaultRuntime). Without a
+// seat every wake is refused for a missing credential: the colleague was
+// hired, the chat said its workplace was starting, and nothing ever ran.
+// Best effort — a draft without a seat is still a draft, and hiring tries
+// again.
+func (o *Orchestrator) hiringSeat(ctx context.Context, orgID uuid.UUID, created agents.Agent) {
+	if o.Runtimes == nil || created.Runtime == "" {
+		return
+	}
+	rt, err := o.Runtimes.EnsureDefault(ctx, orgID, created.Runtime)
+	if err == nil {
+		err = o.Runtimes.Assign(ctx, orgID, created.ID, rt.ID)
+	}
+	if err != nil {
+		o.Log.Warn("hiring: no seat for the draft — hiring will try again", "agent", created.Slug, "err", err)
+	}
+}
+
 func (o *Orchestrator) hiringGetConfig(ctx context.Context, agent agents.Agent, req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
@@ -418,6 +437,7 @@ func (o *Orchestrator) hiringCreateAgent(ctx context.Context, agent agents.Agent
 		}
 	}
 	o.hiringPlace(ctx, agent, created, req)
+	o.hiringSeat(ctx, agent.OrgID, created)
 
 	// Provenance, written by the platform: the interface finds the draft through
 	// this instead of trusting a model to hand back an ID whose format it also
