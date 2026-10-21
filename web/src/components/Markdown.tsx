@@ -236,6 +236,10 @@ export function Markdown({
     const isOl = /^\s*\d+\.\s+/.test(line);
     if (isUl || isOl) {
       const items: ReactNode[] = [];
+      /* The number the list begins with (#644): an empty line between the
+         items ends a list, and the next one would count from 1 again — "2."
+         read as a second "1.". */
+      const start = isOl ? Number(/^\s*(\d+)\./.exec(line)![1]) : 1;
       while (i < lines.length && (isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/).test(lines[i])) {
         const item = lines[i].replace(isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/, "");
         /* A task item ("- [ ] …", "- [x] …"): a meeting summary's action items
@@ -256,7 +260,7 @@ export function Markdown({
       }
       blocks.push(
         isUl ? <ul key={key++} className="md-list">{items}</ul>
-        : <ol key={key++} className="md-list">{items}</ol>,
+        : <ol key={key++} className="md-list" start={start !== 1 ? start : undefined}>{items}</ol>,
       );
       continue;
     }

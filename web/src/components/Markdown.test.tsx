@@ -115,4 +115,11 @@ describe("Tabellen", () => {
     expect(container.querySelector(".md-callout")?.textContent).toContain("Erst prüfen");
     expect(container.querySelector("blockquote")?.textContent).toBe("Ein Zitat");
   });
+  it("keeps the number a list begins with after an empty line (#644)", () => {
+    const { container } = render(<Markdown text={"1. Erste Kollegin\n\n2. Zweite Kollegin"} />);
+    const lists = container.querySelectorAll("ol");
+    expect(lists).toHaveLength(2);
+    expect(lists[0].getAttribute("start")).toBeNull();
+    expect(lists[1].getAttribute("start")).toBe("2");
+  });
 });

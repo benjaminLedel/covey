@@ -594,7 +594,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                 {/* The drafts a hiring task produced: the colleague as a card,
                     and the way to the page where hiring is (#327). Read off
                     the recording, not off her report. */}
-                {e.kind === "result" && e.drafts && e.drafts.length > 0 && (
+                {(e.kind === "result" || e.kind === "question") && e.drafts && e.drafts.length > 0 && (
                   <ul className="tm-entwuerfe">
                     {e.drafts.map((d) => (
                       <li key={d.id} className={`tm-entwurf${d.hired_at ? " eingestellt" : ""}`}>

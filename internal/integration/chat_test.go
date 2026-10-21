@@ -593,6 +593,30 @@ func TestHiringIsADialogueInTheThread(t *testing.T) {
 		 VALUES ($1,$2,$3,'lifecycle',$4,now())`, s.orgID, people.ID, task.ID, roh); err != nil {
 		t.Fatal(err)
 	}
+
+	// 4a. She asks one more thing in the run that drafted (#645): the card
+	//     stands on that question, the latest entry — not on the first one.
+	if _, err := s.backlog.Block(ctx, task.ID, "takt", "sitzung-1", "Shall she report every Monday, or only when you ask?"); err != nil {
+		t.Fatal(err)
+	}
+	s.srv.Nacherzaehlen(ctx)
+	var fragen []map[string]any
+	for _, e := range admin.expect(http.MethodGet, base+"/thread", nil, http.StatusOK)["entries"].([]any) {
+		if m := e.(map[string]any); m["kind"] == "question" {
+			fragen = append(fragen, m)
+		}
+	}
+	if len(fragen) != 2 || fragen[0]["drafts"] != nil {
+		t.Fatalf("two questions, the first without a card: %v", fragen)
+	}
+	if d, _ := fragen[1]["drafts"].([]any); len(d) != 1 || d[0].(map[string]any)["id"] != entwurf.ID.String() {
+		t.Fatalf("the draft belongs to the question its run ended with: %v", fragen[1]["drafts"])
+	}
+	admin.expect(http.MethodPost, "/api/v1/tasks/"+taskID+"/reply", map[string]any{"text": "Every Monday."}, http.StatusOK)
+	if _, err := s.backlog.ClaimNext(ctx, people.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := s.backlog.Complete(ctx, task.ID, backlog.StateDone,
 		"Drafted Support-1 (support-1): first-level triage in the ticket system. Access requested: zammad read.", ""); err != nil {
 		t.Fatal(err)
