@@ -3503,7 +3503,9 @@
       "groupQueued": "W kolejce · najpierw następne",
       "groupWaiting": "Oczekujące",
       "whyStuck": "dłużej niż dozwolone",
-      "whyUnstaffed": "nikt nie ma tej roli"
+      "whyUnstaffed": "nikt nie ma tej roli",
+      "whyAsked": "czeka na odpowiedź od {{name}}",
+      "whyAskedNobody": "pyta, ale pytanie nie trafia do nikogo"
     },
     "run": {
       "title": "Uruchomienie {{no}}",
@@ -3521,6 +3523,7 @@
     },
     "chat": {
       "kindApproval": "Zatwierdzenie",
+      "kindQuestion": "Pytanie od {{name}}",
       "decidedAs": "Rozstrzygnięto: {{choice}}.",
       "previewOf": "Tak wygląda to na czacie {{name}}",
       "digestKind": "Podsumowanie · raz dziennie",

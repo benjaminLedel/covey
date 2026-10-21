@@ -3503,7 +3503,9 @@
       "groupQueued": "In de wachtrij · volgende eerst",
       "groupWaiting": "Wachtend",
       "whyStuck": "langer dan toegestaan",
-      "whyUnstaffed": "niemand heeft de rol"
+      "whyUnstaffed": "niemand heeft de rol",
+      "whyAsked": "wacht op antwoord van {{name}}",
+      "whyAskedNobody": "vraagt, maar de vraag bereikt niemand"
     },
     "run": {
       "title": "Run {{no}}",
@@ -3521,6 +3523,7 @@
     },
     "chat": {
       "kindApproval": "Goedkeuring",
+      "kindQuestion": "Vraag van {{name}}",
       "decidedAs": "Besloten: {{choice}}.",
       "previewOf": "Zo staat het in de chat van {{name}}",
       "digestKind": "Samenvatting · één keer per dag",

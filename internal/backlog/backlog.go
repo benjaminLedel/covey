@@ -829,6 +829,52 @@ func (s *Store) CancelByOrigin(ctx context.Context, orgID uuid.UUID, origin, not
 	return n, nil
 }
 
+// Parked is a task that waits on a person: its question and who gets it.
+type Parked struct {
+	TaskID   uuid.UUID
+	Question string
+	Since    time.Time
+	// Asked is the human the question goes to — the agent's supervisor, in
+	// their direct conversation (chat.DueQuestions). Empty when the agent has
+	// no human supervisor: then the question reaches nobody.
+	Asked string
+}
+
+// ParkedByOrigin reads the parked task one origin handed out, following the
+// continuations it was carried on in, as CancelByOrigin does. A workflow run
+// learns of its step's task only when it ends (#656); this is how its view
+// says that the step waits on a person instead of looking hung.
+func (s *Store) ParkedByOrigin(ctx context.Context, orgID uuid.UUID, origin string) (Parked, bool, error) {
+	var p Parked
+	err := s.pool.QueryRow(ctx, `WITH RECURSIVE chain AS (
+			SELECT id, state FROM backlog_tasks WHERE org_id = $1 AND origin = $2
+			UNION ALL
+			SELECT t.id, t.state FROM backlog_tasks t JOIN chain c ON t.parent_task_id = c.id
+			WHERE t.origin LIKE 'continuation:%'
+		)
+		SELECT t.id,
+		       trim(regexp_replace(coalesce(tr.note, ''), '^blocked:', '')),
+		       tr.created_at,
+		       coalesce(h.display_name, '')
+		  FROM chain c
+		  JOIN backlog_tasks t ON t.id = c.id
+		  JOIN agents a ON a.id = t.agent_id
+		  LEFT JOIN humans h ON h.id = a.supervisor_id AND h.org_id = t.org_id
+		  JOIN LATERAL (SELECT note, created_at FROM task_transitions
+		                 WHERE task_id = t.id AND to_state = 'blocked'
+		                 ORDER BY id DESC LIMIT 1) tr ON true
+		 WHERE c.state = 'blocked'
+		 ORDER BY tr.created_at DESC
+		 LIMIT 1`, orgID, origin).Scan(&p.TaskID, &p.Question, &p.Since, &p.Asked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Parked{}, false, nil
+	}
+	if err != nil {
+		return Parked{}, false, err
+	}
+	return p, true, nil
+}
+
 // CorrelateWake is the blocked→working edge (M4): an incoming event with a
 // correlation key reopens the parked task with resume input and wakes the
 // agent. Returns ErrNotFound if nothing is waiting on the key.

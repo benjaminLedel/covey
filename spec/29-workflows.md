@@ -211,6 +211,13 @@ a wait past its `max` by its timeout exit (or its only exit, for a plain delay),
 ends an approval past its `wait` by its timeout exit, and retries required steps
 that found nobody.
 
+A colleague who parks the step's task on a question keeps the run *working* —
+the engine hears of the task only when it ends. The run's view reads the parked
+task from the backlog instead: the question, since when, and who gets it (the
+agent's human supervisor, in their direct conversation), or that it reaches
+nobody. The live view shows such a case as waiting on that person, not as stuck
+(#656).
+
 A loop is counted by the condition that sends the case back: with `max_rounds: 3`
 the case goes back twice; the third time the condition takes its `limit` exit.
 

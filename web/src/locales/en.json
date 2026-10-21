@@ -3503,7 +3503,9 @@
       "groupQueued": "Queued · next one first",
       "groupWaiting": "Waiting",
       "whyStuck": "longer than allowed",
-      "whyUnstaffed": "nobody holds the role"
+      "whyUnstaffed": "nobody holds the role",
+      "whyAsked": "waiting for an answer from {{name}}",
+      "whyAskedNobody": "asks, but the question reaches nobody"
     },
     "run": {
       "title": "Run {{no}}",
@@ -3521,6 +3523,7 @@
     },
     "chat": {
       "kindApproval": "Approval",
+      "kindQuestion": "Question from {{name}}",
       "decidedAs": "Decided: {{choice}}.",
       "previewOf": "This is how it lies in {{name}}'s chat",
       "digestKind": "Summary · once a day",

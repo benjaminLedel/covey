@@ -3503,7 +3503,9 @@
       "groupQueued": "排队中 · 下一个优先",
       "groupWaiting": "等待中",
       "whyStuck": "超出允许时间",
-      "whyUnstaffed": "没有人担任此角色"
+      "whyUnstaffed": "没有人担任此角色",
+      "whyAsked": "等待 {{name}} 回复",
+      "whyAskedNobody": "提出了问题，但没有人收到"
     },
     "run": {
       "title": "运行 {{no}}",
@@ -3521,6 +3523,7 @@
     },
     "chat": {
       "kindApproval": "审批",
+      "kindQuestion": "来自 {{name}} 的问题",
       "decidedAs": "已决定:{{choice}}。",
       "previewOf": "在 {{name}} 的聊天中显示如下",
       "digestKind": "摘要 · 每天一次",

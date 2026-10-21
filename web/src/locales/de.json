@@ -3503,7 +3503,9 @@
       "groupQueued": "Warteschlange · der älteste zuerst",
       "groupWaiting": "Wartet auf jemanden",
       "whyStuck": "länger als erlaubt",
-      "whyUnstaffed": "niemand hat die Rolle"
+      "whyUnstaffed": "niemand hat die Rolle",
+      "whyAsked": "wartet auf Antwort von {{name}}",
+      "whyAskedNobody": "fragt, aber die Frage erreicht niemanden"
     },
     "run": {
       "title": "Vorgang {{no}}",
@@ -3521,6 +3523,7 @@
     },
     "chat": {
       "kindApproval": "Freigabe",
+      "kindQuestion": "Frage von {{name}}",
       "decidedAs": "Entschieden: {{choice}}.",
       "previewOf": "So sieht es im Chat von {{name}} aus",
       "digestKind": "Tägliche Zusammenfassung",

@@ -271,3 +271,53 @@ func TestAWorkflowIsCreatedAsANewOneAndAddressedByItsID(t *testing.T) {
 		t.Fatalf("the approval does not name the workflow's id: %v", mine)
 	}
 }
+
+// TestARunSaysThatItsStepWaitsOnAPerson (#656): a colleague who parks the
+// step's task on a question leaves the run working; the run says so, with
+// the question and who gets it — nobody while the agent has no human
+// supervisor, the supervisor once it has one.
+func TestARunSaysThatItsStepWaitsOnAPerson(t *testing.T) {
+	s := newStack(t)
+	builder := s.newSupportAgent("builder")
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	adaID := s.mitglied(t, "ada@test.local", "Ada", "auditor", "ada-passwort")
+	admin.expect(http.MethodPut, "/api/v1/workflows/asks", map[string]string{"source": fmt.Sprintf(deletableWorkflow, "steer",
+		"Build [mock:block key=wf:asks:c1 question=Darf ich das Issue zurückgeben?]")}, http.StatusOK)
+
+	run := admin.expect(http.MethodPost, "/api/v1/workflows/asks/runs", map[string]any{"case": "c1"}, http.StatusCreated)
+	path := "/api/v1/workflows/asks/runs/" + run["id"].(string)
+	parked := func() map[string]any {
+		p, _ := admin.expect(http.MethodGet, path, nil, http.StatusOK)["parked"].(map[string]any)
+		return p
+	}
+	waitForOr(t, "the step to park on its question", 30*time.Second, func() bool { return parked() != nil },
+		func() string { return fmt.Sprint(admin.expect(http.MethodGet, path, nil, http.StatusOK)) })
+
+	got := admin.expect(http.MethodGet, path, nil, http.StatusOK)
+	p := got["parked"].(map[string]any)
+	if got["state"] != "working" || p["question"] != "Darf ich das Issue zurückgeben?" || p["task_id"] == "" || p["since"] == "" {
+		t.Fatalf("parked run: %v", got)
+	}
+	if _, asked := p["asked"]; asked {
+		t.Fatalf("without a human supervisor nobody gets the question, the run says %v", p["asked"])
+	}
+
+	if _, err := s.pool.Exec(context.Background(), `UPDATE agents SET supervisor_id=$2 WHERE id=$1`, builder.ID, adaID); err != nil {
+		t.Fatal(err)
+	}
+	if p := parked(); p["asked"] != "Ada" {
+		t.Fatalf("with Ada as supervisor: %v", p)
+	}
+	list := admin.expectList(http.MethodGet, "/api/v1/workflows/asks/runs", nil, http.StatusOK)
+	if len(list) != 1 || list[0]["parked"] == nil {
+		t.Fatalf("the list does not say it: %v", list)
+	}
+
+	// Answered, the task is no longer parked, and the run no longer says so.
+	if _, err := s.pool.Exec(context.Background(), `UPDATE backlog_tasks SET state='in_progress' WHERE agent_id=$1`, builder.ID); err != nil {
+		t.Fatal(err)
+	}
+	if p := parked(); p != nil {
+		t.Fatalf("an answered step still reads as parked: %v", p)
+	}
+}

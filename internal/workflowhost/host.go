@@ -313,6 +313,20 @@ func (h *Host) Runs(orgID uuid.UUID, slug string) []workflow.Run {
 	return runs
 }
 
+// Parked says whether the colleague working on a run's step waits on a
+// person's answer (#656). The engine hears of the step's task only when it
+// ends, so the view asks the backlog.
+func (h *Host) Parked(ctx context.Context, orgID uuid.UUID, slug string, run workflow.Run) (backlog.Parked, bool, error) {
+	if run.State != workflow.StateWorking || h.Backlog == nil {
+		return backlog.Parked{}, false, nil
+	}
+	_, st, ok := h.Engine(orgID, slug)
+	if !ok {
+		return backlog.Parked{}, false, nil
+	}
+	return h.Backlog.ParkedByOrigin(ctx, orgID, origin(st.ID, run.ID, run.Step))
+}
+
 func (h *Host) now() time.Time {
 	if h.Now != nil {
 		return h.Now()
