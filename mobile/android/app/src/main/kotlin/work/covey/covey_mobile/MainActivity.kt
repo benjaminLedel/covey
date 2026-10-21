@@ -19,6 +19,9 @@ class MainActivity : FlutterActivity() {
     // instance, and the thread a tapped notification opens — the same
     // channel as on the iPhone.
     private var push: MethodChannel? = null
+
+    // An audio file transcribed into a note (#634).
+    private var audioFiles: AudioFileDecoder? = null
     private var pendingPermission: MethodChannel.Result? = null
 
     // The agent of a notification tapped while the app was not running.
@@ -38,6 +41,13 @@ class MainActivity : FlutterActivity() {
         push = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "covey/push").also {
             it.setMethodCallHandler(::handle)
         }
+        audioFiles = AudioFileDecoder(flutterEngine.dartExecutor.binaryMessenger)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        audioFiles?.dispose()
+        audioFiles = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -5,8 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../chrome.dart';
 import '../api.dart';
+import '../audio_file.dart';
+import '../chrome.dart';
 import '../prefs.dart';
 import '../diarize.dart';
 import '../dictation.dart';
@@ -1144,72 +1145,12 @@ class _MeetingScreenState extends State<MeetingScreen> {
   /// The transcript by speaker: consecutive segments of one speaker form one
   /// turn. [live] adds what is being spoken now.
   List<({String key, String text})> _turns({required bool live}) {
-    final out = <({String key, String text})>[];
-    void add(String key, String text) {
-      if (text.isEmpty) return;
-      if (out.isNotEmpty && out.last.key == key) {
-        out[out.length - 1] = (key: key, text: '${out.last.text} $text');
-      } else {
-        out.add((key: key, text: text));
-      }
-    }
-
-    for (final s in _segments) {
-      add(s.key, s.text);
-    }
-    if (live) {
-      final others = _others;
-      if (others != null) add(_liveKey(false), _live(others, false));
-      add(_liveKey(true), _live(_dictation, true));
-    }
-    return out;
-  }
-
-  /// Names for the voices, each shown with their first words; left empty, a
-  /// voice keeps its number.
-  Future<void> _nameSpeakers() async {
-    final keys = {
-      for (final s in _segments)
-        if (s.key != 'me') s.key,
-    }.toList()..sort();
-    if (keys.isEmpty) return;
-    final fields = {for (final k in keys) k: TextEditingController()};
-    final first = {for (final k in keys) k: _segments.firstWhere((s) => s.key == k).text};
-    final t = context.t;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(t('mobile.sprecherBenennen')),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(t('mobile.sprecherBenennenHinweis'), style: context.type.bodySmall),
-              for (final k in keys) ...[
-                const SizedBox(height: 14),
-                TextField(
-                  controller: fields[k],
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    labelText: t('mobile.sprecherN', args: {'n': k.substring(1)}),
-                    helperText: '„${first[k]!.length > 70 ? '${first[k]!.substring(0, 70)}…' : first[k]}“',
-                    helperMaxLines: 2,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [FilledButton(onPressed: () => Navigator.pop(context), child: Text(t('mobile.speichern')))],
-      ),
-    );
-    for (final k in keys) {
-      final name = fields[k]!.text.trim();
-      if (name.isNotEmpty) _names[k] = name;
-      fields[k]!.dispose();
-    }
+    final others = _others;
+    return joinTurns([
+      for (final s in _segments) (key: s.key, text: s.text),
+      if (live && others != null) (key: _liveKey(false), text: _live(others, false)),
+      if (live) (key: _liveKey(true), text: _live(_dictation, true)),
+    ]);
   }
 
   Future<void> _stop() async {
@@ -1220,9 +1161,9 @@ class _MeetingScreenState extends State<MeetingScreen> {
     await others?.stop();
     if (!mounted) return;
     if (_labelled && _segments.isNotEmpty) {
-      await _nameSpeakers();
+      _names.addAll(await askSpeakerNames(context, [for (final s in _segments) (key: s.key, text: s.text)]));
       if (!mounted) return;
-      text = [for (final t in _turns(live: false)) '**${_label(t.key)}:** ${t.text}'].join('\n\n');
+      text = meetingBody(_turns(live: false), _label);
     }
     if (!mounted) return;
     final nav = Navigator.of(context);
@@ -1322,6 +1263,323 @@ class _MeetingScreenState extends State<MeetingScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// An audio file transcribed into a meeting note (#634): a recording made
+/// elsewhere — a voice memo, a call, an interview — runs through the same
+/// recognition and speaker separation as a recorded meeting, with its
+/// progress through the file on screen and a way to cancel. The result is
+/// saved like a meeting, so it can be summarised where the instance offers
+/// it. The audio is neither uploaded nor kept: a picker's copy is removed
+/// once the run ends, whatever its outcome.
+class AudioFileScreen extends StatefulWidget {
+  const AudioFileScreen({super.key, required this.api, required this.path, required this.name, this.transcription});
+
+  final CoveyApi api;
+
+  /// The picked file, where it lies (on iOS and Android the picker's copy).
+  final String path;
+
+  /// The file's name, which becomes the note's title without its extension.
+  final String name;
+
+  /// A test's stand-in for decoder and recogniser.
+  final AudioFileTranscription? transcription;
+
+  @override
+  State<AudioFileScreen> createState() => _AudioFileScreenState();
+}
+
+class _AudioFileScreenState extends State<AudioFileScreen> {
+  late final AudioFileTranscription _job =
+      widget.transcription ?? AudioFileTranscription(api: widget.api, path: widget.path);
+  final _names = <String, String>{};
+  bool _done = false;
+  bool _saving = false;
+  bool _saveFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _job.addListener(_changed);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _job.removeListener(_changed);
+    // Leaving the screen ends the run; it cleans up after itself.
+    _job.cancel();
+    super.dispose();
+  }
+
+  Future<void> _run() async {
+    bool ok;
+    try {
+      ok = await _job.run();
+    } finally {
+      await discardPickedCopy(widget.path);
+    }
+    if (!mounted || _job.cancelled) return;
+    setState(() => _done = true);
+    if (ok) await _save();
+  }
+
+  String _label(String key) => _names[key] ?? context.t('mobile.sprecherN', args: {'n': key.substring(1)});
+
+  bool get _labelled => _job.segments.map((s) => s.key).toSet().length > 1;
+
+  String get _title {
+    final dot = widget.name.lastIndexOf('.');
+    return dot > 0 ? widget.name.substring(0, dot) : widget.name;
+  }
+
+  Future<void> _save() async {
+    var text = _job.segments.map((s) => s.text).join(' ');
+    if (_labelled && !_saveFailed) {
+      _names.addAll(await askSpeakerNames(context, _job.segments));
+      if (!mounted) return;
+    }
+    if (_labelled) text = meetingBody(joinTurns(_job.segments), _label);
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    if (text.trim().isEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(context.t('mobile.nichtsErkannt'))));
+      nav.pop();
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final n = await widget.api.createNote(
+        kind: 'meeting',
+        title: _title,
+        body: text,
+        durationSeconds: _job.duration.inSeconds,
+      );
+      nav.pop(n);
+    } on ApiException catch (e) {
+      // The transcript stays on screen and can be saved again.
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      setState(() {
+        _saving = false;
+        _saveFailed = true;
+      });
+    }
+  }
+
+  void _cancel() {
+    _job.cancel();
+    Navigator.of(context).pop();
+  }
+
+  String? _failure(BuildContext context) {
+    if (!_done || _saveFailed) return null;
+    if (_job.unsupported != null) return context.t('mobile.audioDateiNichtLesbar');
+    if (_job.failure != null) return dictationFailure(context, _job.failure, _job.detail);
+    final d = _job.detail;
+    if (d != null) return context.t('mobile.audioDateiFehler', args: {'error': d});
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final failed = _failure(context);
+    final d = _job.dictation;
+    final progress = _job.progress;
+    final transcript = _job.segments.map((s) => s.text).join(' ');
+    return Scaffold(
+      appBar: ChromeAppBar(title: Text(context.t('mobile.audioDatei'))),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(widget.name, style: context.type.titleLarge, maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 12),
+              if (failed != null)
+                Text(failed, style: context.type.bodyLarge?.copyWith(color: c.textDanger))
+              else ...[
+                // How far into the file, against its length: the screen's
+                // one large thing, as the clock is in a meeting.
+                Text(
+                  _job.duration == Duration.zero
+                      ? _duration(_job.position.inSeconds)
+                      : '${_duration(_job.position.inSeconds)} / ${_duration(_job.duration.inSeconds)}',
+                  style: context.type.headlineMedium?.copyWith(
+                    fontSize: 40,
+                    letterSpacing: -1.5,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: d != null && d.preparing ? d.progress : progress,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  d != null && d.preparing
+                      ? modelLoadingText(context, d)
+                      : _job.running && d != null && d.running
+                      ? '${context.t('mobile.audioDateiLaeuft')}${progress == null ? '' : ' · ${(progress * 100).floor()} %'}'
+                      : context.t('common.loading'),
+                  style: context.type.labelLarge?.copyWith(color: c.textSecondary),
+                ),
+                const SizedBox(height: 14),
+                Text(context.t('mobile.audioDateiHinweis'), style: context.type.bodySmall),
+              ],
+              const SizedBox(height: 20),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(20)),
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    child: !_labelled
+                        ? Text(
+                            transcript.isEmpty ? context.t('mobile.nochNichtsGehoert') : transcript,
+                            style: context.type.bodyLarge?.copyWith(
+                              color: transcript.isEmpty ? c.textMuted : c.textPrimary,
+                            ),
+                          )
+                        : _Turns(turns: joinTurns(_job.segments), label: _label),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_saveFailed)
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: Icon(AppIcons.save.of(context)),
+                  label: Text(context.t('mobile.speichern')),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
+                )
+              else if (failed != null)
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
+                  child: Text(context.t('mobile.fertig')),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: _saving || _done ? null : _cancel,
+                  icon: Icon(AppIcons.stop.of(context)),
+                  label: Text(context.t('team.abbrechen')),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56), shape: const StadiumBorder()),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Consecutive segments of one speaker as one turn (#364, #367); empty
+/// segments drop out.
+List<({String key, String text})> joinTurns(Iterable<({String key, String text})> segments) {
+  final out = <({String key, String text})>[];
+  for (final s in segments) {
+    if (s.text.isEmpty) continue;
+    if (out.isNotEmpty && out.last.key == s.key) {
+      out[out.length - 1] = (key: s.key, text: '${out.last.text} ${s.text}');
+    } else {
+      out.add(s);
+    }
+  }
+  return out;
+}
+
+/// A meeting note's text: each turn a paragraph that begins with who spoke,
+/// in bold — the shape a recorded meeting and a transcribed audio file
+/// (#634) share, and the one the instance summarises.
+String meetingBody(List<({String key, String text})> turns, String Function(String key) label) =>
+    [for (final t in turns) '**${label(t.key)}:** ${t.text}'].join('\n\n');
+
+/// Names for the voices, each shown with their first words; left empty, a
+/// voice keeps its number. The person's own side (`me`) is not asked for.
+Future<Map<String, String>> askSpeakerNames(BuildContext context, List<({String key, String text})> segments) async {
+  final keys = {
+    for (final s in segments)
+      if (s.key != 'me') s.key,
+  }.toList()..sort();
+  if (keys.isEmpty) return {};
+  final first = {for (final k in keys) k: segments.firstWhere((s) => s.key == k).text};
+  final names = await showDialog<Map<String, String>>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => _SpeakerNames(first: first),
+  );
+  return names ?? {};
+}
+
+/// The dialog of [askSpeakerNames]. It owns its fields, so they live until
+/// the dialog has finished closing.
+class _SpeakerNames extends StatefulWidget {
+  const _SpeakerNames({required this.first});
+
+  /// Each voice's first words, by key.
+  final Map<String, String> first;
+
+  @override
+  State<_SpeakerNames> createState() => _SpeakerNamesState();
+}
+
+class _SpeakerNamesState extends State<_SpeakerNames> {
+  late final _fields = {for (final k in widget.first.keys) k: TextEditingController()};
+
+  @override
+  void dispose() {
+    for (final f in _fields.values) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    return AlertDialog(
+      title: Text(t('mobile.sprecherBenennen')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t('mobile.sprecherBenennenHinweis'), style: context.type.bodySmall),
+            for (final MapEntry(key: k, value: first) in widget.first.entries) ...[
+              const SizedBox(height: 14),
+              TextField(
+                controller: _fields[k],
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: t('mobile.sprecherN', args: {'n': k.substring(1)}),
+                  helperText: '„${first.length > 70 ? '${first.substring(0, 70)}…' : first}“',
+                  helperMaxLines: 2,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context, {
+            for (final e in _fields.entries)
+              if (e.value.text.trim().isNotEmpty) e.key: e.value.text.trim(),
+          }),
+          child: Text(t('mobile.speichern')),
+        ),
+      ],
     );
   }
 }

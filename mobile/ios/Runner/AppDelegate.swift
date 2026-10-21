@@ -23,6 +23,9 @@ import UserNotifications
   /// The agent of a notification tapped before Dart was listening — the
   /// app was started by the tap.
   private var launchAgent: String?
+  /// An audio file transcribed into a note (#634): decoded here, recognised
+  /// in Dart like a meeting (mobile/darwin/AudioFileDecoder.swift).
+  private var audioFiles: AudioFileDecoder?
 
   override func application(
     _ application: UIApplication,
@@ -39,6 +42,9 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let files = engineBridge.pluginRegistry.registrar(forPlugin: "CoveyAudioFile") {
+      audioFiles = AudioFileDecoder(messenger: files.messenger())
+    }
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "CoveyPush") else { return }
     let channel = FlutterMethodChannel(name: "covey/push", binaryMessenger: registrar.messenger())
     channel.setMethodCallHandler { [weak self] call, result in
