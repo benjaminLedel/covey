@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import Thread from "./Thread";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
@@ -51,5 +51,27 @@ describe("Thread", () => {
     const { container } = renderWithProviders(<Thread agentId={AGENT} me={testPrincipal()} />);
     expect(await screen.findByText(/Ada ist gestoppt/)).toBeInTheDocument();
     expect((container.querySelector(".tm-eingabe") as HTMLElement).hidden).toBe(true);
+  });
+  it("schickt eine angehängte Datei mit der Nachricht ab (#647)", async () => {
+    mockFetch({
+      [`/api/v1/agents/${AGENT}/thread`]: { entries: [], pending: false, tasks: [], marks: {} },
+      [`/api/v1/agents/${AGENT}`]: { id: AGENT, slug: "ada", display_name: "Ada", status: "sleeping" },
+      [`POST /api/v1/agents/${AGENT}/messages`]: { message: { id: "m1" } },
+    });
+    const { container } = renderWithProviders(<Thread agentId={AGENT} me={testPrincipal()} />);
+    await screen.findByText(/Noch nichts mit Ada besprochen/);
+    const datei = new File(["id,title\n1,Login"], "export.csv", { type: "text/csv" });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [datei] } });
+    fireEvent.change(container.querySelector(".tm-eingabe textarea")!, { target: { value: "Hier der Export." } });
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+
+    const fetchMock = vi.mocked(fetch);
+    const gesendet = () => fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/messages") && init?.method === "POST");
+    await waitFor(() => expect(gesendet()).toBeDefined());
+    const [, init] = gesendet()!;
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init!.body as FormData;
+    expect(form.get("text")).toBe("Hier der Export.");
+    expect((form.get("file") as File).name).toBe("export.csv");
   });
 });

@@ -216,9 +216,12 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
      what the agent reads of the message names the path. The Files tab's
      upload was the way before; it needs the manage role, which a person who
      may only chat does not have. */
+  /* Text and files travel as the mutation's variables (#647): onMutate
+     clears the composer, and a mutationFn that read the files from the
+     component state sent whatever the next render held — nothing. */
   const neu = useMutation({
-    mutationFn: async (nachricht: string) =>
-      api(`/agents/${agentId}/messages`, { method: "POST", body: chatMessageBody(nachricht, anhaenge) }),
+    mutationFn: async ({ nachricht, dateien }: { nachricht: string; dateien: File[] }) =>
+      api(`/agents/${agentId}/messages`, { method: "POST", body: chatMessageBody(nachricht, dateien) }),
     /* Die eigene Nachricht steht im Verlauf, bevor der Server sie bestätigt
        hat. Das ist keine Beschönigung: Sie IST abgeschickt, und ob ein Chat
        sich anfühlt wie ein Chat, entscheidet sich genau hier — an dem
@@ -226,10 +229,9 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
    
        Scheitert das Abschicken, wird der vorherige Stand zurückgelegt und der
        Text steht wieder im Feld: nichts verschwindet stillschweigend. */
-    onMutate: async (nachricht: string) => {
+    onMutate: async ({ nachricht, dateien }: { nachricht: string; dateien: File[] }) => {
       await qc.cancelQueries({ queryKey: ["thread", agentId] });
       const vorher = qc.getQueryData<Verlauf>(["thread", agentId]);
-      const dateien = anhaenge;
       qc.setQueryData<Verlauf>(["thread", agentId], (alt) => ({
         entries: [
           ...(alt?.entries ?? []),
@@ -331,7 +333,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
   const grenze = attachmentLimit(t, anhaenge);
   const abschicken = () => {
     const n = text.trim();
-    if ((n || anhaenge.length > 0) && !grenze && !neu.isPending) neu.mutate(n);
+    if ((n || anhaenge.length > 0) && !grenze && !neu.isPending) neu.mutate({ nachricht: n, dateien: anhaenge });
   };
 
   return (
