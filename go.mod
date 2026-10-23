@@ -19,7 +19,7 @@ require (
 )
 
 require (
-	github.com/benjaminLedel/covey-plugin-pack v0.28.0
+	github.com/benjaminLedel/covey-plugin-pack v0.29.0
 	github.com/benjaminLedel/covey-plugin-sdk v0.6.0
 	github.com/chromedp/cdproto v0.158.2 // indirect
 	github.com/chromedp/chromedp v0.21.0

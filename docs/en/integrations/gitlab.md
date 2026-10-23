@@ -273,6 +273,9 @@ the QA agent's intake side is needed.
    pipeline of the head commit is green and the agent's own approval is on
    record — and merges exactly the commit it saw. Without `merge_mr` the
    approval stays its last word and the merging is done by the human.
+   The source branch is removed after the merge. A long-lived branch — an
+   integration branch carried into a test branch — survives it when the agent
+   passes `keep_source_branch` to `create_merge_request` and `merge_mr`.
 
 **Setting up the QA agent.** A ready-made example sits under
 `examples/qa-agent.bundle.json` (SOUL/CAPABILITIES/PLAYBOOKS/ACCESS/HEARTBEAT
@@ -310,6 +313,15 @@ users, and the review loop distinguishes "author" from "reviewer" cleanly. That
 separation is what carries the merge gate: GitLab lets nobody approve their own
 merge request, so a developer agent can never merge its own work, whatever its
 tool assignment says.
+
+One case is let through on purpose: a **promotion** the agent opened only to
+carry accepted work onward (an integration branch into a test branch). The
+agent is its author and cannot approve it, but it holds no work of its own —
+`merge_mr` then reads the merge request's commits, and if every one of them
+reached the source branch through another merged merge request, the missing
+own approval does not block. A single commit that arrived any other way, or a
+list it cannot read in full, keeps the refusal, and the refusal names the
+commit. Approvals the project itself requires still count.
 
 Whoever does not want an autonomous merge takes the tool `merge_mr` out of the
 QA agent's ACCESS.md (then only `approve_mr` remains) or denies the subject
