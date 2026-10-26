@@ -1197,6 +1197,7 @@
     "adminEmail": "E-mail do administrador",
     "adminName": "Nome do administrador",
     "adminPassword": "Palavra-passe do administrador (mín. 8)",
+    "adminOptional": "O administrador é opcional: deixe os três campos de administrador vazios para criar a organização sem membros e atribua contas depois em Contas.",
     "ownOrg": "— A sua organização",
     "users": "{{count}} utilizadores",
     "agents": "{{count}} agentes",

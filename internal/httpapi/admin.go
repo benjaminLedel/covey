@@ -194,18 +194,25 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.AdminEmail = strings.ToLower(strings.TrimSpace(in.AdminEmail))
-	if !strings.Contains(in.AdminEmail, "@") || in.AdminName == "" {
-		writeErr(w, http.StatusBadRequest, "admin_email and admin_name are required (an organization without an admin would be unreachable)")
-		return
-	}
-	if len(in.AdminPassword) < minPasswordLen {
-		writeErr(w, http.StatusBadRequest, "admin_password needs at least 8 characters")
-		return
-	}
-	hash, err := identbuiltin.HashPassword(in.AdminPassword)
-	if err != nil {
-		mapErr(w, err)
-		return
+	in.AdminName = strings.TrimSpace(in.AdminName)
+	// The first admin is optional, but whole: without one the organization
+	// starts empty and the system administrator seats accounts in it later
+	// (handleAddOrgMember). Half an admin is a typo, not a choice.
+	var hash string
+	if in.AdminEmail != "" || in.AdminName != "" || in.AdminPassword != "" {
+		if !strings.Contains(in.AdminEmail, "@") || in.AdminName == "" {
+			writeErr(w, http.StatusBadRequest, "admin_email and admin_name go together (leave all admin fields empty to create the organization without an admin)")
+			return
+		}
+		if len(in.AdminPassword) < minPasswordLen {
+			writeErr(w, http.StatusBadRequest, "admin_password needs at least 8 characters")
+			return
+		}
+		var err error
+		if hash, err = identbuiltin.HashPassword(in.AdminPassword); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	o, err := s.Org.CreateOrg(r.Context(), strings.TrimSpace(in.Name), in.AdminEmail, in.AdminName, hash)
 	if err != nil {

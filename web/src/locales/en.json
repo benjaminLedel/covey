@@ -1197,6 +1197,7 @@
     "adminEmail": "Admin email",
     "adminName": "Admin name",
     "adminPassword": "Admin password (min. 8)",
+    "adminOptional": "The admin is optional: leave all three admin fields empty to create the organization without members, and seat accounts later under Accounts.",
     "ownOrg": "— Your organization",
     "users": "{{count}} users",
     "agents": "{{count}} agents",

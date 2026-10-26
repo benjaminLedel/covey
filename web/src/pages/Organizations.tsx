@@ -160,6 +160,8 @@ function CreateOrg({ onDone }: { onDone: () => void }) {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminName, setAdminName] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  // The first admin is optional but whole: once one field is filled, all are.
+  const withAdmin = adminEmail !== "" || adminName !== "" || adminPassword !== "";
   const mut = useMutation({
     mutationFn: () =>
       post("/platform/orgs", { name, admin_email: adminEmail, admin_name: adminName, admin_password: adminPassword }),
@@ -186,20 +188,21 @@ function CreateOrg({ onDone }: { onDone: () => void }) {
         </div>
         <div className="flex-1 min-w-48">
           <label>{t("orgs.adminEmail")}</label>
-          <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required />
+          <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required={withAdmin} />
         </div>
         <div className="min-w-40">
           <label>{t("orgs.adminName")}</label>
-          <input value={adminName} onChange={(e) => setAdminName(e.target.value)} required />
+          <input value={adminName} onChange={(e) => setAdminName(e.target.value)} required={withAdmin} />
         </div>
         <div className="min-w-44">
           <label>{t("orgs.adminPassword")}</label>
-          <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} minLength={8} required />
+          <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} minLength={8} required={withAdmin} />
         </div>
         <button className="btn primary" disabled={mut.isPending}>
           {t("orgs.createOrg")}
         </button>
       </div>
+      <p className="muted text-xs mt-2">{t("orgs.adminOptional")}</p>
       {mut.isError && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(mut.error as Error).message}</p>}
     </form>
   );

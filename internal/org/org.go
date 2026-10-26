@@ -534,8 +534,9 @@ func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
 	return list, rows.Err()
 }
 
-// CreateOrg creates a tenant together with an initial org_admin — an
-// organization without an admin would be unreachable.
+// CreateOrg creates a tenant, with an initial org_admin when adminEmail is
+// set. Without one the organization starts empty; it stays reachable because
+// the system administrator hands out seats in it (AddMember).
 func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, adminPasswordHash string) (Organization, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -543,35 +544,16 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 	}
 	defer tx.Rollback(ctx)
 
-	o := Organization{ID: uuid.New(), Name: name, HumanCount: 1}
+	o := Organization{ID: uuid.New(), Name: name}
 	if err := tx.QueryRow(ctx, `INSERT INTO organizations (id, name) VALUES ($1,$2) RETURNING created_at`,
 		o.ID, name).Scan(&o.CreatedAt); err != nil {
 		return Organization{}, err
 	}
-	// The admin's login: an existing account keeps its password (the person
-	// already works somewhere and simply gains a seat), otherwise one is
-	// created — see CreateHuman for why the supplied password is only ever a
-	// fallback and never an update.
-	adminEmail = strings.ToLower(strings.TrimSpace(adminEmail))
-	var accountID uuid.UUID
-	err = tx.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, adminEmail).Scan(&accountID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		accountID = uuid.New()
-		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
-			VALUES ($1,$2,$3,$4,now())`, accountID, adminEmail, adminPasswordHash, adminName); err != nil {
+	if adminEmail != "" {
+		if err := createFirstAdmin(ctx, tx, o.ID, adminEmail, adminName, adminPasswordHash); err != nil {
 			return Organization{}, err
 		}
-	} else if err != nil {
-		return Organization{}, err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,$3,$4,$5,$6,'org_admin')`,
-		uuid.New(), o.ID, accountID, adminEmail, adminName, adminPasswordHash)
-	if isUniqueViolation(err) {
-		return Organization{}, ErrEmailTaken
-	}
-	if err != nil {
-		return Organization{}, err
+		o.HumanCount = 1
 	}
 	// Seed the base allowlist: the runtime's LLM endpoint must be reachable,
 	// otherwise no agent can work. Changeable through the egress UI.
@@ -580,6 +562,33 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 		return Organization{}, err
 	}
 	return o, tx.Commit(ctx)
+}
+
+// createFirstAdmin gives a new organization its first org_admin.
+func createFirstAdmin(ctx context.Context, tx pgx.Tx, orgID uuid.UUID, adminEmail, adminName, adminPasswordHash string) error {
+	// The admin's login: an existing account keeps its password (the person
+	// already works somewhere and simply gains a seat), otherwise one is
+	// created — see CreateHuman for why the supplied password is only ever a
+	// fallback and never an update.
+	adminEmail = strings.ToLower(strings.TrimSpace(adminEmail))
+	var accountID uuid.UUID
+	err := tx.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, adminEmail).Scan(&accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		accountID = uuid.New()
+		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+			VALUES ($1,$2,$3,$4,now())`, accountID, adminEmail, adminPasswordHash, adminName); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,$3,$4,$5,$6,'org_admin')`,
+		uuid.New(), orgID, accountID, adminEmail, adminName, adminPasswordHash)
+	if isUniqueViolation(err) {
+		return ErrEmailTaken
+	}
+	return err
 }
 
 func (s *Store) RenameOrg(ctx context.Context, id uuid.UUID, name string) error {
