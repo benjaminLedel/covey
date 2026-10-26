@@ -47,6 +47,9 @@ type EngineOrigin struct {
 	// Version and Kind are the catalogue's answer, when it has one.
 	Version string
 	Kind    string
+	// Follows says the release is the publisher's current one, with Version as
+	// the floor (#662): what a runner installs can be newer than this figure.
+	Follows bool
 	// AuthEnv names the variable the release asks for to fetch its artefact, and
 	// AuthSet says whether THIS host has it. A release behind a login whose token
 	// is missing is not a degraded install but one that cannot produce the layer
@@ -87,6 +90,9 @@ func (o EngineOrigin) Detail() string {
 		return o.Env + " names " + o.Path + " on this host"
 	case o.Version != "":
 		detail := "catalogue release " + o.Version + " (" + o.Kind + ") — the runner installs it before the sandbox starts"
+		if o.Follows {
+			detail = "catalogue release " + o.Version + " (" + o.Kind + ") or the newer one its publisher announces — the runner installs it before the sandbox starts"
+		}
 		switch {
 		case o.AuthSecret != "":
 			// The name, not a verdict: the value belongs to an agent and is read
@@ -135,7 +141,7 @@ func EngineOrigins(ctx context.Context, cfg config.Config, pool *pgxpool.Pool, l
 		}
 		if o.Path == "" && source.Enabled() {
 			if r, ok := source.For(ctx, engine, ""); ok {
-				o.Version, o.Kind = r.Version, r.Kind
+				o.Version, o.Kind, o.Follows = r.Version, r.Kind, r.Follows()
 				// Which host the variable has to be on is decided by who fetches
 				// the artefact — the runner, not this process. Saying "not set"
 				// from a machine that is not the runner would be a finding nobody

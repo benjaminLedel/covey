@@ -167,6 +167,14 @@ func (s *Store) Ensure(ctx context.Context, r Release, auth Auth) (Layer, error)
 // cache hit still has to end the phase, or the display shows a step running
 // that finished in a millisecond.
 func (s *Store) EnsureWatched(ctx context.Context, r Release, auth Auth, watch func(Progress)) (Layer, error) {
+	if r.Follow != nil {
+		return s.ensureFollowed(ctx, r, auth, watch)
+	}
+	return s.ensurePinned(ctx, r, auth, watch)
+}
+
+// ensurePinned installs exactly the version and digest r names.
+func (s *Store) ensurePinned(ctx context.Context, r Release, auth Auth, watch func(Progress)) (Layer, error) {
 	say := func(p Progress) {
 		if watch != nil {
 			watch(p)

@@ -139,6 +139,10 @@ type Release struct {
 	AuthHeader string `json:"auth_header,omitempty"`
 	AuthSecret string `json:"auth_secret,omitempty"`
 	AuthEnv    string `json:"auth_env,omitempty"`
+	// Follow, when set, makes Version and Integrity the floor rather than the
+	// answer: the release installed is the one the publisher's endpoint announces
+	// at the start, verified against the digest it announces (follow.go, #662).
+	Follow *Follow `json:"follow,omitempty"`
 	// Notes are for the human reading the catalogue screen: what this release
 	// is, what it costs, what to watch.
 	Notes string `json:"notes,omitempty"`
@@ -199,8 +203,20 @@ func (r Release) Valid() error {
 	default:
 		return fmt.Errorf("unknown kind %q (known: %s, %s, %s)", r.Kind, KindTarball, KindFile, KindNpm)
 	}
+	if r.Follow != nil {
+		if r.Kind == KindNpm {
+			return fmt.Errorf("%s %s: %w", r.engine, r.Version, errFollowKind)
+		}
+		if u := strings.TrimSpace(r.Follow.URL); !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
+			return fmt.Errorf("%s %s follows %q, which is not an address to ask", r.engine, r.Version, r.Follow.URL)
+		}
+	}
 	return nil
 }
+
+// Follows says whether the installed release is the publisher's current one
+// rather than the entry's own version.
+func (r Release) Follows() bool { return r.Follow != nil }
 
 // isEnvName accepts what the host's environment can actually be asked for. The
 // test is small and deliberate: a path or a URL in this field means somebody
