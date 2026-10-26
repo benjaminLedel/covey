@@ -133,4 +133,9 @@ func TestShippedSevencodeDownloadsFromTheBaseItRunsAgainst(t *testing.T) {
 	if !strings.HasPrefix(r.URL, base+"/") {
 		t.Errorf("the artefact %s is not under the base the run uses, %s", r.URL, base)
 	}
+	// The announcement has to come from the same service as well, or a runner
+	// installs what one host announces from bytes another serves (#662).
+	if r.Follow != nil && !strings.HasPrefix(r.Follow.URL, base+"/") {
+		t.Errorf("the announcement %s is not under the base the run uses, %s", r.Follow.URL, base)
+	}
 }
