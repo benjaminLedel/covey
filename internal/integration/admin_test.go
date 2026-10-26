@@ -90,8 +90,9 @@ func TestUserAndOrgAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A new organization needs an initial admin.
-	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{"name": "Ohne Admin"}, http.StatusBadRequest)
+	// The initial admin is optional (#666, TestOrganisationWithoutAdmin), but
+	// half of one is refused.
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{"name": "Halber Admin", "admin_name": "Chef"}, http.StatusBadRequest)
 	created = admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{
 		"name": "Zweite Org", "admin_email": "chef@second.local", "admin_name": "Chef",
 		"admin_password": "chef-passwort",

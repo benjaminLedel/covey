@@ -1197,6 +1197,7 @@
     "adminEmail": "E-mail van de beheerder",
     "adminName": "Naam van de beheerder",
     "adminPassword": "Wachtwoord van de beheerder (min. 8)",
+    "adminOptional": "De beheerder is optioneel: laat alle drie de beheerdersvelden leeg om de organisatie zonder leden aan te maken en wijs accounts later toe onder Accounts.",
     "ownOrg": "— Uw organisatie",
     "users": "{{count}} gebruikers",
     "agents": "{{count}} agenten",

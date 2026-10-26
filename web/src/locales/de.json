@@ -1197,6 +1197,7 @@
     "adminEmail": "Admin E-Mail",
     "adminName": "Admin Name",
     "adminPassword": "Admin Passwort (min. 8)",
+    "adminOptional": "Der Admin ist optional: Bleiben alle drei Admin-Felder leer, entsteht die Organisation ohne Mitglieder; Konten bekommen ihren Platz später unter Konten.",
     "ownOrg": "— Ihre Organisation",
     "users": "{{count}} Nutzer",
     "agents": "{{count}} Agenten",

@@ -86,3 +86,46 @@ func TestAccountInTwoOrganisations(t *testing.T) {
 	}
 	admin.expect(http.MethodDelete, members+"/"+anna, nil, http.StatusNotFound)
 }
+
+// An organisation can start without an admin (#666): the operator creates the
+// tenant and seats an existing account in it afterwards. Half an admin is
+// still refused.
+func TestOrganisationWithoutAdmin(t *testing.T) {
+	s := newStack(t)
+	s.alsSystemadmin(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{
+		"name": "Half", "admin_email": "ada@example.org",
+	}, http.StatusBadRequest)
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{
+		"name": "Half", "admin_password": "lang-genug",
+	}, http.StatusBadRequest)
+
+	created := admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{"name": "Empty"}, http.StatusCreated)
+	if n := created["human_count"].(float64); n != 0 {
+		t.Fatalf("human_count %v, expected 0", n)
+	}
+	for _, o := range admin.expectList(http.MethodGet, "/api/v1/platform/orgs", nil, http.StatusOK) {
+		if o["id"] == created["id"] && o["human_count"].(float64) != 0 {
+			t.Fatalf("listed with %v humans, expected 0", o["human_count"])
+		}
+	}
+
+	s.mitglied(t, "anna@test.local", "Anna", "agent_owner", "anna-passwort")
+	var anna string
+	for _, a := range admin.expectList(http.MethodGet, "/api/v1/platform/accounts", nil, http.StatusOK) {
+		if a["email"] == "anna@test.local" {
+			anna = a["id"].(string)
+		}
+	}
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs/"+created["id"].(string)+"/members",
+		map[string]string{"account_id": anna, "role": "org_admin"}, http.StatusCreated)
+
+	annaClient := login(t, s, "anna@test.local", "anna-passwort")
+	switched := annaClient.expect(http.MethodPost, "/api/v1/auth/switch-org",
+		map[string]string{"org_id": created["id"].(string)}, http.StatusOK)
+	if switched["Role"] != "org_admin" {
+		t.Fatalf("role %v after the switch, expected org_admin", switched["Role"])
+	}
+}

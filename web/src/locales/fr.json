@@ -1197,6 +1197,7 @@
     "adminEmail": "E-mail de l'administrateur",
     "adminName": "Nom de l'administrateur",
     "adminPassword": "Mot de passe administrateur (8 min.)",
+    "adminOptional": "L'administrateur est facultatif : laissez les trois champs administrateur vides pour créer l'organisation sans membres, puis attribuez des comptes plus tard sous Comptes.",
     "ownOrg": "— Votre organisation",
     "users": "{{count}} utilisateurs",
     "agents": "{{count}} agents",

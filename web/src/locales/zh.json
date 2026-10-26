@@ -1197,6 +1197,7 @@
     "adminEmail": "管理员邮箱",
     "adminName": "管理员姓名",
     "adminPassword": "管理员密码（至少 8 位）",
+    "adminOptional": "管理员是可选的：三个管理员字段都留空即可创建没有成员的组织，之后在“账户”中为账户分配席位。",
     "ownOrg": "— 你的组织",
     "users": "{{count}} 位用户",
     "agents": "{{count}} 个智能体",
