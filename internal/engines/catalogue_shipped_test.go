@@ -106,3 +106,31 @@ func TestShippedSevencodeNamesTheAgentsSecret(t *testing.T) {
 		t.Errorf("one credential should not answer to two names: %q vs %q", r.AuthSecret, r.AuthEnv)
 	}
 }
+
+// The download and the runs have to talk to the same service. When SevenCode
+// moved hosts (#661), the entry carried the old origin in both places, and a fix
+// that moves one of them leaves an engine that installs and then sends every
+// model call into a redirect — or one that runs and cannot be installed. The
+// artefact URL therefore has to sit under the base the entry gives the run.
+func TestShippedSevencodeDownloadsFromTheBaseItRunsAgainst(t *testing.T) {
+	body, err := os.ReadFile("engine-catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, ok := parseDoc(t, string(body)).Release("sevencode", "")
+	if !ok {
+		t.Fatal("the document that is published has to carry the engine the adapter drives")
+	}
+	var base string
+	for _, kv := range r.Env {
+		if k, v, _ := strings.Cut(kv, "="); k == "SEVENCODE_API_BASE" {
+			base = strings.TrimRight(v, "/")
+		}
+	}
+	if base == "" {
+		t.Fatal("the entry has to set SEVENCODE_API_BASE; the adapter invents none")
+	}
+	if !strings.HasPrefix(r.URL, base+"/") {
+		t.Errorf("the artefact %s is not under the base the run uses, %s", r.URL, base)
+	}
+}
