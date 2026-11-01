@@ -109,11 +109,30 @@ type bundleSecrets struct {
 // Files is a map like the files field of the config: the JSON encoder sorts
 // map keys, which keeps exported bundles diffable (the bundled
 // examples/*.bundle.json live in git).
+//
+// The optional fields of the Agent Skills format travel beside name and
+// description. Binary files (assets/ images, templates) sit in BinaryFiles,
+// base64-encoded — Files stays a map of text, so that a bundle in git remains
+// readable and diffable.
 type bundleSkill struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Origin      string            `json:"origin,omitempty"`
-	Files       map[string]string `json:"files"`
+	Name          string            `json:"name"`
+	Description   string            `json:"description"`
+	License       string            `json:"license,omitempty"`
+	Compatibility string            `json:"compatibility,omitempty"`
+	AllowedTools  string            `json:"allowed_tools,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	Origin        string            `json:"origin,omitempty"`
+	Files         map[string]string `json:"files"`
+	BinaryFiles   map[string]string `json:"binary_files,omitempty"`
+}
+
+// bundleMaxBytes bounds a bundle upload. Larger than readJSON's 4 MiB: a
+// bundle carries the agent's skills in full, binary assets included (up to
+// 2 MiB per skill, base64 on top).
+const bundleMaxBytes = 32 << 20
+
+func readBundle(r *http.Request, b *agentBundle) error {
+	return json.NewDecoder(http.MaxBytesReader(nil, r.Body, bundleMaxBytes)).Decode(b)
 }
 
 const (
@@ -126,7 +145,8 @@ const (
 // therefore carry the SKILL.md with its YAML header.
 func (bs bundleSkill) input() skillInput {
 	in := skillInput{Name: bs.Name, Description: bs.Description,
-		Files: make([]skills.File, 0, len(bs.Files))}
+		License: bs.License, Compatibility: bs.Compatibility, AllowedTools: bs.AllowedTools,
+		Metadata: bs.Metadata, Files: make([]skills.File, 0, len(bs.Files)+len(bs.BinaryFiles))}
 	paths := make([]string, 0, len(bs.Files))
 	for p := range bs.Files {
 		paths = append(paths, p)
@@ -134,6 +154,14 @@ func (bs bundleSkill) input() skillInput {
 	sort.Strings(paths)
 	for _, p := range paths {
 		in.Files = append(in.Files, skills.File{Path: p, Content: bs.Files[p]})
+	}
+	paths = paths[:0]
+	for p := range bs.BinaryFiles {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, p := range paths {
+		in.Files = append(in.Files, skills.File{Path: p, Content: bs.BinaryFiles[p], Encoding: skills.EncodingBase64})
 	}
 	return in
 }
@@ -258,11 +286,19 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 		}
 		for _, sk := range found {
 			bs := bundleSkill{Name: sk.Name, Description: sk.Description,
-				Origin: skillOriginAgent, Files: map[string]string{}}
+				License: sk.License, Compatibility: sk.Compatibility, AllowedTools: sk.AllowedTools,
+				Metadata: sk.Metadata, Origin: skillOriginAgent, Files: map[string]string{}}
 			if sk.Library() {
 				bs.Origin = skillOriginLibrary
 			}
 			for _, f := range sk.Files {
+				if f.Binary() {
+					if bs.BinaryFiles == nil {
+						bs.BinaryFiles = map[string]string{}
+					}
+					bs.BinaryFiles[f.Path] = f.Content
+					continue
+				}
 				bs.Files[f.Path] = f.Content
 			}
 			b.Skills = append(b.Skills, bs)
@@ -355,12 +391,19 @@ func (s *Server) importSkills(ctx context.Context, orgID, agentID uuid.UUID, lis
 	for _, bs := range list {
 		in := bs.input()
 		if bs.Origin != skillOriginLibrary {
-			if _, err := s.Skills.Upsert(ctx, orgID, in.spec(&agentID)); err != nil {
+			spec, err := in.checked(&agentID)
+			if err != nil {
+				return warnings, err
+			}
+			if _, err := s.Skills.Upsert(ctx, orgID, spec); err != nil {
 				return warnings, err
 			}
 			continue
 		}
-		spec := in.spec(nil)
+		spec, err := in.checked(nil)
+		if err != nil {
+			return warnings, err
+		}
 		id, known := existing[spec.Name]
 		if known {
 			warnings = append(warnings,
@@ -420,7 +463,7 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var b agentBundle
-	if err := readJSON(r, &b); err != nil {
+	if err := readBundle(r, &b); err != nil {
 		writeErr(w, http.StatusBadRequest, "bundle not readable: "+err.Error())
 		return
 	}
@@ -499,7 +542,7 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var b agentBundle
-	if err := readJSON(r, &b); err != nil {
+	if err := readBundle(r, &b); err != nil {
 		writeErr(w, http.StatusBadRequest, "bundle not readable: "+err.Error())
 		return
 	}

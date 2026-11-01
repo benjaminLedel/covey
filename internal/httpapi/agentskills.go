@@ -1,10 +1,9 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -60,58 +59,35 @@ func (s *Server) requireAgent(w http.ResponseWriter, r *http.Request) (agents.Ag
 	return agent, true
 }
 
-// skillInput is the request body for creating and replacing.
+// skillInput is the request body for creating and replacing. Besides name and
+// description it carries the optional fields of the Agent Skills format; a
+// SKILL.md with a frontmatter fills in whatever the fields leave empty.
 type skillInput struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Files       []skills.File `json:"files"`
+	Name          string            `json:"name"`
+	Description   string            `json:"description"`
+	License       string            `json:"license"`
+	Compatibility string            `json:"compatibility"`
+	AllowedTools  string            `json:"allowed_tools"`
+	Metadata      map[string]string `json:"metadata"`
+	Files         []skills.File     `json:"files"`
 }
 
-// checked is spec() with the frontmatter check in front of it: a key covey
-// does not keep is rejected instead of being dropped on save (see
-// skills.UnsupportedFrontmatterKeys). All write paths go through here.
+// readSkillInput is readJSON with room for a skill's binary files — readJSON's
+// 4 MiB would refuse saving a skill that the import accepted.
+func readSkillInput(r *http.Request, in *skillInput) error {
+	return json.NewDecoder(http.MaxBytesReader(nil, r.Body, skills.MaxBodyBytes)).Decode(in)
+}
+
+// checked turns the input into a store spec. The frontmatter handling — form
+// fields first, SKILL.md frontmatter for what they leave empty, keys outside
+// the format refused rather than dropped — lives in skills.Assemble, the one
+// place every write path (API, bundle, archive) goes through.
 func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
-	for _, f := range in.Files {
-		if f.Path != skills.EntryFile {
-			continue
-		}
-		if keys := skills.UnsupportedFrontmatterKeys(f.Content); len(keys) > 0 {
-			return skills.Spec{}, fmt.Errorf(
-				"%w: %s frontmatter carries %s — covey only stores name and description, everything else would be lost on save",
-				skills.ErrInvalid, skills.EntryFile, strings.Join(keys, ", "))
-		}
-	}
-	return in.spec(agentID), nil
-}
-
-// spec turns the input into a store spec.
-//
-// If the SKILL.md carries a YAML frontmatter — because someone pasted a
-// finished file or imported a bundle — it is cut off and fills in name and
-// description as far as the form fields stay empty. covey keeps the
-// description as a column; were it in the file as well, the two could
-// contradict each other and nobody would know which one applies.
-func (in skillInput) spec(agentID *uuid.UUID) skills.Spec {
-	spec := skills.Spec{
-		Name:        in.Name,
-		Description: in.Description,
-		AgentID:     agentID,
-		Files:       make([]skills.File, 0, len(in.Files)),
-	}
-	for _, f := range in.Files {
-		if f.Path == skills.EntryFile {
-			name, desc, body := skills.SplitEntry(f.Content)
-			if spec.Name == "" {
-				spec.Name = name
-			}
-			if spec.Description == "" {
-				spec.Description = desc
-			}
-			f.Content = body
-		}
-		spec.Files = append(spec.Files, f)
-	}
-	return spec
+	return skills.Assemble(skills.Front{
+		Name: in.Name, Description: in.Description,
+		Meta: skills.Meta{License: in.License, Compatibility: in.Compatibility,
+			AllowedTools: in.AllowedTools, Metadata: in.Metadata},
+	}, agentID, in.Files)
 }
 
 // mapSkillErr translates the store errors. Input errors (ErrInvalid and
@@ -155,7 +131,7 @@ func (s *Server) handleCreateSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in skillInput
-	if err := readJSON(r, &in); err != nil {
+	if err := readSkillInput(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
@@ -215,7 +191,7 @@ func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in skillInput
-	if err := readJSON(r, &in); err != nil {
+	if err := readSkillInput(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
@@ -370,7 +346,7 @@ func (s *Server) handleCreateAgentSkill(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var in skillInput
-	if err := readJSON(r, &in); err != nil {
+	if err := readSkillInput(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}

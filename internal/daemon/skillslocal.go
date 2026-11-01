@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/base64"
 	"os"
 	"path"
 	"path/filepath"
@@ -117,12 +118,21 @@ func clearSkillDirs(dir string) error {
 		return err
 	}
 	for _, e := range entries {
+		if engineOwned(e.Name()) {
+			continue
+		}
 		if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// engineOwned tells entries covey never wrote and must leave alone. A covey
+// skill name never starts with a dot; the engines put their own skills under
+// one — Codex installs its bundled skills into ~/.codex/skills/.system/ and
+// would lose them on every run otherwise.
+func engineOwned(name string) bool { return strings.HasPrefix(name, ".") }
 
 // writeSkillDirs creates the skill directories and first removes everything
 // covey wrote there before.
@@ -146,7 +156,7 @@ func writeSkillDirs(dir string, skills []SkillDir) error {
 		return err
 	}
 	for _, e := range entries {
-		if !keep[e.Name()] {
+		if !keep[e.Name()] && !engineOwned(e.Name()) {
 			if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
 				return err
 			}
@@ -174,18 +184,42 @@ func writeSkillDirs(dir string, skills []SkillDir) error {
 			if rel == skillEntryFile {
 				// The frontmatter is produced here so that name and description
 				// are maintained in one place only (see skills.Render).
-				content = renderSkillEntry(name, s.Description, content)
+				content = renderSkillEntry(name, s.Description, s.Frontmatter, content)
 			}
-			target := filepath.Join(skillDir, filepath.FromSlash(rel))
-			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+			if err := writeSkillFile(skillDir, rel, []byte(content)); err != nil {
 				return err
 			}
-			if err := os.WriteFile(target, []byte(content), 0o600); err != nil {
+		}
+		for rel, encoded := range s.Binary {
+			if !safeSkillPath(rel) || rel == skillEntryFile {
+				continue
+			}
+			data, err := base64.StdEncoding.DecodeString(encoded)
+			if err != nil {
+				continue // the control plane validates; a broken file is left out, not the skill
+			}
+			if err := writeSkillFile(skillDir, rel, data); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// writeSkillFile writes one file of a skill. Scripts become executable: the
+// Agent Skills format puts runnable code under scripts/, and a skill that says
+// "run ./scripts/extract.sh" must not fail on the file mode. A file elsewhere
+// that starts with #! is a script as well.
+func writeSkillFile(skillDir, rel string, data []byte) error {
+	target := filepath.Join(skillDir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o600)
+	if strings.HasPrefix(rel, "scripts/") || strings.HasPrefix(string(data), "#!") {
+		mode = 0o700
+	}
+	return os.WriteFile(target, data, mode)
 }
 
 const skillEntryFile = "SKILL.md"
@@ -196,7 +230,7 @@ const skillEntryFile = "SKILL.md"
 // not import internal/skills (layer separation, the daemon runs in the sandbox
 // and does not know the control plane).
 func safeSkillName(name string) bool {
-	if name == "" || name == "." || name == ".." || len(name) > 63 {
+	if name == "" || strings.HasPrefix(name, "-") || len(name) > 64 {
 		return false
 	}
 	for _, r := range name {
@@ -228,10 +262,21 @@ func safeSkillPath(rel string) bool {
 // skills.Render in the control plane — in particular the quoting, because almost
 // every description contains a colon and the block would otherwise be read as a
 // YAML map.
-func renderSkillEntry(name, description, body string) string {
+//
+// extra are the optional frontmatter lines the control plane rendered
+// (SkillDir.Frontmatter). Only complete lines are placed, and none that could
+// close the block early — the second door, as with names and paths.
+func renderSkillEntry(name, description, extra, body string) string {
 	var b strings.Builder
 	b.WriteString("---\nname: " + skillScalar(name) + "\n")
-	b.WriteString("description: " + skillScalar(description) + "\n---\n\n")
+	b.WriteString("description: " + skillScalar(description) + "\n")
+	for _, line := range strings.Split(extra, "\n") {
+		if strings.TrimSpace(line) == "" || strings.TrimSpace(line) == "---" {
+			continue
+		}
+		b.WriteString(strings.TrimRight(line, "\r") + "\n")
+	}
+	b.WriteString("---\n\n")
 	b.WriteString(strings.TrimLeft(body, "\n"))
 	if !strings.HasSuffix(b.String(), "\n") {
 		b.WriteString("\n")

@@ -345,10 +345,19 @@ type RequestSkills struct {
 // SkillDir is a skill as a directory: name, description and the files relative
 // to it. SKILL.md comes WITHOUT frontmatter — the daemon generates it while
 // writing, from name and description, so both are maintained in one place only.
+//
+// Frontmatter carries the optional fields of the Agent Skills format (license,
+// compatibility, allowed-tools, metadata) as ready YAML lines, rendered by the
+// control plane (skills.RenderExtra): the daemon places them, it does not need
+// to know the format's field list. Binary holds the binary files (assets/
+// images, templates) base64-encoded, path → content. A daemon older than these
+// two fields ignores them and writes the skill without them.
 type SkillDir struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
+	Frontmatter string            `json:"frontmatter,omitempty"`
 	Files       map[string]string `json:"files"`
+	Binary      map[string]string `json:"binary,omitempty"`
 }
 
 type InjectSkills struct {

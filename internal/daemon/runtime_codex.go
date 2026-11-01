@@ -70,11 +70,11 @@ func init() {
 			// package comment. An engine that cannot resume carries agents that
 			// finish in one run, not one that waits for an answer.
 			Resume: false,
-			// Codex's own convention for materialised skills is not
-			// established. Empty means: write none, rather than writing them
-			// where nothing reads them — configured, visible, without effect is
-			// the worst of the available failures.
-			SkillsDir: "",
+			// Codex reads skills from $CODEX_HOME/skills/<name>/SKILL.md, and
+			// CODEX_HOME defaults to ~/.codex — the same home the credential
+			// above lands in. The CLI installs its own bundled skills under
+			// .system/ there; the materialiser leaves dot-directories alone.
+			SkillsDir: ".codex/skills",
 			// Codex has a reasoning-effort control of its own, but neither its
 			// flag nor its level names are verified against the binary here,
 			// and Run() does not pass one. Declaring none is the same rule as

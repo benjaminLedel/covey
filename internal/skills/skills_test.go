@@ -39,12 +39,14 @@ func TestValidatePathRejectsTraversal(t *testing.T) {
 }
 
 func TestValidateName(t *testing.T) {
-	for _, n := range []string{"deploy", "run-tests", "a", "skill-2", "x" + strings.Repeat("y", 62)} {
+	for _, n := range []string{"deploy", "run-tests", "a", "skill-2", "x" + strings.Repeat("y", 63), "pdf-processing-2"} {
 		if err := ValidateName(n); err != nil {
 			t.Errorf("%q must be allowed: %v", n, err)
 		}
 	}
-	for _, n := range []string{"", "Deploy", "with space", "-start", "über", "x/y", "..", strings.Repeat("z", 64)} {
+	// The specification's rule: no leading, trailing or doubled hyphen, at
+	// most 64 characters.
+	for _, n := range []string{"", "Deploy", "with space", "-start", "end-", "pdf--processing", "über", "x/y", "..", strings.Repeat("z", 65)} {
 		if err := ValidateName(n); err == nil {
 			t.Errorf("%q must be rejected", n)
 		}
@@ -86,7 +88,7 @@ func TestValidateFilesRequiresEntry(t *testing.T) {
 // colons — which it almost always does ("Use this when: …"). Unquoted that
 // would be a YAML map and Claude Code would not read the skill.
 func TestRenderQuotesRiskyScalars(t *testing.T) {
-	out := Render("deploy", "Use this when: the release is due", "# Deploy\n\nStep 1.")
+	out := Render("deploy", "Use this when: the release is due", Meta{}, "# Deploy\n\nStep 1.")
 	if !strings.Contains(out, `description: "Use this when: the release is due"`) {
 		t.Fatalf("the colon must be quoted:\n%s", out)
 	}
@@ -97,45 +99,52 @@ func TestRenderQuotesRiskyScalars(t *testing.T) {
 		t.Fatalf("the body must come after the block:\n%s", out)
 	}
 	// Quotes in the description must not blow up the block.
-	quoted := Render("x", `says "hello" and \end`, "b")
+	quoted := Render("x", `says "hello" and \end`, Meta{}, "b")
 	if !strings.Contains(quoted, `description: "says \"hello\" and \\end"`) {
 		t.Fatalf("quotes/backslash escaped wrong:\n%s", quoted)
 	}
 	// A multi-line description would blow up the block — it must be folded.
-	multi := Render("x", "first\nsecond", "b")
+	multi := Render("x", "first\nsecond", Meta{}, "b")
 	if strings.Count(multi[:strings.Index(multi, "---\n\n")], "\n") != 3 {
 		t.Fatalf("the description must be folded onto one line:\n%s", multi)
 	}
 }
 
-func TestSplitEntry(t *testing.T) {
-	name, desc, body := SplitEntry("---\nname: deploy\ndescription: \"Use this when: X\"\n---\n\n# Body\n")
-	if name != "deploy" || desc != "Use this when: X" || body != "# Body\n" {
-		t.Fatalf("frontmatter split wrong: %q %q %q", name, desc, body)
+func TestParseEntry(t *testing.T) {
+	front, body, err := ParseEntry("---\nname: deploy\ndescription: \"Use this when: X\"\n---\n\n# Body\n")
+	if err != nil || front.Name != "deploy" || front.Description != "Use this when: X" || body != "# Body\n" {
+		t.Fatalf("frontmatter split wrong: %+v %q %v", front, body, err)
 	}
 
 	// Without frontmatter everything is body and the values stay empty.
-	name, desc, body = SplitEntry("# Body only\n")
-	if name != "" || desc != "" || body != "# Body only\n" {
-		t.Fatalf("without frontmatter nothing may be cut off: %q %q %q", name, desc, body)
+	front, body, _ = ParseEntry("# Body only\n")
+	if front.Name != "" || front.Description != "" || body != "# Body only\n" {
+		t.Fatalf("without frontmatter nothing may be cut off: %+v %q", front, body)
 	}
 
 	// Unterminated block: do not guess, otherwise the import swallows content.
-	_, _, body = SplitEntry("---\nname: x\n\n# Body without end\n")
+	_, body, _ = ParseEntry("---\nname: x\n\n# Body without end\n")
 	if !strings.Contains(body, "# Body without end") || !strings.HasPrefix(body, "---") {
 		t.Fatalf("an unterminated block must stay untouched: %q", body)
 	}
 
 	// A --- in the body (horizontal rule) must not disturb the first block.
-	_, desc, body = SplitEntry("---\ndescription: A\n---\n\ntext\n\n---\n\nmore\n")
-	if desc != "A" || !strings.Contains(body, "more") || strings.HasPrefix(body, "description") {
-		t.Fatalf("second --- handled wrong: %q / %q", desc, body)
+	front, body, _ = ParseEntry("---\ndescription: A\n---\n\ntext\n\n---\n\nmore\n")
+	if front.Description != "A" || !strings.Contains(body, "more") || strings.HasPrefix(body, "description") {
+		t.Fatalf("second --- handled wrong: %q / %q", front.Description, body)
 	}
 
-	// Round trip: what Render writes, SplitEntry must take apart again.
+	// Round trip: what Render writes, ParseEntry must take apart again —
+	// the optional fields included.
 	in := `Use this when: "X" & Y`
-	n2, d2, b2 := SplitEntry(Render("round-trip", in, "# Body\n\nText"))
-	if n2 != "round-trip" || d2 != in || !strings.HasPrefix(b2, "# Body") {
-		t.Fatalf("round trip lost: %q %q %q", n2, d2, b2)
+	meta := Meta{License: "Apache-2.0", Compatibility: "Requires git: and jq",
+		AllowedTools: "Bash(git:*) Read", Metadata: map[string]string{"version": "1.0", "author": "example-org"}}
+	f2, b2, err := ParseEntry(Render("round-trip", in, meta, "# Body\n\nText"))
+	if err != nil || f2.Name != "round-trip" || f2.Description != in || !strings.HasPrefix(b2, "# Body") {
+		t.Fatalf("round trip lost: %+v %q %v", f2, b2, err)
+	}
+	if f2.License != meta.License || f2.Compatibility != meta.Compatibility || f2.AllowedTools != meta.AllowedTools ||
+		f2.Metadata["version"] != "1.0" || f2.Metadata["author"] != "example-org" {
+		t.Fatalf("optional fields lost in the round trip: %+v", f2.Meta)
 	}
 }

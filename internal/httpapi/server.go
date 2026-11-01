@@ -134,6 +134,10 @@ type Server struct {
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
 	Skills *skills.Store
+	// SkillFetcher downloads skill archives for the URL import. The zero
+	// value refuses non-public addresses; tests hand in a client that may
+	// reach their local server.
+	SkillFetcher skills.Fetcher
 	// Workflows runs the organisation's workflows (#563, #564). nil = the
 	// workflow routes answer 503.
 	Workflows *workflowhost.Host
@@ -796,6 +800,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/workflows/{slug}/token", s.rbac(manage, s.workflowRef(s.handleWorkflowToken)))
 	mux.Handle("GET /api/v1/skills", s.rbac(anyRole, s.handleListSkills))
 	mux.Handle("POST /api/v1/skills", s.rbac(manage, s.handleCreateSkill))
+	mux.Handle("POST /api/v1/skills/import", s.rbac(manage, s.handleImportLibrarySkills))
 	mux.Handle("GET /api/v1/skills/{id}", s.rbac(anyRole, s.handleGetSkill))
 	mux.Handle("PUT /api/v1/skills/{id}", s.rbac(manage, s.handlePutSkill))
 	mux.Handle("DELETE /api/v1/skills/{id}", s.rbac(manage, s.handleDeleteSkill))
@@ -803,6 +808,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/skills/{id}/agents/{agentID}", s.rbac(manage, s.handleUnassignSkill))
 	mux.Handle("GET /api/v1/agents/{id}/skills", s.agentScoped(anyRole, s.handleAgentSkills))
 	mux.Handle("POST /api/v1/agents/{id}/skills", s.agentScoped(manage, s.handleCreateAgentSkill))
+	mux.Handle("POST /api/v1/agents/{id}/skills/import", s.agentScoped(manage, s.handleImportAgentSkills))
 
 	// Voices: the style library beside the skills (spec/24). Read for every
 	// role — a voice describes how to write, not a secret — changed by the
