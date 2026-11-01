@@ -1,9 +1,13 @@
 package integration
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,12 +148,14 @@ func TestSkillsAPI(t *testing.T) {
 			"files": skillFiles([2]string{"referenz.md", "x"})}},
 		{"description missing", map[string]any{"name": "ohne-desc",
 			"files": skillFiles([2]string{"SKILL.md", "x"})}},
-		// covey stores only name/description; everything else in the frontmatter
-		// would be gone without a trace after saving. With allowed-tools that
-		// would mean: the skill runs with MORE rights than its author wrote.
+		// covey keeps the fields of the Agent Skills format; a key outside it
+		// would be gone without a trace after saving — with a runtime-specific
+		// key like model: or hooks: that changes what the skill does.
 		{"unknown frontmatter key", map[string]any{
 			"files": skillFiles([2]string{"SKILL.md",
-				"---\nname: mit-tools\ndescription: d\nallowed-tools: Bash, Read\n---\n\n# X\n"})}},
+				"---\nname: mit-model\ndescription: d\nmodel: opus\n---\n\n# X\n"})}},
+		{"name against the specification", map[string]any{"name": "doppel--strich", "description": "d",
+			"files": skillFiles([2]string{"SKILL.md", "x"})}},
 	} {
 		admin.expect(http.MethodPost, "/api/v1/skills", bad.body, http.StatusBadRequest)
 		if list := getSkillList(t, admin, "/api/v1/skills"); len(list) != 1 {
@@ -346,5 +352,159 @@ func TestSkillsMaterialisierung(t *testing.T) {
 	})
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("a revoked skill has to disappear from the home: %v", err)
+	}
+}
+
+func zipBytes(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, content := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write(content)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func postZip(t *testing.T, c *apiClient, path string, data []byte) (int, map[string]any) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, c.base+path, bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/zip")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]any
+	json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+// TestSkillsAgentSkillsFormat walks a skill in the Agent Skills format through
+// covey: a repository archive with two skills, the optional frontmatter fields,
+// a binary asset and a script — previewed, imported in one go, refused on a
+// second import without replace, fetched by URL, and materialized into the
+// agent's home with its frontmatter, its bytes and its file modes intact.
+func TestSkillsAgentSkillsFormat(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("format-laeufer")
+
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00, 0xff}
+	archive := zipBytes(t, map[string][]byte{
+		"repo-main/README.md": []byte("readme"),
+		"repo-main/skills/pdf/SKILL.md": []byte("---\nname: pdf\ndescription: >\n  Work with PDFs.\n  Use when: a PDF arrives.\n" +
+			"license: Apache-2.0\ncompatibility: Requires python3\nallowed-tools: Bash(python3:*) Read\n" +
+			"metadata:\n  author: example-org\n  version: 1.0\n---\n# PDF\n\nRun scripts/extract.sh.\n"),
+		"repo-main/skills/pdf/scripts/extract.sh": []byte("#!/bin/sh\necho extracted\n"),
+		"repo-main/skills/pdf/assets/logo.png":    png,
+		"repo-main/skills/docx/SKILL.md":          []byte("---\nname: docx\ndescription: Word files.\n---\nBody\n"),
+	})
+
+	// Dry run: both skills listed, nothing stored.
+	code, res := postZip(t, admin, "/api/v1/skills/import?dry_run=1", archive)
+	if code != http.StatusOK || len(res["skills"].([]any)) != 2 || res["imported"].(float64) != 0 {
+		t.Fatalf("dry run: HTTP %d %+v", code, res)
+	}
+	if list := getSkillList(t, admin, "/api/v1/skills"); len(list) != 0 {
+		t.Fatalf("a dry run must not store anything: %+v", list)
+	}
+
+	// Import only pdf.
+	code, res = postZip(t, admin, "/api/v1/skills/import?names=pdf", archive)
+	if code != http.StatusOK || res["imported"].(float64) != 1 {
+		t.Fatalf("import: HTTP %d %+v", code, res)
+	}
+	item := res["skills"].([]any)[0].(map[string]any)
+	if item["status"] != "created" || item["binary_files"].(float64) != 1 {
+		t.Fatalf("import item unexpected: %+v", item)
+	}
+	pdfID := item["id"].(string)
+
+	var full struct {
+		License       string            `json:"license"`
+		Compatibility string            `json:"compatibility"`
+		AllowedTools  string            `json:"allowed_tools"`
+		Metadata      map[string]string `json:"metadata"`
+		Description   string            `json:"description"`
+		Files         []struct {
+			Path, Content, Encoding string
+		} `json:"files"`
+	}
+	resp := admin.do(http.MethodGet, "/api/v1/skills/"+pdfID, nil)
+	json.NewDecoder(resp.Body).Decode(&full)
+	resp.Body.Close()
+	if full.License != "Apache-2.0" || full.Compatibility != "Requires python3" ||
+		full.AllowedTools != "Bash(python3:*) Read" || full.Metadata["version"] != "1.0" ||
+		full.Description != "Work with PDFs. Use when: a PDF arrives." {
+		t.Fatalf("frontmatter fields lost: %+v", full)
+	}
+	foundPNG := false
+	for _, f := range full.Files {
+		if f.Path == "assets/logo.png" {
+			raw, _ := base64.StdEncoding.DecodeString(f.Content)
+			foundPNG = f.Encoding == "base64" && bytes.Equal(raw, png)
+		}
+	}
+	if !foundPNG {
+		t.Fatalf("the binary asset did not survive the round trip: %+v", full.Files)
+	}
+
+	// The whole archive again without replace: pdf exists, so NOTHING is
+	// stored — docx included.
+	code, res = postZip(t, admin, "/api/v1/skills/import", archive)
+	if code != http.StatusUnprocessableEntity {
+		t.Fatalf("an existing name without replace must refuse the import: HTTP %d %+v", code, res)
+	}
+	if list := getSkillList(t, admin, "/api/v1/skills"); len(list) != 1 {
+		t.Fatalf("a refused import must store nothing: %+v", list)
+	}
+
+	// By URL, with replace: the forge serves the archive, both land.
+	forge := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		w.Write(archive)
+	}))
+	defer forge.Close()
+	s.srv.SkillFetcher.Client = forge.Client()
+	res = admin.expect(http.MethodPost, "/api/v1/skills/import",
+		map[string]any{"url": forge.URL + "/skills.zip", "replace": true}, http.StatusOK)
+	if res["imported"].(float64) != 2 {
+		t.Fatalf("URL import: %+v", res)
+	}
+
+	// Materialized into the home: the frontmatter carries the optional fields,
+	// the asset its bytes, the script its executable bit.
+	admin.expect(http.MethodPut, "/api/v1/skills/"+pdfID+"/agents/"+agent.ID.String(), nil, http.StatusOK)
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Run", "[mock:result ok]", "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+	dir := filepath.Join(s.homeBase, agent.ID.String(), ".claude", "skills", "pdf")
+	entry, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"license: Apache-2.0", `allowed-tools: "Bash(python3:*) Read"`,
+		"metadata:\n  author: example-org\n  version: \"1.0\"\n---\n"} {
+		if !strings.Contains(string(entry), want) {
+			t.Errorf("materialized SKILL.md lacks %q:\n%s", want, entry)
+		}
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "assets", "logo.png")); !bytes.Equal(got, png) {
+		t.Errorf("asset not byte for byte: %v", got)
+	}
+	if info, err := os.Stat(filepath.Join(dir, "scripts", "extract.sh")); err != nil || info.Mode().Perm()&0o100 == 0 {
+		t.Errorf("script not executable: %v %v", info, err)
 	}
 }

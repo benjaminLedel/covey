@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,5 +152,65 @@ func TestClearSkillDirsRemovesEverything(t *testing.T) {
 	// Never materialized: no directory, no error.
 	if err := clearSkillDirs(filepath.Join(t.TempDir(), "gibtsnicht")); err != nil {
 		t.Fatalf("a missing directory is not an error: %v", err)
+	}
+}
+
+// The Agent Skills format: optional frontmatter lines from the control plane,
+// binary assets byte for byte, scripts executable.
+func TestWriteSkillDirsAgentSkillsFormat(t *testing.T) {
+	dir := t.TempDir()
+	png := []byte{0x89, 'P', 'N', 'G', 0x00, 0x01, 0xff}
+	err := writeSkillDirs(dir, []SkillDir{{
+		Name:        "pdf",
+		Description: "Work with PDFs",
+		Frontmatter: "license: MIT\nmetadata:\n  version: \"1.0\"\n---\n",
+		Files: map[string]string{
+			"SKILL.md":       "# PDF",
+			"scripts/run.sh": "echo hi\n",
+			"tool.py":        "#!/usr/bin/env python3\nprint(1)\n",
+			"reference.md":   "text",
+		},
+		Binary: map[string]string{"assets/logo.png": base64.StdEncoding.EncodeToString(png), "SKILL.md": "aGk="},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, _ := os.ReadFile(filepath.Join(dir, "pdf", "SKILL.md"))
+	want := "---\nname: pdf\ndescription: Work with PDFs\nlicense: MIT\nmetadata:\n  version: \"1.0\"\n---\n\n# PDF\n"
+	if string(entry) != want {
+		t.Fatalf("SKILL.md wrong — a --- in the extra lines must not close the block early:\n%s", entry)
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, "pdf", "assets", "logo.png"))
+	if string(got) != string(png) {
+		t.Fatalf("binary file not byte for byte: %v", got)
+	}
+	for rel, exec := range map[string]bool{"scripts/run.sh": true, "tool.py": true, "reference.md": false} {
+		info, err := os.Stat(filepath.Join(dir, "pdf", filepath.FromSlash(rel)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (info.Mode().Perm()&0o100 != 0) != exec {
+			t.Errorf("%s: mode %v, executable expected %v", rel, info.Mode().Perm(), exec)
+		}
+	}
+}
+
+// Codex installs its own skills under .system/ in the same directory. covey
+// never writes a dot-name, so it must never remove one either.
+func TestSkillDirsLeaveEngineOwnedEntries(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".system", "imagegen"), 0o700)
+	os.WriteFile(filepath.Join(dir, ".system", "imagegen", "SKILL.md"), []byte("x"), 0o600)
+	if err := writeSkillDirs(dir, []SkillDir{{Name: "a", Description: "d", Files: map[string]string{"SKILL.md": "x"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := clearSkillDirs(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".system", "imagegen", "SKILL.md")); err != nil {
+		t.Fatalf("the engine's own skills were removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "a")); !os.IsNotExist(err) {
+		t.Fatal("covey's own skill must still be cleared")
 	}
 }

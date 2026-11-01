@@ -47,7 +47,7 @@ Ein Platz trägt die Zugänge seiner eigenen Engine. Ein Agent der einen Engine,
 | Engine | CLI | Zugang (Secret → wie er in den Lauf kommt) | Resume | Skills | Denkaufwand | Modell |
 |---|---|---|---|---|---|---|
 | `claude-code` | `claude` | `anthropic_api_key` → `ANTHROPIC_API_KEY` oder `claude_code_oauth_token` → `CLAUDE_CODE_OAUTH_TOKEN` | ja | `.claude/skills` | `low` … `max` | jede ID oder jeder Alias |
-| `codex` | `codex` | `openai_api_key` → `CODEX_API_KEY` oder `codex_auth_json` → die Datei `.codex/auth.json` | nein | keine | keiner | jede ID |
+| `codex` | `codex` | `openai_api_key` → `CODEX_API_KEY` oder `codex_auth_json` → die Datei `.codex/auth.json` | nein | `.codex/skills` | keiner | jede ID |
 | `sevencode` | `sevencode` | `sevencode_api_token` → `SEVENCODE_API_KEY` | ja | `.sevencode/skills` | keiner | die der Instanz |
 | `educa-ai` | `claude` | `educa_api_token` oder `educa_seat_token` → `ANTHROPIC_AUTH_TOKEN` | ja | `.claude/skills` | `low` … `xhigh` | feste Liste von dreien |
 | `mock` | — | keiner | ja | `.claude/skills` | wie Claude Code | — |
@@ -85,7 +85,7 @@ Einzelheiten: [`spec/12-claude-code-adapter.md`](../../../spec/12-claude-code-ad
 
 - **Zugänge:** ein API-Schlüssel von der OpenAI-Plattform als `openai_api_key` (kommt als `CODEX_API_KEY` in den Lauf) oder ein Login eines ChatGPT-Plans (Plus/Pro/Team) — der Inhalt von `~/.codex/auth.json` nach `codex login` — als `codex_auth_json`, für den Lauf ins Home des Agenten geschrieben und danach entfernt. Keiner von beiden wird beim Speichern geprüft.
 - **Kein Resume.** Ob `codex exec` eine Sitzung fortsetzen kann, ist nicht geklärt, also behauptet die Engine es nicht: Ein Agent auf Codex sollte in einem Lauf fertig werden und kann nicht auf eine Antwort warten.
-- **Keine Skills, kein Denkaufwand, kein Turn-Limit, kein Werkzeugumfang.** Skills werden nicht geschrieben (wo Codex sie liest, ist nicht geklärt), der Regler für den Denkaufwand wird nicht angeboten, und Turn-Limit und Werkzeugliste werden nicht übergeben.
+- **Skills, aber kein Denkaufwand, kein Turn-Limit, kein Werkzeugumfang.** Skills werden nach `.codex/skills` geschrieben, wo Codex sie liest; der Regler für den Denkaufwand wird nicht angeboten, und Turn-Limit und Werkzeugliste werden nicht übergeben.
 - **Kosten aus einer Preisliste.** Codex meldet Tokens und kein Geld; covey bepreist sie je Modell. Die Auslastung eines ChatGPT-Plans lässt sich aus der CLI nicht lesen, ein Limit beruht also auf dem, was covey selbst gebucht hat.
 - **Die CLI steckt in keinem Image und in keinem Katalog.** `COVEY_CODEX_BIN` auf eine Installation setzen, oder ein eigenes Image oder einen eigenen Katalog verwenden.
 

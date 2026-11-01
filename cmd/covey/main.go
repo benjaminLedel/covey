@@ -100,6 +100,14 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	// skills validate checks skill directories against the Agent Skills format;
+	// like plugin lint it runs where the files are, without database or key.
+	case "skills":
+		if err := runSkills(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
 		// covey is a network service under AGPL-3.0: whoever offers a modified
@@ -166,6 +174,7 @@ func usage() {
   covey config lint       check agent configs for known pitfalls (changes nothing)
   covey plugin lint <f>   check a target-system plugin file (manifest or MCP config)
   covey style stats|check measure texts, or check one against a TONE.md profile
+  covey skills validate   check skill directories or zips against the Agent Skills format
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role

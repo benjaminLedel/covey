@@ -1441,13 +1441,22 @@ export type SecretCheck = {
 // agent_id empty = skill of the org library; assigned_to are then the agents
 // it is linked to (empty means: it reaches nobody). origin delivers the
 // agent's view: "agent" (belongs to it) or "library" (linked).
-export type SkillFile = { path: string; content: string };
+//
+// A skill follows the Agent Skills format (agentskills.io): license,
+// compatibility, allowed_tools and metadata are its optional frontmatter
+// fields. A file with encoding "base64" is binary (an image in assets/, a
+// template) and content holds its bytes base64-encoded.
+export type SkillFile = { path: string; content: string; encoding?: "base64" };
 export type Skill = {
   id: string;
   org_id: string;
   agent_id?: string;
   name: string;
   description: string;
+  license?: string;
+  compatibility?: string;
+  allowed_tools?: string;
+  metadata?: Record<string, string>;
   assigned_to?: string[];
   updated_at: string;
   files?: SkillFile[];
@@ -1455,6 +1464,61 @@ export type Skill = {
 };
 
 export const SKILL_ENTRY = "SKILL.md";
+
+// Importing skills as directories: a zip, or a URL to a zip or a repository
+// (POST /skills/import, /agents/{id}/skills/import). One archive may hold
+// several skills; with problems in any of them nothing is stored and the
+// server answers 422 with the same report a dry run gives — so that answer is
+// a result here, not an error.
+export type SkillImportItem = {
+  dir: string;
+  name: string;
+  description: string;
+  license?: string;
+  files: number;
+  binary_files: number;
+  exists: boolean;
+  problems: string[];
+  skipped?: string[];
+  status: "ready" | "created" | "replaced" | "invalid";
+  id?: string;
+};
+export type SkillImportResult = { dry_run: boolean; imported: number; skills: SkillImportItem[] };
+
+export async function importSkills(
+  base: string,
+  source: { file?: File; url?: string },
+  opts: { dryRun: boolean; replace: boolean; names?: string[] },
+): Promise<SkillImportResult> {
+  let res: Response;
+  if (source.file) {
+    const q = new URLSearchParams();
+    if (opts.dryRun) q.set("dry_run", "1");
+    if (opts.replace) q.set("replace", "1");
+    if (opts.names?.length) q.set("names", opts.names.join(","));
+    res = await fetch(`/api/v1${base}/skills/import?${q}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/zip" },
+      body: source.file,
+    });
+  } else {
+    res = await fetch(`/api/v1${base}/skills/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: source.url, dry_run: opts.dryRun, replace: opts.replace, names: opts.names }),
+    });
+  }
+  if (res.ok || res.status === 422) return res.json();
+  if (res.status === 401) abgelaufenMelden?.();
+  let msg = res.statusText;
+  try {
+    const body = await res.json();
+    if (body.error) msg = body.error;
+  } catch {
+    /* not JSON */
+  }
+  throw new ApiError(res.status, msg);
+}
 
 export type AgentTemplate = {
   id: string;
