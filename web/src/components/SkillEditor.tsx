@@ -13,7 +13,41 @@ import { SKILL_ENTRY, type Skill, type SkillFile } from "../api";
 //     refer to; the API rejects a rename accordingly (409).
 //   - SKILL.md cannot be removed. Without it the runtime does not know the
 //     directory as a skill — the agent would silently get nothing at all.
-export type SkillDraft = { name: string; description: string; files: SkillFile[] };
+//
+// The optional fields of the Agent Skills format (licence, requirements,
+// pre-approved tools, metadata) sit behind "Advanced": most skills need none
+// of them, and an imported skill carries them along. Binary files (images,
+// templates from an import) are shown, kept and removable, not edited.
+export type SkillDraft = {
+  name: string;
+  description: string;
+  license: string;
+  compatibility: string;
+  allowed_tools: string;
+  metadata: Record<string, string>;
+  files: SkillFile[];
+};
+
+// metadata is edited as "key: value" lines — the way it reads in SKILL.md.
+const metadataText = (m?: Record<string, string>) =>
+  Object.entries(m ?? {})
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+const parseMetadata = (text: string): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const i = line.indexOf(":");
+    if (i <= 0) continue;
+    const k = line.slice(0, i).trim();
+    if (k) out[k] = line.slice(i + 1).trim();
+  }
+  return out;
+};
+
+const binarySize = (f: SkillFile) => {
+  const bytes = Math.floor((f.content.length * 3) / 4);
+  return bytes < 1024 ? `${bytes} B` : `${Math.round(bytes / 1024)} KB`;
+};
 
 export function SkillEditor({
   skill,
@@ -34,6 +68,11 @@ export function SkillEditor({
   const { t } = useTranslation();
   const [name, setName] = useState(skill?.name ?? "");
   const [description, setDescription] = useState(skill?.description ?? "");
+  const [license, setLicense] = useState(skill?.license ?? "");
+  const [compatibility, setCompatibility] = useState(skill?.compatibility ?? "");
+  const [allowedTools, setAllowedTools] = useState(skill?.allowed_tools ?? "");
+  const [metadata, setMetadata] = useState(metadataText(skill?.metadata));
+  const hasAdvanced = !!(skill?.license || skill?.compatibility || skill?.allowed_tools || skill?.metadata);
   const [files, setFiles] = useState<SkillFile[]>(
     skill?.files?.length ? skill.files : [{ path: SKILL_ENTRY, content: "" }],
   );
@@ -60,7 +99,17 @@ export function SkillEditor({
           <button
             className="btn primary sm"
             disabled={saving || !name.trim() || !description.trim()}
-            onClick={() => onSave({ name: name.trim(), description: description.trim(), files })}
+            onClick={() =>
+              onSave({
+                name: name.trim(),
+                description: description.trim(),
+                license: license.trim(),
+                compatibility: compatibility.trim(),
+                allowed_tools: allowedTools.trim(),
+                metadata: parseMetadata(metadata),
+                files,
+              })
+            }
           >
             {saving ? "…" : t("skills.save")}
           </button>
@@ -97,6 +146,44 @@ export function SkillEditor({
         <p className="muted text-xs m-0">{t("skills.descriptionHint")}</p>
       </div>
 
+      <details className="mb-3" open={hasAdvanced}>
+        <summary className="text-xs muted" style={{ cursor: "pointer" }}>
+          {t("skills.advanced")}
+        </summary>
+        <div className="flex gap-3 flex-wrap mt-2">
+          <div className="min-w-52 flex-1">
+            <label>{t("skills.license")}</label>
+            <input value={license} onChange={(e) => setLicense(e.target.value)} placeholder="Apache-2.0" />
+          </div>
+          <div className="min-w-52 flex-1">
+            <label>{t("skills.allowedTools")}</label>
+            <input
+              className="mono"
+              value={allowedTools}
+              onChange={(e) => setAllowedTools(e.target.value)}
+              placeholder="Bash(git:*) Read"
+            />
+          </div>
+        </div>
+        <p className="muted text-xs m-0">{t("skills.allowedToolsHint")}</p>
+        <div className="mt-2">
+          <label>{t("skills.compatibility")}</label>
+          <input value={compatibility} onChange={(e) => setCompatibility(e.target.value)} />
+          <p className="muted text-xs m-0">{t("skills.compatibilityHint")}</p>
+        </div>
+        <div className="mt-2">
+          <label>{t("skills.metadata")}</label>
+          <textarea
+            className="code"
+            rows={3}
+            value={metadata}
+            onChange={(e) => setMetadata(e.target.value)}
+            placeholder={"author: example-org\nversion: 1.0"}
+          />
+          <p className="muted text-xs m-0">{t("skills.metadataHint")}</p>
+        </div>
+      </details>
+
       {files.map((f) => (
         <div key={f.path} className="mb-3">
           <div className="flex items-center gap-2">
@@ -111,12 +198,16 @@ export function SkillEditor({
               </button>
             )}
           </div>
-          <textarea
-            className="code"
-            rows={Math.min(16, Math.max(6, f.content.split("\n").length + 1))}
-            value={f.content}
-            onChange={(e) => setContent(f.path, e.target.value)}
-          />
+          {f.encoding === "base64" ? (
+            <p className="muted text-xs m-0">{t("skills.binaryFile", { size: binarySize(f) })}</p>
+          ) : (
+            <textarea
+              className="code"
+              rows={Math.min(16, Math.max(6, f.content.split("\n").length + 1))}
+              value={f.content}
+              onChange={(e) => setContent(f.path, e.target.value)}
+            />
+          )}
         </div>
       ))}
 

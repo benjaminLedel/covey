@@ -41,6 +41,12 @@ Der Arbeitsplatz ist im Browser einsehbar: durchsehen, eine Vorlage hineinlegen,
 
 **Aus dem Chat (Versuch).** Ist die Organisationseinstellung *Konfigurationsänderungen aus dem Chat entwerfen* an (standardmäßig aus, neben dem Triage-Schalter), wird ein Wunsch wie „schau nur noch alle zwei Stunden ins Postfach" an einen Agenten keine Aufgabe. Der Agent entwirft die Änderung mit demselben Konfigurationsassistenten, den die Agentenseite anbietet, und stellt sie als Karte ins Gespräch: der Unterschied je Datei, die Begründung und ein Hinweis, wenn sie Zugänge erweitert. In Kraft ist damit noch nichts. Annehmen kann sie nur, wer den Agenten ändern darf — sein Owner, ein Org-Admin, bei `ACCESS.md` oder `EGRESS.md` nur Org-Admin oder Security —, und Annehmen ist dasselbe wie auf der Agentenseite: eine neue Version im Verlauf, mit denselben Prüfungen. Alle anderen sehen, auf wen sie wartet.
 
+## Skills: Abläufe, die erst bei Bedarf geladen werden
+
+Die sechs Dateien stehen in jedem Lauf vollständig. Ein **Skill** nicht: Er ist ein Ordner mit einer `SKILL.md` und allem, was dazugehört — Nachschlagetabellen, Vorlagen, Skripte, Bilder. Nur seine Beschreibung ist immer im Blick; den Rest liest der Agent, wenn eine Aufgabe danach verlangt. Ein Skill gehört einem Agenten oder liegt in der Bibliothek der Organisation und erreicht einen Agenten, sobald er mit ihm verknüpft ist.
+
+Skills folgen dem offenen [Agent-Skills-Format](https://agentskills.io/specification); ein Skill, der für ein anderes Agentenprodukt veröffentlicht wurde, funktioniert in covey so, wie er ist. *Skills → Importieren* (oder *Importieren* im Skills-Reiter eines Agenten) nimmt eine Zip-Datei oder einen Link auf ein GitHub- oder GitLab-Repository oder einen Ordner darin, prüft jeden Skill darin und speichert die angehakten — oder keinen, wenn einer nicht besteht. Lizenz, Voraussetzungen, vorab erlaubte Werkzeuge und weitere Angaben stehen im Editor unter *Erweitert*. Wer Skills prüfen will, bevor sie covey erreichen — etwa in der CI eines Repositorys —, ruft `covey skills validate <Ordner>` auf; das braucht weder Datenbank noch Schlüssel.
+
 ## Seriell vor parallel
 
 Ein Agent bearbeitet eine Aufgabe zur Zeit. Das ist eine Entscheidung, keine Beschränkung: Zwei gleichzeitige Läufe desselben Agenten würden sich um dasselbe Home und denselben Zustand streiten, und der Fehler wäre nicht reproduzierbar. Mehr Durchsatz kommt über mehr Agenten.

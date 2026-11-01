@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, post, put, type Agent, type Principal, type Skill } from "../api";
 import { SkillEditor, type SkillDraft } from "../components/SkillEditor";
+import { SkillImport } from "../components/SkillImport";
 
 const canEdit = (role: string) => role === "org_admin" || role === "agent_owner";
 
@@ -16,6 +17,7 @@ export default function Skills({ me }: { me: Principal }) {
   const skills = useQuery({ queryKey: ["skills"], queryFn: () => api<Skill[]>("/skills"), retry: false });
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const editable = canEdit(me.Role);
 
   const create = useMutation({
@@ -46,9 +48,14 @@ export default function Skills({ me }: { me: Principal }) {
       </p>
 
       {editable && (
-        <button className="btn primary sm mb-4" onClick={() => setCreating(true)}>
-          {t("skills.new")}
-        </button>
+        <div className="flex gap-2 mb-4">
+          <button className="btn primary sm" onClick={() => setCreating(true)}>
+            {t("skills.new")}
+          </button>
+          <button className="btn sm" onClick={() => setImporting(true)}>
+            {t("skills.import")}
+          </button>
+        </div>
       )}
 
       {(skills.data ?? []).map((s) => (
@@ -63,6 +70,14 @@ export default function Skills({ me }: { me: Principal }) {
           error={create.isError ? (create.error as Error).message : undefined}
           onSave={(d) => create.mutate(d)}
           onClose={() => setCreating(false)}
+        />
+      )}
+      {importing && (
+        <SkillImport
+          base=""
+          title={t("skills.import")}
+          onDone={() => qc.invalidateQueries({ queryKey: ["skills"] })}
+          onClose={() => setImporting(false)}
         />
       )}
     </div>

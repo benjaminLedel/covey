@@ -47,7 +47,7 @@ A seat carries the credentials of its own engine. An agent on one engine that si
 | Engine | CLI | Credential (secret → how it reaches the run) | Resume | Skills | Effort | Model |
 |---|---|---|---|---|---|---|
 | `claude-code` | `claude` | `anthropic_api_key` → `ANTHROPIC_API_KEY`, or `claude_code_oauth_token` → `CLAUDE_CODE_OAUTH_TOKEN` | yes | `.claude/skills` | `low` … `max` | any id or alias |
-| `codex` | `codex` | `openai_api_key` → `CODEX_API_KEY`, or `codex_auth_json` → the file `.codex/auth.json` | no | none | none | any id |
+| `codex` | `codex` | `openai_api_key` → `CODEX_API_KEY`, or `codex_auth_json` → the file `.codex/auth.json` | no | `.codex/skills` | none | any id |
 | `sevencode` | `sevencode` | `sevencode_api_token` → `SEVENCODE_API_KEY` | yes | `.sevencode/skills` | none | the instance's |
 | `educa-ai` | `claude` | `educa_api_token` or `educa_seat_token` → `ANTHROPIC_AUTH_TOKEN` | yes | `.claude/skills` | `low` … `xhigh` | fixed list of three |
 | `mock` | — | none | yes | `.claude/skills` | as Claude Code | — |
@@ -85,7 +85,7 @@ Details: [`spec/12-claude-code-adapter.md`](../../../spec/12-claude-code-adapter
 
 - **Credentials:** an API key from the OpenAI platform as `openai_api_key` (reaches the run as `CODEX_API_KEY`), or a ChatGPT plan login (Plus/Pro/Team) — the contents of `~/.codex/auth.json` after `codex login` — as `codex_auth_json`, written into the agent home for the run and removed after it. Neither is checked when it is stored.
 - **No resume.** Whether `codex exec` can continue a session is not established, so the engine does not claim it: an agent on Codex should finish in one run and cannot wait for an answer.
-- **No skills, no effort, no turn limit, no tool scope.** Skills are not written (Codex's place for them is not established), the reasoning-effort control is not offered, and the turn limit and tool list are not passed.
+- **Skills, but no effort, no turn limit, no tool scope.** Skills are written to `.codex/skills`, where Codex reads them; the reasoning-effort control is not offered, and the turn limit and tool list are not passed.
 - **Cost from a price list.** Codex reports tokens and no money; covey prices them per model. Utilisation of a ChatGPT plan cannot be read from the CLI, so a limit rests on what covey booked itself.
 - **The CLI is in no image and in no catalogue.** Set `COVEY_CODEX_BIN` to an install, or use an image or a catalogue of your own.
 

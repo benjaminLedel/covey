@@ -41,6 +41,12 @@ The workplace is browsable in the UI: look through it, drop in a template, edit 
 
 **From the chat (trial).** With the organisation setting *draft configuration changes from the chat* on (off by default, beside the triage switch), a wish like "check the inbox only every two hours" written to an agent does not become a task. The agent drafts the change with the same config assistant the agent page offers and posts it into the conversation as a card: the diff per file, why, and a note when it widens access. Nothing is in effect yet. Only somebody who may change the agent — its owner, an org admin, and for `ACCESS.md` or `EGRESS.md` only org admin or security — can accept it, and accepting it is the same as on the agent page: a new version in the history, with the same checks. Everybody else sees whom it waits for.
 
+## Skills: procedures loaded on demand
+
+The six files sit in every run in full. A **skill** does not: it is a folder with a `SKILL.md` and whatever else belongs to it — reference tables, templates, scripts, images. Only its description is always in view; the rest is read when a task calls for it. A skill belongs to one agent, or sits in the organisation's library and reaches an agent once it is linked to it.
+
+Skills follow the open [Agent Skills format](https://agentskills.io/specification), so a skill published for another agent product works in covey as it is. *Skills → Import* (or *Import* on an agent's skills tab) takes a zip file or a link to a GitHub or GitLab repository or folder, checks every skill in it, and stores the ones you tick — or none, if one does not hold up. Licence, requirements, pre-approved tools and further details sit under *Advanced* in the editor. To check skills before they reach covey — in a repository's CI, say — run `covey skills validate <folder>`; it needs neither database nor key.
+
 ## Serial before parallel
 
 An agent handles one task at a time. That is a decision, not a limitation: two concurrent runs of the same agent would fight over the same home and the same state, and the resulting bug would not reproduce. Throughput comes from more agents.

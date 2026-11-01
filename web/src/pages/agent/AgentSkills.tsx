@@ -9,6 +9,7 @@ import {
   type Skill,
 } from "../../api";
 import { SkillEditor, type SkillDraft } from "../../components/SkillEditor";
+import { SkillImport } from "../../components/SkillImport";
 
 export function AgentSkills({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export function AgentSkills({ agentId, canManage }: { agentId: string; canManage
   });
   const library = useQuery({ queryKey: ["skills"], queryFn: () => api<Skill[]>("/skills"), retry: false });
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   // To change it, fetch the current state instead of the entry from the list: the
   // editor takes its initial state when it mounts and PUT replaces the file set
@@ -96,6 +98,9 @@ export function AgentSkills({ agentId, canManage }: { agentId: string; canManage
           <button className="btn primary sm" onClick={() => setCreating(true)}>
             {t("agent.skills.newOwn")}
           </button>
+          <button className="btn sm" onClick={() => setImporting(true)}>
+            {t("skills.import")}
+          </button>
           {link.isError && <span className="danger-text text-xs">{(link.error as Error).message}</span>}
         </div>
       )}
@@ -164,6 +169,14 @@ export function AgentSkills({ agentId, canManage }: { agentId: string; canManage
           error={create.isError ? (create.error as Error).message : undefined}
           onSave={(d) => create.mutate(d)}
           onClose={() => setCreating(false)}
+        />
+      )}
+      {importing && (
+        <SkillImport
+          base={`/agents/${agentId}`}
+          title={t("skills.import")}
+          onDone={inval}
+          onClose={() => setImporting(false)}
         />
       )}
       {editingId && editing.data && !editing.isFetching && (
