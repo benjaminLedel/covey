@@ -533,7 +533,7 @@ func (p *actionProxy) message(ctx context.Context, params json.RawMessage) any {
 // readMessageFiles reads the files a covey/message hands over (#586). A path
 // is read the way the agent writes it: "~/out/a.png" and "out/a.png" from
 // its home, an absolute path as it stands — whatever the sandbox holds is the
-// agent's to show. Only regular files, and the limits are checked on the
+// agent's to show, except the pseudo-filesystems (#678). Only regular files, and the limits are checked on the
 // sizes before a byte is read, so that a video of a gigabyte is refused
 // rather than loaded.
 func readMessageFiles(home string, paths []string) ([]MessageFile, error) {
@@ -558,6 +558,18 @@ func readMessageFiles(home string, paths []string) ([]MessageFile, error) {
 		case !filepath.IsAbs(p):
 			p = filepath.Join(home, p)
 		}
+		// The daemon reads the file, not the agent — and the daemon sees more
+		// than the agent's work: the pseudo-filesystems describe the reading
+		// process itself, which is exactly what childEnv keeps from a run. So
+		// the real target counts, after every symlink, and it is what is read.
+		real, err := filepath.EvalSymlinks(p)
+		if err != nil {
+			return nil, fmt.Errorf("file %s: not found", raw)
+		}
+		if pseudoFS(real) {
+			return nil, fmt.Errorf("file %s: lies under %s, which holds no files of your work", raw, pseudoRoot(real))
+		}
+		p = real
 		info, err := os.Stat(p)
 		if err != nil {
 			return nil, fmt.Errorf("file %s: not found", raw)
@@ -588,6 +600,22 @@ func readMessageFiles(home string, paths []string) ([]MessageFile, error) {
 	}
 	return out, nil
 }
+
+// pseudoRoots are the filesystems whose files are generated on read. Their
+// "regular files" report size 0 and pass every other check here.
+var pseudoRoots = []string{"/proc", "/sys", "/dev"}
+
+func pseudoRoot(p string) string {
+	p = filepath.Clean(p)
+	for _, root := range pseudoRoots {
+		if p == root || strings.HasPrefix(p, root+string(filepath.Separator)) {
+			return root
+		}
+	}
+	return ""
+}
+
+func pseudoFS(p string) bool { return pseudoRoot(p) != "" }
 
 // actionSubject maps the action onto the guard-rail subject — each plugin knows
 // its own special cases that can be governed more sharply (e.g.
