@@ -109,6 +109,7 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		upd.PasswordHash = &hash
+		upd.OwnLogin = true
 	}
 	h, err := s.Org.UpdateHuman(r.Context(), p.OrgID, p.ID, upd)
 	if err != nil {
