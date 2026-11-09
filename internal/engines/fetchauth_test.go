@@ -54,3 +54,55 @@ func TestFetchSendsTheHeaderTheEntryNames(t *testing.T) {
 		t.Errorf("the reason should name the variable that is missing: %v", err)
 	}
 }
+
+// TestTokenStaysOnTheArtefactHost is #696: a custom header survived a redirect
+// to another host, so the artefact host passed the token on to the next one.
+func TestTokenStaysOnTheArtefactHost(t *testing.T) {
+	var leaked string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("PRIVATE-TOKEN") + r.Header.Get("Authorization")
+		w.Write([]byte("payload"))
+	}))
+	defer other.Close()
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("PRIVATE-TOKEN") != "glpt-abc" {
+			t.Error("the artefact host itself has to get the token")
+		}
+		http.Redirect(w, r, other.URL+"/signed.tgz", http.StatusFound)
+	}))
+	defer origin.Close()
+
+	t.Setenv("COVEY_TEST_ARTIFACT_DOWNLOAD_TOKEN", "glpt-abc")
+	r := Release{Version: "1.0.27", Kind: KindTarball, URL: origin.URL + "/a.tgz",
+		Integrity:  "sha256:" + strings.Repeat("a", 64),
+		AuthHeader: "PRIVATE-TOKEN", AuthEnv: "COVEY_TEST_ARTIFACT_DOWNLOAD_TOKEN"}
+	body, err := fetchArtifact(t.Context(), &http.Client{}, r, 1<<20, nil, Auth{})
+	if err != nil || string(body) != "payload" {
+		t.Fatalf("fetch through the redirect: %q, %v", body, err)
+	}
+	if leaked != "" {
+		t.Errorf("the token went on to the other host: %q", leaked)
+	}
+}
+
+// TestAuthEnvNamesOnlyADownloadToken is #696: the catalogue chose any
+// variable of the control plane's environment to send to the artefact host.
+func TestAuthEnvNamesOnlyADownloadToken(t *testing.T) {
+	base := Release{Version: "1.0.0", Kind: KindTarball, URL: "https://example.org/a.tgz",
+		Integrity: "sha256:" + strings.Repeat("a", 64), AuthHeader: "Authorization"}
+	for env, ok := range map[string]bool{
+		"COVEY_SEVENCODE_DOWNLOAD_TOKEN": true,
+		"COVEY_MASTER_KEY":               false,
+		"COVEY_DATABASE_URL":             false,
+		"HOME":                           false,
+		"COVEY__DOWNLOAD_TOKEN":          false,
+		"COVEY_DOWNLOAD_TOKEN":           false,
+		"COVEY_x_DOWNLOAD_TOKEN":         false,
+	} {
+		r := base
+		r.AuthEnv = env
+		if err := r.Valid(); (err == nil) != ok {
+			t.Errorf("auth_env %s: Valid() = %v, accepted expected %v", env, err, ok)
+		}
+	}
+}

@@ -95,7 +95,7 @@ func TestEngineLayerWithoutAnyTokenNamesBothPlaces(t *testing.T) {
 		"kind":"file","binary":"sevencode","url":"` + srv.URL + `/cli/latest",
 		"integrity":"sha256:` + hex.EncodeToString(sum[:]) + `",
 		"auth_header":"Authorization","auth_secret":"sevencode_api_token",
-		"auth_env":"COVEY_TEST_ENGINE_TOKEN"}]}]}`
+		"auth_env":"COVEY_TEST_ENGINE_DOWNLOAD_TOKEN"}]}]}`
 	dir := t.TempDir()
 	catPath := filepath.Join(dir, "engines.json")
 	if err := os.WriteFile(catPath, []byte(cat), 0o644); err != nil {
@@ -111,7 +111,7 @@ func TestEngineLayerWithoutAnyTokenNamesBothPlaces(t *testing.T) {
 	if err == nil {
 		t.Fatal("a login that cannot be answered has to fail the start, not ask anonymously")
 	}
-	for _, want := range []string{"sevencode_api_token", "COVEY_TEST_ENGINE_TOKEN"} {
+	for _, want := range []string{"sevencode_api_token", "COVEY_TEST_ENGINE_DOWNLOAD_TOKEN"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the message has to name %s, or the search ends at the wrong place: %v", want, err)
 		}

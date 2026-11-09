@@ -186,8 +186,8 @@ func (r Release) Valid() error {
 		if secretName != "" && !isSecretName(secretName) {
 			return fmt.Errorf("%s %s has %s %q, which is not the name of a secret", r.engine, r.Version, "auth_secret", secretName)
 		}
-		if env != "" && !isEnvName(env) {
-			return fmt.Errorf("%s %s has %s %q, which is not the name of a variable", r.engine, r.Version, "auth_env", env)
+		if env != "" && !isDownloadTokenEnv(env) {
+			return fmt.Errorf("%s %s has %s %q; only a variable named COVEY_<NAME>_DOWNLOAD_TOKEN may be read for a download", r.engine, r.Version, "auth_env", env)
 		}
 	case KindNpm:
 		if strings.TrimSpace(r.Package) == "" {
@@ -222,6 +222,27 @@ func (r Release) Follows() bool { return r.Follow != nil }
 // test is small and deliberate: a path or a URL in this field means somebody
 // wrote the secret itself where the name of a secret belongs, and refusing it at
 // the parse is the one moment at which that can still be said quietly.
+// isDownloadTokenEnv admits only a variable meant for this purpose. The
+// catalogue is a fetched document, and a name it chooses is read from the
+// control plane's environment and sent to the artefact host — any name would
+// let the document pick COVEY_MASTER_KEY or the database URL (#696).
+func isDownloadTokenEnv(s string) bool {
+	mid, ok := strings.CutPrefix(s, "COVEY_")
+	if !ok {
+		return false
+	}
+	mid, ok = strings.CutSuffix(mid, "_DOWNLOAD_TOKEN")
+	if !ok || mid == "" {
+		return false
+	}
+	for _, r := range mid {
+		if !(r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_') {
+			return false
+		}
+	}
+	return isEnvName(s)
+}
+
 func isEnvName(s string) bool {
 	for i, r := range s {
 		switch {
