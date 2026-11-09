@@ -3758,7 +3758,7 @@ func (o *Orchestrator) OnApprovalDecidedWithText(ctx context.Context, appr obser
 	// moved.
 	o.events.Publish(Event{Type: "approval", AgentID: appr.AgentID.String(), OrgID: appr.OrgID,
 		Data: map[string]string{"approval_id": appr.ID.String(), "action": appr.Action, "status": appr.Status}})
-	if _, err := o.Backlog.CorrelateWake(ctx, "approval:"+appr.ID.String(), text); err != nil &&
+	if _, err := o.Backlog.CorrelateWake(ctx, appr.OrgID, "approval:"+appr.ID.String(), text); err != nil &&
 		!errors.Is(err, backlog.ErrNotFound) {
 		o.Log.Warn("approval correlation", "approval", appr.ID, "err", err)
 	}
@@ -3920,9 +3920,13 @@ func (o *Orchestrator) nebenlaeufig(f func()) {
 // HandleWebhook processes an incoming target-system event (M3/M4): idempotent;
 // first correlates against blocked tasks (ResumeInput is then the continuation
 // input), otherwise a new backlog task (TaskBody).
+//
+// Both lookups stay inside the agent's organisation (#689): the dedup key and
+// the correlation key are computed by the plugin from the target system's own
+// ids, which repeat across organisations.
 func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, source string, ev target.WebhookEvent) (string, error) {
 	tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
-		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, ev.DedupKey, source)
+		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, agent.OrgID.String()+":"+ev.DedupKey, source)
 	if err != nil {
 		return "", err
 	}
@@ -3932,7 +3936,7 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	if !ev.Wake {
 		return "ignored", nil // e.g. the echo of the agent's own reply
 	}
-	if task, err := o.Backlog.CorrelateWake(ctx, ev.CorrelationKey, ev.ResumeInput); err == nil {
+	if task, err := o.Backlog.CorrelateWake(ctx, agent.OrgID, ev.CorrelationKey, ev.ResumeInput); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &task.ID, observability.KindLifecycle,
 			map[string]string{"status": "wake_on_correlation", "correlation_key": ev.CorrelationKey})
 		o.publishTask(task.ID, agent)

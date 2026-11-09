@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
+
 	"covey/internal/agents"
 	"covey/internal/memory"
 	"covey/internal/orchestrator"
@@ -217,5 +219,56 @@ func TestEgressVorlageBleibtInDerOrganisation(t *testing.T) {
 	}
 	if err := s.egress.SetAgentTemplate(ctx, eigener.ID, eigeneVorlage.ID, true); err != nil {
 		t.Errorf("die eigene Vorlage muss anhängbar bleiben: %v", err)
+	}
+}
+
+// F (#689): a webhook event continued the parked task of whichever
+// organisation happened to wait on the same correlation key — ticket numbers
+// repeat across organisations — and its dedup key could swallow the other
+// organisation's event as a "duplicate".
+func TestWebhookWecktNurDieEigeneOrganisation(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	eigener := s.newSupportAgent("support")
+	fremdeOrg, fremder := nachbar(t, s)
+
+	parke := func(orgID, agentID uuid.UUID) uuid.UUID {
+		task, err := s.backlog.Create(ctx, orgID, agentID, "Ticket 42", "", "test", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='blocked', correlation_key='zammad:ticket:42'
+			WHERE id=$1`, task.ID); err != nil {
+			t.Fatal(err)
+		}
+		return task.ID
+	}
+	fremdeAufgabe := parke(fremdeOrg, fremder.ID)
+
+	ev := target.WebhookEvent{DedupKey: "zammad:42:7:open", CorrelationKey: "zammad:ticket:42",
+		ResumeInput: "Antwort aus der eigenen Organisation", Wake: true, CorrelateOnly: true}
+	outcome, err := s.orch.HandleWebhook(ctx, eigener, "zammad", ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome == "correlated" {
+		t.Fatal("das Ereignis hat eine Aufgabe der fremden Organisation geweckt")
+	}
+	var state string
+	if err := s.pool.QueryRow(ctx, `SELECT state FROM backlog_tasks WHERE id=$1`, fremdeAufgabe).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "blocked" {
+		t.Errorf("fremde Aufgabe steht auf %q, erwartet blocked", state)
+	}
+
+	// The neighbour's own event with the same plugin dedup key is not a
+	// duplicate of ours, and it does wake the neighbour's task.
+	outcome, err = s.orch.HandleWebhook(ctx, fremder, "zammad", ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome != "correlated" {
+		t.Errorf("das Ereignis der Nachbarorganisation ergibt %q, erwartet correlated", outcome)
 	}
 }

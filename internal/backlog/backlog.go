@@ -878,10 +878,16 @@ func (s *Store) ParkedByOrigin(ctx context.Context, orgID uuid.UUID, origin stri
 // CorrelateWake is the blocked→working edge (M4): an incoming event with a
 // correlation key reopens the parked task with resume input and wakes the
 // agent. Returns ErrNotFound if nothing is waiting on the key.
-func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput string) (Task, error) {
+//
+// Only within the organisation the event arrived for: a correlation key is a
+// natural id of the target system (a ticket number), and two organisations
+// with a Zammad each have a ticket 42 each. Matched on the key alone, the
+// event of one continued the task of the other, with its customer's text as
+// the resume input (#689).
+func (s *Store) CorrelateWake(ctx context.Context, orgID uuid.UUID, correlationKey, resumeInput string) (Task, error) {
 	t, err := scanTask(s.pool.QueryRow(ctx, "SELECT "+taskCols+` FROM backlog_tasks
-		WHERE state='blocked' AND correlation_key=$1
-		ORDER BY updated_at LIMIT 1`, correlationKey))
+		WHERE state='blocked' AND correlation_key=$1 AND org_id=$2
+		ORDER BY updated_at LIMIT 1`, correlationKey, orgID))
 	if err != nil {
 		return Task{}, err
 	}
