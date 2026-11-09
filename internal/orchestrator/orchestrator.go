@@ -6,6 +6,7 @@ package orchestrator
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -3675,7 +3676,7 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		v := o.approvalGate(ctx, agent, &taskID, req.Action, json.RawMessage(req.Params), "")
+		v := o.approvalGate(ctx, agent, &taskID, req.Action, json.RawMessage(req.Params), paramBinding(json.RawMessage(req.Params)))
 		switch {
 		case v.Error != "":
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
@@ -3729,15 +3730,29 @@ type gateVerdict struct {
 // `slug: "helper"` the one for `slug: "backdoor"`. Only the target-system
 // path still comes here with an empty binding; there the action itself is the
 // object.
+//
+// That last sentence was the gap (#700): with an empty binding any approved,
+// unused approval for the agent and action was taken, whatever the parameters
+// of the request taking it — the approval for one reviewed mail sent the next,
+// unreviewed one. Every caller now binds: an empty binding is computed here
+// from params, and stored with the approval, so only a repeat of exactly the
+// parameters a human saw consumes it. A reviewer's correction moves the
+// binding to the corrected text (RebindCorrected).
 func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID *uuid.UUID,
 	action string, params json.RawMessage, binding string) gateVerdict {
 
-	// An unused approval for exactly this action? Then consume it.
+	if binding == "" {
+		binding = paramBinding(params)
+	}
+	params = withBinding(params, binding)
+
+	// An unused approval for exactly this action and these parameters? Then
+	// consume it.
 	var approvalID uuid.UUID
 	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
 		WHERE id = (SELECT id FROM approvals
 			WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
-			  AND ($3='' OR params->>'binding' = $3)
+			  AND params->>'binding' = $3
 			ORDER BY decided_at DESC LIMIT 1)
 		RETURNING id`, agent.ID, action, binding).Scan(&approvalID)
 	if err == nil {
@@ -3779,7 +3794,7 @@ func (o *Orchestrator) OnApprovalDecided(ctx context.Context, appr observability
 // interpret ("take the reviewer's remarks into account") is how a rewritten
 // sentence turns back into the agent's own.
 func (o *Orchestrator) OnApprovalDecidedWithText(ctx context.Context, appr observability.Approval, corrected string) {
-	text := fmt.Sprintf("The approval for %q was granted. Perform the action again through the action proxy now and finish the task.", appr.Action)
+	text := fmt.Sprintf("The approval for %q was granted. Perform the action again through the action proxy now, with exactly the same parameters — the approval holds for those and no others — and finish the task.", appr.Action)
 	if corrected != "" {
 		text = fmt.Sprintf("The approval for %q was granted, and the text was CHANGED by the reviewer. "+
 			"Perform the action again through the action proxy now, with exactly this text, verbatim, "+
@@ -4103,4 +4118,81 @@ func (o *Orchestrator) WakeTroubles() map[uuid.UUID]WakeTrouble {
 		out[id] = *t
 	}
 	return out
+}
+
+// paramBinding is bindingOf for parameters as they arrive: raw JSON. What
+// does not decode as an object is fingerprinted as it stands.
+func paramBinding(params json.RawMessage) string {
+	var m map[string]any
+	if err := json.Unmarshal(params, &m); err != nil || m == nil {
+		sum := sha256.Sum256(params)
+		return hex.EncodeToString(sum[:])
+	}
+	delete(m, "style_findings")
+	return bindingOf(m)
+}
+
+// withBinding stores the binding inside the approval's parameters, where the
+// consuming query reads it.
+func withBinding(params json.RawMessage, binding string) json.RawMessage {
+	var m map[string]any
+	if err := json.Unmarshal(params, &m); err != nil || m == nil {
+		m = map[string]any{}
+		if len(params) > 0 {
+			m["params"] = params
+		}
+	}
+	if existing, ok := m["binding"].(string); ok && existing == binding {
+		return params
+	}
+	m["binding"] = binding
+	out, err := json.Marshal(m)
+	if err != nil {
+		return params
+	}
+	return out
+}
+
+// RebindCorrected moves an approval's binding to the text a reviewer put in
+// place of the agent's: the agent is told to repeat the action with exactly
+// that text, and the repeat has to find the approval. Every string of the
+// parameters that reads as before (whitespace aside) becomes after, and the
+// binding is taken over the result — the same parameters the repeat will
+// carry. Where before is not found nothing moves, and the repeat asks again:
+// a second look rather than an unreviewed run.
+func (o *Orchestrator) RebindCorrected(ctx context.Context, appr observability.Approval, before, after string) error {
+	var m map[string]any
+	if err := json.Unmarshal(appr.Params, &m); err != nil || m == nil {
+		return nil
+	}
+	delete(m, "binding")
+	delete(m, "style_findings")
+	before = strings.TrimSpace(before)
+	var changed bool
+	var walk func(x any) any
+	walk = func(x any) any {
+		switch t := x.(type) {
+		case string:
+			if strings.TrimSpace(t) == before {
+				changed = true
+				return after
+			}
+		case map[string]any:
+			for k, v := range t {
+				t[k] = walk(v)
+			}
+		case []any:
+			for i, v := range t {
+				t[i] = walk(v)
+			}
+		}
+		return x
+	}
+	walk(m)
+	if !changed {
+		return nil
+	}
+	_, err := o.Pool.Exec(ctx, `UPDATE approvals SET params = jsonb_set(params, '{binding}', to_jsonb($2::text))
+		WHERE id = $1 AND org_id = $3`, appr.ID, bindingOf(m), appr.OrgID)
+	return err
 }

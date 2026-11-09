@@ -1632,6 +1632,12 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 			if after := strings.TrimSpace(in.Text); after != "" && after != before {
 				corrected = after
 				s.noteCorrection(r.Context(), appr, before, after, p.ID.String())
+				// The approval holds for the parameters a human saw; the
+				// reviewer just changed them, so it moves to the new text
+				// the agent is told to send (#700).
+				if err := s.Orch.RebindCorrected(r.Context(), appr, before, after); err != nil {
+					s.Log.Warn("approval: binding not moved to the corrected text", "approval", appr.ID, "err", err)
+				}
 			}
 		}
 	}

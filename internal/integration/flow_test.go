@@ -645,3 +645,49 @@ func mustTask(t *testing.T, s *stack, id string) backlog.Task {
 func railRule(orgID uuid.UUID, ruleType, pattern string) guardrails.Rule {
 	return guardrails.Rule{OrgID: orgID, ScopeLevel: "global", RuleType: ruleType, Pattern: pattern}
 }
+
+// TestApprovalHoldsForTheReviewedParameters is #700: an approval was consumed
+// by any request of the same agent for the same action — a human approved
+// one text, and a different one, never reviewed, went out on it.
+func TestApprovalHoldsForTheReviewedParameters(t *testing.T) {
+	s := newStack(t)
+	zammad := newFakeZammad(t)
+	ctx := context.Background()
+	s.secrets.Put(ctx, s.orgID, "zammad_token", "tok")
+	s.secrets.Put(ctx, s.orgID, "zammad_url", zammad.srv.URL)
+	agent := s.newSupportAgent("support")
+	s.secrets.Assign(ctx, s.orgID, "zammad_token", agent.ID)
+	s.secrets.Assign(ctx, s.orgID, "zammad_url", agent.ID)
+	if _, err := s.rails.Create(ctx, railRule(s.orgID, "require_approval", "zammad:reply_external")); err != nil {
+		t.Fatal(err)
+	}
+
+	reviewed, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Antwort A",
+		`[mock:action zammad/reply {"ticket_id":42,"body":"Text A, geprüft","internal":false}]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "first task blocked on approval", 15*time.Second, func() bool {
+		return s.taskState(reviewed.ID) == backlog.StateBlocked
+	})
+	pending, _ := s.obs.ListApprovals(ctx, s.orgID, "pending")
+	if len(pending) != 1 {
+		t.Fatalf("expected one pending approval, got %d", len(pending))
+	}
+	// Approved, but its own task not woken yet: the approval lies unused.
+	if _, err := s.obs.DecideApproval(ctx, s.orgID, pending[0].ID, true, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+
+	other, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Antwort B",
+		`[mock:action zammad/reply {"ticket_id":42,"body":"Text B, nie geprüft","internal":false}]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "second task blocked on its own approval", 15*time.Second, func() bool {
+		return s.taskState(other.ID) == backlog.StateBlocked
+	})
+	if zammad.replyCount() != 0 {
+		t.Fatal("an unreviewed text went out on another text's approval")
+	}
+}

@@ -98,7 +98,7 @@ func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, ac
 				}
 			}
 		}
-		g := o.approvalGate(ctx, agent, nil, subject, params, "")
+		g := o.approvalGate(ctx, agent, nil, subject, params, paramBinding(params))
 		if g.Error != "" {
 			return "", errors.New(g.Error)
 		}
