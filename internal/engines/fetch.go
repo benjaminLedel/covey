@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,6 +111,7 @@ func fetchArtifact(ctx context.Context, httpc *http.Client, r Release, limit int
 			return nil, fmt.Errorf("engines: artefact %s needs the %s header, and %s", raw, header, strings.Join(places, "; and "))
 		}
 		req.Header.Set(header, authHeaderValue(header, token))
+		httpc = authStaysOnHost(httpc, header)
 	}
 	res, err := httpc.Do(req)
 	if err != nil {
@@ -239,4 +241,29 @@ func FileCacheFor(dir string) *FileCache {
 func (c *FileCache) path(url string) string {
 	sum := sha256.Sum256([]byte(url))
 	return filepath.Join(c.Dir, hex.EncodeToString(sum[:])+".json")
+}
+
+// authStaysOnHost returns a copy of c that does not carry the token header
+// across a redirect to another host (#696). Go drops Authorization only on a
+// redirect to another domain and keeps every other header, so a custom one
+// (PRIVATE-TOKEN, X-API-Key) went to wherever the artefact host redirected.
+// An artefact store behind a redirect — a pre-signed URL — needs no header;
+// the request goes on without it.
+func authStaysOnHost(c *http.Client, header string) *http.Client {
+	cp := *c
+	inner := c.CheckRedirect
+	cp.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+			req.Header.Del(header)
+			req.Header.Del("Authorization")
+		}
+		if inner != nil {
+			return inner(req, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+	return &cp
 }

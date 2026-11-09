@@ -21,6 +21,7 @@ package reqlog
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -29,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"context"
+	"covey/internal/netguard"
 )
 
 // Directions of a logged request.
@@ -136,7 +137,10 @@ func (t *transport) roundTripper() http.RoundTripper {
 	if t.base != nil {
 		return t.base
 	}
-	return http.DefaultTransport
+	// The default transport, with the dial-time check for requests the
+	// control plane makes to organisation-configured URLs (netguard.Guard);
+	// unmarked requests go through http.DefaultTransport as before.
+	return netguard.Transport()
 }
 
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {

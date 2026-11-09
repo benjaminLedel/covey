@@ -96,12 +96,12 @@ func TestFileFetchesBehindALoginWithTheNamedHeader(t *testing.T) {
 		w.Write(oneFile())
 	}))
 	defer srv.Close()
-	t.Setenv("COVEY_TEST_FILE_TOKEN", "Bearer sc-test")
+	t.Setenv("COVEY_TEST_FILE_DOWNLOAD_TOKEN", "Bearer sc-test")
 
 	store := &Store{Dir: t.TempDir()}
 	rel := Release{Version: "1", Kind: KindFile, URL: srv.URL + "/cli",
 		Integrity: "sha256:" + sha256Hex(oneFile()), Binary: "bin/tool",
-		AuthHeader: "Authorization", AuthEnv: "COVEY_TEST_FILE_TOKEN"}
+		AuthHeader: "Authorization", AuthEnv: "COVEY_TEST_FILE_DOWNLOAD_TOKEN"}
 	rel.engine = "tool-login"
 
 	if _, err := store.Ensure(context.Background(), rel, Auth{}); err != nil {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -308,5 +309,26 @@ func TestProbeSeesTheAgentsOwnCredential(t *testing.T) {
 	other.Body.Close()
 	if other.StatusCode != http.StatusNotFound {
 		t.Fatalf("an unknown agent is a 404, got %d", other.StatusCode)
+	}
+}
+
+// TestProbeDoesNotReachTheHost is #692: the connection test fetched whatever
+// <system>_url an organisation stored, from the control plane — the metadata
+// endpoint and the host's own services included — and returned part of the
+// answer in its error.
+func TestProbeDoesNotReachTheHost(t *testing.T) {
+	resetLifetimeState()
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPatch, "/api/v1/targets/lifetest", map[string]any{"enabled": true}, http.StatusOK)
+	for k, v := range map[string]string{"lifetest_token": "any", "lifetest_url": "http://169.254.169.254/latest/meta-data/"} {
+		if err := s.secrets.Put(ctx, s.orgID, k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := admin.expect(http.MethodPost, "/api/v1/targets/lifetest/probe", nil, http.StatusOK)
+	if out["ok"] == true || !strings.Contains(fmt.Sprint(out["error"]), "destination refused") {
+		t.Fatalf("the probe has to refuse a link-local destination: %v", out)
 	}
 }

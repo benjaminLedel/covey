@@ -143,11 +143,22 @@ func matches(pattern, subject string) bool {
 	if pattern == "*" || pattern == subject {
 		return true
 	}
+	// A rule on an action covers its ":foreign" refinement — the same action
+	// aimed at a colleague instead of oneself (covey:create_task:foreign,
+	// covey:set_agent_config:foreign). Written on the plain name, which is the
+	// natural thing to write, it otherwise missed exactly the more sensitive
+	// case (#701). A rule on the refinement alone still covers only it.
+	if base, ok := strings.CutSuffix(subject, ForeignSuffix); ok && pattern == base {
+		return true
+	}
 	if prefix, ok := strings.CutSuffix(pattern, "*"); ok {
 		return strings.HasPrefix(subject, prefix)
 	}
 	return false
 }
+
+// ForeignSuffix marks an action aimed at another agent than the one acting.
+const ForeignSuffix = ":foreign"
 
 // Evaluate applies the rules to a subject (e.g. "zammad" for a credential
 // request or "zammad:reply_external" for an action). Deny beats

@@ -161,6 +161,9 @@ func (s *Store) announcement(ctx context.Context, r Release, auth Auth) (*pin, e
 	if httpc == nil {
 		httpc = http.DefaultClient
 	}
+	if header := strings.TrimSpace(r.AuthHeader); header != "" {
+		httpc = authStaysOnHost(httpc, header)
+	}
 	res, err := httpc.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not reachable: %w", raw, err)

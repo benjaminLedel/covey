@@ -1349,3 +1349,51 @@ func TestClearBlockersLeavesALinkToADirectoryAlone(t *testing.T) {
 		t.Error("a path outside the home was cleared")
 	}
 }
+
+// TestManifestCannotWriteThroughALink is #695: safeJoin refused "..", but the
+// restore created the manifest's links first and then wrote the files — so a
+// file listed below a link landed wherever the link pointed.
+func TestManifestCannotWriteThroughALink(t *testing.T) {
+	ctx := context.Background()
+	blobs := newDir(t)
+	org := uuid.New()
+	home := t.TempDir()
+	outside := t.TempDir()
+	if err := blobs.Put(ctx, org, Hash([]byte("abc")), bytes.NewReader([]byte("abc"))); err != nil {
+		t.Fatal(err)
+	}
+
+	// A manifest whose own link leads out of the home, with a file below it.
+	crafted := Manifest{Entries: []Entry{
+		{Path: "x", Mode: 0o777 | os.ModeSymlink, Link: outside},
+		{Path: "x/planted.txt", Mode: 0o644, Size: 3, Blocks: []string{Hash([]byte("abc"))}},
+	}}
+	if _, err := Materialize(ctx, blobs, org, home, crafted); err == nil {
+		t.Fatal("an entry below one of the manifest's links has to be refused")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "planted.txt")); !os.IsNotExist(err) {
+		t.Fatal("a file was written through the link, outside the home")
+	}
+
+	// A link left in the working copy where the manifest wants a directory is
+	// removed, not written through.
+	if err := os.Symlink(outside, filepath.Join(home, "d")); err != nil {
+		t.Fatal(err)
+	}
+	stale := Manifest{Entries: []Entry{
+		{Path: "d", Mode: 0o755 | os.ModeDir, Dir: true},
+		{Path: "d/f.txt", Mode: 0o644, Size: 3, Blocks: []string{Hash([]byte("abc"))}},
+	}}
+	if _, err := Materialize(ctx, blobs, org, home, stale); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "f.txt")); !os.IsNotExist(err) {
+		t.Fatal("a file was written through a stale link, outside the home")
+	}
+	if info, err := os.Lstat(filepath.Join(home, "d")); err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		t.Fatalf("d is not a real directory after the restore: %v %v", info, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(home, "d", "f.txt")); err != nil || string(got) != "abc" {
+		t.Fatalf("d/f.txt = %q, %v", got, err)
+	}
+}

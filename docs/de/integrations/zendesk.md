@@ -187,9 +187,10 @@ Einstellung hier.
 > der Plattform, wer einem Zeitstempel nach so langer Zeit nicht mehr trauen will,
 > hat also einen Knopf dafür, und er gehört zur Plattform.
 >
-> Ein **leeres** `COVEY_ZENDESK_WEBHOOK_SECRET` schaltet die Prüfung aus — so wird
-> eine Entwicklungsumgebung markiert, genau wie bei Zammad. Produktiv ist das Secret
-> gesetzt, ein unsigned eintreffender Webhook wird dann abgelehnt statt ausgeführt.
+> Zuerst gilt das Organisations-Secret `zendesk_webhook_secret`,
+> `COVEY_ZENDESK_WEBHOOK_SECRET` ist der instanzweite Rückfall. Ist keins gesetzt,
+> wird der Webhook abgelehnt statt ausgeführt; `COVEY_UNSIGNED_WEBHOOKS=zendesk`
+> lässt ihn ungeprüft herein, nur für eine Entwicklungsumgebung.
 > Eine lokale Instanz, die nicht signieren kann, muss stattdessen per Heartbeat
 > gearbeitet werden.
 
@@ -375,7 +376,7 @@ Setup-Doc in `zendesk/plugin.go` für langlebige Setups auf Client Credentials.
 | Variable | Default | Bedeutung |
 |---|---|---|
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | Die Basis-URL, an die Zendesk den Webhook zustellt |
-| `COVEY_ZENDESK_WEBHOOK_SECRET` | *(leer = Prüfung aus, nur Entwicklung)* | Signing-Key, identisch mit dem Signing-Key des Webhooks |
+| `COVEY_ZENDESK_WEBHOOK_SECRET` | *(leer)* | Signing-Key, identisch mit dem Signing-Key des Webhooks; instanzweiter Rückfall für das Organisations-Secret `zendesk_webhook_secret`. Keins gesetzt = Webhook abgelehnt |
 | `COVEY_ZENDESK_INTAKE_GROUPS` | *(leer = jede Gruppe)* | Welche Gruppen diese Installation arbeitet, per Name |
 | `COVEY_ZENDESK_ESCALATION_GROUP` | *(leer = Gruppe behalten)* | Wohin `escalate` ein Ticket schiebt, per Name |
 | `COVEY_ZENDESK_REPLY_STATUS` | *(leer = Status unangetastet)* | Eine von `new open pending hold solved closed canceled` — der Status, den eine Antwort nach außen setzt |

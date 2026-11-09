@@ -1765,7 +1765,7 @@
       "webhookHint": "Nécessaire seulement si le système doit prévenir covey de lui-même quand quelque chose change. Si l'agent ne travaille que sur demande, vous pouvez sauter cette étape. Sinon, saisissez cette adresse dans le système.",
       "webhookNoAgent": "Choisissez un agent à l'étape précédente et son adresse complète apparaîtra ici.",
       "secretSet": "{{env}} est défini — les appels entrants sont vérifiés par signature.",
-      "secretMissing": "{{env}} n'est pas défini. Le point d'accès accepte les appels mais ne vérifie aucune signature — définissez-le avant la mise en service.",
+      "secretMissing": "{{env}} n'est pas défini. Le point d'accès refuse les appels tant qu'il ne l'est pas — ajoutez-le comme secret de l'organisation.",
       "probeHint": "Le test se connecte au système avec la clé enregistrée, n'y modifie rien et montre sous quelle identité covey arrive.",
       "probeAsAgent": "Le test s'effectue en tant que {{agent}} — l'identifiant propre à l'agent prime sur celui de l'organisation.",
       "probeBtn": "Tester la connexion",

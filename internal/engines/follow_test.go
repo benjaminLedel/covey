@@ -69,7 +69,7 @@ func cli(v string) []byte {
 func followRelease(base string, floor []byte) Release {
 	return Release{engine: "tool", Version: "1.0.0", Kind: KindFile, URL: base + "/cli/latest",
 		Integrity: "sha256:" + sha256Hex(floor), Binary: "bin/tool",
-		AuthHeader: "Authorization", AuthEnv: "COVEY_TEST_FOLLOW_TOKEN",
+		AuthHeader: "Authorization", AuthEnv: "COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN",
 		Follow: &Follow{URL: base + "/cli/version"}}
 }
 
@@ -114,7 +114,7 @@ func TestFollowAsksOncePerFreshnessWindow(t *testing.T) {
 	defer srv.Close()
 	store := &Store{Dir: t.TempDir()}
 	rel := followRelease(srv.URL, cli("1.0.0"))
-	t.Setenv("COVEY_TEST_FOLLOW_TOKEN", "any")
+	t.Setenv("COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN", "any")
 
 	for i := 0; i < 3; i++ {
 		if _, err := store.Ensure(context.Background(), rel, Auth{}); err != nil {
@@ -133,7 +133,7 @@ func TestFollowPicksUpANewRelease(t *testing.T) {
 	defer srv.Close()
 	store := &Store{Dir: t.TempDir()}
 	rel := followRelease(srv.URL, cli("1.0.0"))
-	t.Setenv("COVEY_TEST_FOLLOW_TOKEN", "any")
+	t.Setenv("COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN", "any")
 	if _, err := store.Ensure(context.Background(), rel, Auth{}); err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestFollowReasksWhenLatestMovedUnderTheAnnouncement(t *testing.T) {
 	defer srv.Close()
 	store := &Store{Dir: t.TempDir()}
 	rel := followRelease(srv.URL, cli("1.0.0"))
-	t.Setenv("COVEY_TEST_FOLLOW_TOKEN", "any")
+	t.Setenv("COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN", "any")
 
 	// An announcement still fresh, of a release no longer behind `latest`.
 	store.saveFollowed(rel, followed{Announced: &pin{Version: "1.0.1", Integrity: "sha256:" + sha256Hex(cli("1.0.1"))},
@@ -181,7 +181,7 @@ func TestFollowSurvivesASilentPublisher(t *testing.T) {
 	defer srv.Close()
 	store := &Store{Dir: t.TempDir()}
 	rel := followRelease(srv.URL, cli("1.0.0"))
-	t.Setenv("COVEY_TEST_FOLLOW_TOKEN", "any")
+	t.Setenv("COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN", "any")
 	if _, err := store.Ensure(context.Background(), rel, Auth{}); err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestFollowKeepsTheLastGoodReleaseWhenTheNewOneFails(t *testing.T) {
 	defer srv.Close()
 	store := &Store{Dir: t.TempDir()}
 	rel := followRelease(srv.URL, cli("1.0.0"))
-	t.Setenv("COVEY_TEST_FOLLOW_TOKEN", "any")
+	t.Setenv("COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN", "any")
 	if _, err := store.Ensure(context.Background(), rel, Auth{}); err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestFollowFallsBackToTheFloor(t *testing.T) {
 	defer srv.Close()
 	rel := followRelease(srv.URL, floor)
 	rel.URL = "file://" + path
-	t.Setenv("COVEY_TEST_FOLLOW_TOKEN", "any")
+	t.Setenv("COVEY_TEST_FOLLOW_DOWNLOAD_TOKEN", "any")
 
 	l, err := (&Store{Dir: filepath.Join(dir, "engines")}).Ensure(context.Background(), rel, Auth{})
 	if err != nil {

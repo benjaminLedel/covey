@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"covey/internal/reqlog"
 	"covey/internal/target/trust"
 	"covey/internal/target/wasmplug"
 	"covey/internal/target/webhooksig"
@@ -261,7 +260,18 @@ type Sys struct {
 }
 
 func New(m Manifest) *Sys {
-	return &Sys{M: m, HTTP: reqlog.Client(m.Name, 15*time.Second)}
+	return &Sys{M: m, HTTP: brokeredClient(m.Name)}
+}
+
+// brokeredClient is the client without a CA of the system's own. It comes from
+// trust like the one with a CA, so that a redirect off the brokered origin is
+// refused on both paths (#708): Go's default client drops Authorization only
+// across domains and keeps a custom auth header (X-API-Key, X-Redmine-API-Key)
+// on every redirect, so a target that redirects would hand the token to
+// whichever host it names. An empty CA cannot fail.
+func brokeredClient(system string) *http.Client {
+	c, _ := trust.Client(system, 15*time.Second, "")
+	return c
 }
 
 func (s *Sys) Name() string { return s.M.Name }
@@ -334,6 +344,13 @@ func (s *Sys) ActionSubject(action string, params json.RawMessage) string {
 		return s.M.Name + ":" + a.Subject
 	}
 	return s.M.Name + ":" + action
+}
+
+// ActionScope is the scope from ACCESS.md an action needs (#704): the
+// manifest's own "scope" field, which until now only narrowed the prompt
+// doc. Empty = the action belongs to every scope.
+func (s *Sys) ActionScope(action string) string {
+	return s.M.Actions[action].Scope
 }
 
 func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
@@ -721,7 +738,7 @@ func (s *Sys) client(cred target.Credential) (*http.Client, error) {
 		if s.HTTP != nil {
 			return s.HTTP, nil
 		}
-		return reqlog.Client(s.M.Name, 15*time.Second), nil
+		return brokeredClient(s.M.Name), nil
 	}
 	return trust.Client(s.M.Name, 15*time.Second, cred.CA)
 }

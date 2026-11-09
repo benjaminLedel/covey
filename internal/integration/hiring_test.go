@@ -548,3 +548,64 @@ func TestEinGezeichneterKollegeHatEinenPlatz(t *testing.T) {
 		t.Fatal("hiring has to put the agent on a seat")
 	}
 }
+
+// TestSetConfigDoesNotWidenAHiredColleague is #702: an agent with nothing but
+// agents:write could give a working colleague any system, applied at its next
+// run with no human in between.
+func TestSetConfigDoesNotWidenAHiredColleague(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	drafter, err := s.registry.Create(ctx, s.orgID, "personal-702", "Personal", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, drafter.ID, map[string]string{
+		"SOUL.md": "# Personal", "ACCESS.md": "- system: covey scope: agents:write",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	colleague := s.newSupportAgent("kollege-702") // hired, zammad read,write
+	if colleague.Draft() {
+		t.Fatal("setup: the colleague has to be hired")
+	}
+	run := func(body string) string {
+		t.Helper()
+		task, err := s.backlog.Create(ctx, s.orgID, drafter.ID, "Konfigurieren", body, "manual", 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "task done", 30*time.Second, func() bool {
+			st := s.taskState(task.ID)
+			return st == backlog.StateDone || st == backlog.StateFailed
+		})
+		got, _ := s.backlog.Get(ctx, task.ID)
+		if got.Error != nil {
+			return *got.Error
+		}
+		if got.Result != nil {
+			return *got.Result
+		}
+		return ""
+	}
+	access := func() string {
+		cfg, err := s.registry.CurrentConfig(ctx, colleague.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg.Files["ACCESS.md"]
+	}
+
+	refused := run(`[mock:action covey/set_agent_config {"agent":"kollege-702","files":{"ACCESS.md":"- system: zammad scope: read,write\n- system: gitlab scope: write"}}]`)
+	if !strings.Contains(refused, "propose_agent_config") {
+		t.Fatalf("widening a hired colleague has to be refused with the way to ask: %s", refused)
+	}
+	if strings.Contains(access(), "gitlab") {
+		t.Fatal("the colleague got access it did not have")
+	}
+
+	// Narrowing is no addition.
+	run(`[mock:action covey/set_agent_config {"agent":"kollege-702","files":{"ACCESS.md":"- system: zammad scope: read"}}]`)
+	if got := access(); strings.Contains(got, "write") || !strings.Contains(got, "zammad") {
+		t.Fatalf("narrowing has to go through, ACCESS.md is now %q", got)
+	}
+}

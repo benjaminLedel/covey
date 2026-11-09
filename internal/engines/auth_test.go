@@ -16,7 +16,7 @@ func TestReleaseAuthComesAsAReference(t *testing.T) {
 	// The good case, first: an entry that will work must not be stopped by a rule
 	// written around it.
 	ok := tar
-	ok.AuthHeader, ok.AuthEnv = "PRIVATE-TOKEN", "COVEY_SEVENCODE_ARTIFACT_TOKEN"
+	ok.AuthHeader, ok.AuthEnv = "PRIVATE-TOKEN", "COVEY_SEVENCODE_DOWNLOAD_TOKEN"
 	if err := ok.Valid(); err != nil {
 		t.Fatalf("a header with the variable that holds its token is what the mechanism is for: %v", err)
 	}

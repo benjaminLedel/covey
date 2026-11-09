@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/netguard"
 	"covey/internal/org"
 	"covey/internal/speech/normalise"
 	"covey/internal/voice"
@@ -69,7 +70,9 @@ var educaSecrets = []string{"educa_seat_token", "educa_api_token"}
 // voiceProviderClient is the client the control plane speaks to the
 // provider with. No client timeout: a streamed answer takes as long as the
 // speech, so every request carries its own deadline.
-var voiceProviderClient = &http.Client{}
+// Its transport refuses the host's own addresses for the guarded requests
+// below: the base URL is the organisation's (#692).
+var voiceProviderClient = &http.Client{Transport: netguard.Transport()}
 
 // newSynthLimiter caps requests per seat: 30 a minute is a busy call, and
 // far below what a script looping over the endpoint would ask of the
@@ -98,7 +101,7 @@ func (e voiceProvider) transcribeModel() string {
 }
 
 func (e voiceProvider) request(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, e.base+path, body)
+	req, err := http.NewRequestWithContext(netguard.Guard(ctx), method, e.base+path, body)
 	if err != nil {
 		return nil, err
 	}

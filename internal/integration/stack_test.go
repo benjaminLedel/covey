@@ -38,6 +38,7 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/mail"
 	"covey/internal/memory"
+	"covey/internal/netguard"
 	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -302,6 +303,11 @@ func newStack(t *testing.T) *stack {
 func newStackWith(t *testing.T, opts stackOpts) *stack {
 	t.Helper()
 	ctx := context.Background()
+	// The fake target systems and providers listen on loopback; the stack
+	// allows it the way an operator with a local demo double does (#692).
+	if err := netguard.SetAllow("127.0.0.0/8,::1"); err != nil {
+		t.Fatal(err)
+	}
 
 	admin, err := db.Connect(ctx, adminDBURL)
 	if err != nil {
@@ -447,11 +453,17 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		ReqLog:        s.reqlog,
 		Orch:          s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret, "jira": webhookSecret},
-		SessionTTL:     time.Hour,
+		// The demo doubles (faketeams, the test's own manifest plugin) sign
+		// nothing; they pass because the operator says so, the way a local
+		// demo does (#690).
+		UnsignedWebhooks: map[string]bool{"teams": true, "helpdesk": true},
+		SessionTTL:       time.Hour,
 	}
 	s.srv = srv
 	s.http = httptest.NewServer(srv.Handler())
 	t.Cleanup(s.http.Close)
+	// Mails with a one-time link need a configured site address (#693).
+	srv.SiteURL = s.http.URL
 	s.orch.PublicWSURL = strings.Replace(s.http.URL, "http", "ws", 1) + "/api/daemon/ws"
 
 	orchCtx, cancel := context.WithCancel(ctx)

@@ -199,8 +199,11 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # size limit per attachment (1
 
 > **Important:** `COVEY_TEAMS_WEBHOOK_SECRET` does **not** carry an HMAC secret
 > here but the **bot app ID** — it is the audience against which the incoming
-> JWT is validated. An **empty** value disables the check (dev /
-> `faketeams` only). Always set it in production.
+> JWT is validated. An organisation keeps it as its own secret
+> `teams_webhook_secret`, which takes precedence over the variable; the
+> variable serves an installation with one organisation. With neither set the
+> endpoint refuses calls — only `COVEY_UNSIGNED_WEBHOOKS=teams` lets them in
+> unchecked (`faketeams` and local tests).
 
 ### 2.7 Testing
 
@@ -334,7 +337,7 @@ Details: [`../spec/15-teams-integration.md`](../../../spec/15-teams-integration.
 | Variable | Default | Meaning |
 |---|---|---|
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | The base URL at which the Bot Service reaches the messaging endpoint |
-| `COVEY_TEAMS_WEBHOOK_SECRET` | *(empty = JWT check off)* | The expected bot app ID (the JWT audience) |
+| `COVEY_TEAMS_WEBHOOK_SECRET` | *(empty)* | The expected bot app ID (the JWT audience), instance-wide; the organisation secret `teams_webhook_secret` takes precedence. Neither set = calls refused |
 | `COVEY_TEAMS_INTAKE_TENANTS` | *(empty = all)* | An allowlist of Microsoft 365 tenants |
 | `COVEY_TEAMS_TOKEN_URL` | The Bot Framework endpoint | The instance-wide token endpoint; still overridable per agent through the secret `teams_url` |
 | `COVEY_TEAMS_ATTACHMENT_MAX_MB` | `25` | The size limit per attachment loaded into the sandbox (valid 1–1024; above that it is clamped) |
@@ -370,7 +373,7 @@ port 9998. That is how you test outbound without an Azure registration:
 
 1. Start `go run ./demo/faketeams`.
 2. Secret `teams_token = demo-app:demo-secret`, `teams_url = http://localhost:9998/token`.
-3. Leave `COVEY_TEAMS_WEBHOOK_SECRET` **empty** (JWT check off).
+3. Leave `COVEY_TEAMS_WEBHOOK_SECRET` empty and set `COVEY_UNSIGNED_WEBHOOKS=teams` (JWT check off, on purpose).
 4. Simulate an incoming message (inbound → wake covey):
 
    ```bash
@@ -391,8 +394,9 @@ port 9998. That is how you test outbound without an Azure registration:
 
 - **JWT validation** checks the issuer, audience, expiry and signature against
   the Bot Framework JWKS (cached). Before production use, check the current
-  issuer/JWKS endpoints (Microsoft changes them rarely, but with notice). An
-  empty `COVEY_TEAMS_WEBHOOK_SECRET` = the check is off, dev only.
+  issuer/JWKS endpoints (Microsoft changes them rarely, but with notice). Without
+  an app ID (`teams_webhook_secret` or `COVEY_TEAMS_WEBHOOK_SECRET`) the
+  endpoint refuses calls unless `COVEY_UNSIGNED_WEBHOOKS` names `teams`.
 - **The app password is long-lived.** Like Zammad's token it falls into the
   "target system connected by key" case: the built-in `SecretStore` keeps it
   encrypted and passes it through short-lived; the runtime connector access then

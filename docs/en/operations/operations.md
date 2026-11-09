@@ -31,7 +31,7 @@ Migrations run automatically at startup, guarded by an advisory lock; two instan
 Two variables look alike and mean opposite things:
 
 - `COVEY_PUBLIC_URL` points **inwards** — the address at which the **sandboxes** reach the control plane. Put the website's domain here and the containers dial back over the open network and fail at the egress allowlist.
-- `COVEY_SITE_URL` points **outwards** — the copyable webhook and trigger URLs, the address in the downloadable skill, the links in the mails the installation sends. Leaving it empty is the normal case; the server derives it from the request. The `site.url` setting (*Platform → Settings*) says the same thing from inside the product and takes precedence — the mails sent from the notification loop have no request to fall back on and need one of the two ([mail](mail.md)).
+- `COVEY_SITE_URL` points **outwards** — the copyable webhook and trigger URLs, the address in the downloadable skill, the links in the mails the installation sends. Leaving it empty is the normal case; the server derives it from the request. The `site.url` setting (*Platform → Settings*) says the same thing from inside the product and takes precedence. Mails need one of the two: the notification loop has no request to fall back on, and password-reset and confirmation mails are built on a configured address only, never on the request's `Host` header, so without one they are not sent ([mail](mail.md)).
 
 At startup covey warns when these two roles look swapped.
 
@@ -74,15 +74,32 @@ By default a notification says only who did what ("Bea has a question"), in the 
 
 A reverse proxy in front, TLS terminated there, `COVEY_PUBLIC_URL` and `COVEY_SITE_URL` set accordingly. The secure cookie then switches itself on. For the database, `sslmode=require` or higher.
 
+URLs an organisation configures — a target system's base URL, an MCP server, the voice provider — are fetched by the control plane, and it refuses loopback, link-local and multicast destinations for them, checked at the moment of connecting. Private ranges stay reachable for a self-hosted target in the company network. A target that genuinely runs on the same host, such as a local demo double, is allowed with `COVEY_OUTBOUND_ALLOW` (addresses or CIDRs, comma-separated).
+
 ## Egress isolation
 
 On by default with the docker provider: a sandbox reaches only the hosts on its agent's allowlist — the organisation's base list (seeded with `api.anthropic.com`), the assigned templates and the agent's own hosts. `COVEY_EGRESS_ENFORCE=false` switches it off; the lists are then kept but not applied, and `covey serve` and `covey doctor` say so. A provider that cannot enforce says the same instead of running open. `GET /api/v1/egress` answers with `enforced` whether it applies on this instance.
 
-Two levels. **Cooperative** (the default): the sandbox's traffic goes through a proxy that enforces the allowlist. **Hard** (`COVEY_EGRESS_ISOLATION=network`): the sandbox sits on an internal network without internet, and the proxy container is the only way out — no longer bypassable. The hard level needs a second image built.
+Two levels, and only the second one stops exfiltration.
+
+- **Cooperative** (`COVEY_EGRESS_ISOLATION=proxy`, the default): the sandbox is *told* to use a proxy that enforces the allowlist (`HTTP_PROXY`/`HTTPS_PROXY`). Tools that honour the variables stay on the list. Nothing prevents a direct connection: an agent — or code it runs — that opens a socket to an address of its choosing gets out, and the allowlist never sees it. This mode keeps well-behaved traffic in line; it **does not stop a sandbox from sending data elsewhere**.
+- **Hard** (`COVEY_EGRESS_ISOLATION=network`): the sandbox sits on an internal docker network without a route to the internet, and the proxy container is its only way out. A direct connection has nowhere to go. This is the mode to run when the allowlist is meant as a boundary. It needs a second image (`make egress-image`, `covey-egress:latest`).
+
+`covey doctor` says which of the two is in effect.
+
+The proxy checks the address an allowed name resolves to, at the moment of connecting, and refuses loopback, link-local and multicast destinations — so a name whose DNS answer changes cannot lead a sandbox to the host's own services or to the cloud metadata endpoint. Private ranges stay reachable for allowlisted internal hosts. `COVEY_OUTBOUND_ALLOW` names the exceptions here as well; at the hard level covey passes it on to the proxy container.
 
 The cooperative proxy runs inside the covey process. When covey itself runs in a container, the sandboxes reach it only through a published port: `COVEY_EGRESS_LISTEN_ADDR` fixes its address, and the host has to publish the same port. The compose files do both (`:8495`, `8495:8495`). Without a sandbox's own token the proxy answers 407.
 
+A remote runner applies the same settings on its own host — see [Runners](runner.md#egress-on-a-runner-host).
+
 Upgrading an installation that ran with open egress: see [Upgrading](upgrade.md).
+
+## Sandbox limits
+
+A sandbox starts with every capability dropped, with `no-new-privileges` (a setuid binary in the image no longer leads to root) and with a limit of 4096 processes and threads, so one sandbox cannot exhaust the host's process table for the others. The workplace images run as the non-root user `agent` and need no capability. An image of your own has to do the same: one that starts as root and switches user, as many database images do, does not start as a sandbox. The services beside a sandbox are not restricted this way.
+
+A memory limit per sandbox is off by default. `COVEY_SANDBOX_MEMORY` sets one in docker's notation (`4g`, `512m`); a remote runner reads the variable on its own host.
 
 ## Backups
 

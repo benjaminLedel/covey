@@ -6,6 +6,7 @@ package orchestrator
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -2725,7 +2726,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
-		resp := o.createAgentTask(ctx, agent, taskID, req)
+		resp := o.CreateAgentTask(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectCreateTask, resp)
 
 	case daemon.TypeRequestMessage:
@@ -2733,7 +2734,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
-		resp := o.messageHuman(ctx, agent, taskID, req)
+		resp := o.MessageHuman(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectMessage, resp)
 
 	case daemon.TypeRequestTool:
@@ -3171,7 +3172,7 @@ const (
 	maxAgentTasksPerRun = 10
 )
 
-// createAgentTask serves covey/create_task: the agent creates a subtask for
+// CreateAgentTask serves covey/create_task: the agent creates a subtask for
 // itself or delegates to a colleague. The new task hangs as a child off the
 // running one — that carries both the audit trail (who created it) and the loop
 // protection.
@@ -3190,13 +3191,20 @@ const (
 //
 // The delegation stays within the organization: the target agent is resolved by
 // its slug **within the sender's org**.
-func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
+func (o *Orchestrator) CreateAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
 	fail := func(m string) daemon.InjectCreateTask {
 		return daemon.InjectCreateTask{RequestID: req.RequestID, OK: false, Error: m}
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
 		return fail("title is missing")
+	}
+	subject := "covey:create_task"
+	if strings.TrimSpace(req.Agent) != "" {
+		subject += guardrails.ForeignSuffix
+	}
+	if reason := o.enforceRails(ctx, agent, taskID, subject, req.ApprovalID); reason != "" {
+		return fail(reason)
 	}
 
 	// Target agent: empty = myself, otherwise a colleague from the same org.
@@ -3508,11 +3516,20 @@ func (o *Orchestrator) brokerCA(ctx context.Context, agent agents.Agent, system 
 // {{secret:<key>}} placeholder substitution in action params (spec/04): the
 // agent's own secret (PutAgent) before an org-wide one explicitly assigned to
 // it (Assign) — same precedence as brokerCredential's <system>_token/_url
-// lookups. Unlike brokerCredential there is no ACCESS.md/target-system gate to
-// check first: the key is not a target system, and the explicit
-// PutAgent/Assign onto this specific agent already IS the authorization —
-// nothing reaches an agent it was not put there for.
+// lookups. There is no ACCESS.md/target-system gate here because the key is
+// not a target system's — and that is checked, not assumed: a target system's
+// credentials (and the engine's download secret) are refused, because handed
+// out here they would skip ACCESS.md, the activation and the deny_system
+// guard rail that brokerCredential applies to exactly the same values (#691).
+// For everything else the explicit PutAgent/Assign onto this agent IS the
+// authorization.
 func (o *Orchestrator) brokerSecret(ctx context.Context, agent agents.Agent, req daemon.RequestSecret) daemon.InjectSecret {
+	if system, ok := o.systemCredentialKey(ctx, agent, req.Key); ok {
+		reason := req.Key + " is a credential of " + system + "; it reaches the " + system + " plugin through its own broker, not a placeholder"
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": "secret:" + req.Key, "granted": false, "reason": reason})
+		return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: false, Reason: reason}
+	}
 	value, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.Key)
 	if err != nil {
 		reason := "no secret named " + req.Key + " set for this agent"
@@ -3526,6 +3543,33 @@ func (o *Orchestrator) brokerSecret(ctx context.Context, agent agents.Agent, req
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "secret:" + req.Key, "granted": true})
 	return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: true, Value: value}
+}
+
+// systemCredentialKey tells whether key is one the platform brokers itself:
+// <system>_token/_url/_ca/_webhook_secret of a target system known to this
+// organisation (compiled, manifest or wasm — whether enabled or not), or the
+// secret the agent's engine is downloaded with. It names the owner.
+func (o *Orchestrator) systemCredentialKey(ctx context.Context, agent agents.Agent, key string) (string, bool) {
+	for _, suffix := range []string{"_token", "_url", "_ca", "_webhook_secret"} {
+		system, ok := strings.CutSuffix(key, suffix)
+		if !ok || system == "" {
+			continue
+		}
+		if _, known := target.Describe(system); known {
+			return system, true
+		}
+		if o.Targets != nil {
+			if _, err := o.Targets.Definition(ctx, agent.OrgID, system); err == nil {
+				return system, true
+			}
+		}
+	}
+	if o.Engines != nil && agent.Runtime != "" {
+		if r, ok := o.Engines.For(ctx, agent.Runtime, ""); ok && r.SecretName() != "" && r.SecretName() == key {
+			return "the engine " + agent.Runtime, true
+		}
+	}
+	return "", false
 }
 
 // engineDownloadSecret answers one question for the start of a sandbox: what
@@ -3622,6 +3666,14 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			}
 		}
 	}
+	if system, _, ok := strings.Cut(req.Action, ":"); ok && req.Do != "" {
+		if need, allowed := o.scopeAllows(ctx, agent, system, req.Do); !allowed {
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
+				map[string]any{"rule": "access_scope", "action": req.Action, "scope": need, "decision": "denied"})
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
+				Reason: req.Do + " needs the scope " + need + " on " + system + ", which ACCESS.md does not grant"}
+		}
+	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
@@ -3639,12 +3691,14 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		v := o.approvalGate(ctx, agent, &taskID, req.Action, json.RawMessage(req.Params), "")
+		v := o.approvalGate(ctx, agent, &taskID, req.Action, json.RawMessage(req.Params), paramBinding(json.RawMessage(req.Params)))
 		switch {
 		case v.Error != "":
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
 		case v.Approved:
-			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
+			// The id goes back with the yes: for covey:create_task and
+			// covey:message the control plane asks for it again (#703).
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved", ApprovalID: v.ApprovalID}
 		}
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "pending",
 			ApprovalID: v.ApprovalID, CorrelationKey: v.CorrelationKey}
@@ -3693,15 +3747,29 @@ type gateVerdict struct {
 // `slug: "helper"` the one for `slug: "backdoor"`. Only the target-system
 // path still comes here with an empty binding; there the action itself is the
 // object.
+//
+// That last sentence was the gap (#700): with an empty binding any approved,
+// unused approval for the agent and action was taken, whatever the parameters
+// of the request taking it — the approval for one reviewed mail sent the next,
+// unreviewed one. Every caller now binds: an empty binding is computed here
+// from params, and stored with the approval, so only a repeat of exactly the
+// parameters a human saw consumes it. A reviewer's correction moves the
+// binding to the corrected text (RebindCorrected).
 func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID *uuid.UUID,
 	action string, params json.RawMessage, binding string) gateVerdict {
 
-	// An unused approval for exactly this action? Then consume it.
+	if binding == "" {
+		binding = paramBinding(params)
+	}
+	params = withBinding(params, binding)
+
+	// An unused approval for exactly this action and these parameters? Then
+	// consume it.
 	var approvalID uuid.UUID
 	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
 		WHERE id = (SELECT id FROM approvals
 			WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
-			  AND ($3='' OR params->>'binding' = $3)
+			  AND params->>'binding' = $3
 			ORDER BY decided_at DESC LIMIT 1)
 		RETURNING id`, agent.ID, action, binding).Scan(&approvalID)
 	if err == nil {
@@ -3743,7 +3811,7 @@ func (o *Orchestrator) OnApprovalDecided(ctx context.Context, appr observability
 // interpret ("take the reviewer's remarks into account") is how a rewritten
 // sentence turns back into the agent's own.
 func (o *Orchestrator) OnApprovalDecidedWithText(ctx context.Context, appr observability.Approval, corrected string) {
-	text := fmt.Sprintf("The approval for %q was granted. Perform the action again through the action proxy now and finish the task.", appr.Action)
+	text := fmt.Sprintf("The approval for %q was granted. Perform the action again through the action proxy now, with exactly the same parameters — the approval holds for those and no others — and finish the task.", appr.Action)
 	if corrected != "" {
 		text = fmt.Sprintf("The approval for %q was granted, and the text was CHANGED by the reviewer. "+
 			"Perform the action again through the action proxy now, with exactly this text, verbatim, "+
@@ -3758,7 +3826,7 @@ func (o *Orchestrator) OnApprovalDecidedWithText(ctx context.Context, appr obser
 	// moved.
 	o.events.Publish(Event{Type: "approval", AgentID: appr.AgentID.String(), OrgID: appr.OrgID,
 		Data: map[string]string{"approval_id": appr.ID.String(), "action": appr.Action, "status": appr.Status}})
-	if _, err := o.Backlog.CorrelateWake(ctx, "approval:"+appr.ID.String(), text); err != nil &&
+	if _, err := o.Backlog.CorrelateWake(ctx, appr.OrgID, "approval:"+appr.ID.String(), text); err != nil &&
 		!errors.Is(err, backlog.ErrNotFound) {
 		o.Log.Warn("approval correlation", "approval", appr.ID, "err", err)
 	}
@@ -3920,9 +3988,13 @@ func (o *Orchestrator) nebenlaeufig(f func()) {
 // HandleWebhook processes an incoming target-system event (M3/M4): idempotent;
 // first correlates against blocked tasks (ResumeInput is then the continuation
 // input), otherwise a new backlog task (TaskBody).
+//
+// Both lookups stay inside the agent's organisation (#689): the dedup key and
+// the correlation key are computed by the plugin from the target system's own
+// ids, which repeat across organisations.
 func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, source string, ev target.WebhookEvent) (string, error) {
 	tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
-		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, ev.DedupKey, source)
+		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, agent.OrgID.String()+":"+ev.DedupKey, source)
 	if err != nil {
 		return "", err
 	}
@@ -3932,7 +4004,7 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	if !ev.Wake {
 		return "ignored", nil // e.g. the echo of the agent's own reply
 	}
-	if task, err := o.Backlog.CorrelateWake(ctx, ev.CorrelationKey, ev.ResumeInput); err == nil {
+	if task, err := o.Backlog.CorrelateWake(ctx, agent.OrgID, ev.CorrelationKey, ev.ResumeInput); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &task.ID, observability.KindLifecycle,
 			map[string]string{"status": "wake_on_correlation", "correlation_key": ev.CorrelationKey})
 		o.publishTask(task.ID, agent)
@@ -4063,4 +4135,143 @@ func (o *Orchestrator) WakeTroubles() map[uuid.UUID]WakeTrouble {
 		out[id] = *t
 	}
 	return out
+}
+
+// paramBinding is bindingOf for parameters as they arrive: raw JSON. What
+// does not decode as an object is fingerprinted as it stands.
+func paramBinding(params json.RawMessage) string {
+	var m map[string]any
+	if err := json.Unmarshal(params, &m); err != nil || m == nil {
+		sum := sha256.Sum256(params)
+		return hex.EncodeToString(sum[:])
+	}
+	delete(m, "style_findings")
+	return bindingOf(m)
+}
+
+// withBinding stores the binding inside the approval's parameters, where the
+// consuming query reads it.
+func withBinding(params json.RawMessage, binding string) json.RawMessage {
+	var m map[string]any
+	if err := json.Unmarshal(params, &m); err != nil || m == nil {
+		m = map[string]any{}
+		if len(params) > 0 {
+			m["params"] = params
+		}
+	}
+	if existing, ok := m["binding"].(string); ok && existing == binding {
+		return params
+	}
+	m["binding"] = binding
+	out, err := json.Marshal(m)
+	if err != nil {
+		return params
+	}
+	return out
+}
+
+// RebindCorrected moves an approval's binding to the text a reviewer put in
+// place of the agent's: the agent is told to repeat the action with exactly
+// that text, and the repeat has to find the approval. Every string of the
+// parameters that reads as before (whitespace aside) becomes after, and the
+// binding is taken over the result — the same parameters the repeat will
+// carry. Where before is not found nothing moves, and the repeat asks again:
+// a second look rather than an unreviewed run.
+func (o *Orchestrator) RebindCorrected(ctx context.Context, appr observability.Approval, before, after string) error {
+	var m map[string]any
+	if err := json.Unmarshal(appr.Params, &m); err != nil || m == nil {
+		return nil
+	}
+	delete(m, "binding")
+	delete(m, "style_findings")
+	before = strings.TrimSpace(before)
+	var changed bool
+	var walk func(x any) any
+	walk = func(x any) any {
+		switch t := x.(type) {
+		case string:
+			if strings.TrimSpace(t) == before {
+				changed = true
+				return after
+			}
+		case map[string]any:
+			for k, v := range t {
+				t[k] = walk(v)
+			}
+		case []any:
+			for i, v := range t {
+				t[i] = walk(v)
+			}
+		}
+		return x
+	}
+	walk(m)
+	if !changed {
+		return nil
+	}
+	_, err := o.Pool.Exec(ctx, `UPDATE approvals SET params = jsonb_set(params, '{binding}', to_jsonb($2::text))
+		WHERE id = $1 AND org_id = $3`, appr.ID, bindingOf(m), appr.OrgID)
+	return err
+}
+
+// enforceRails is the control plane's own guard-rail decision for the two
+// covey actions that produce something — a task, a message to a person
+// (#703). The daemon asks first and stops the agent early; that is a
+// courtesy, not the enforcement, since whatever speaks the protocol can skip
+// it. A deny is refused here; a rule that requires approval is satisfied only
+// by the approval the daemon's check consumed for this request, and each such
+// approval is redeemed once. Returns the refusal, or "" to go on.
+func (o *Orchestrator) enforceRails(ctx context.Context, agent agents.Agent, taskID uuid.UUID, subject, approvalID string) string {
+	rules, err := o.Rails.List(ctx, agent.OrgID)
+	if err != nil {
+		return "guard rails not readable (fail-closed)"
+	}
+	switch v := guardrails.Evaluate(rules, agent.ID, subject); v.Decision {
+	case guardrails.Deny:
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
+			map[string]any{"rule": v.Rule.RuleType, "pattern": v.Rule.Pattern, "action": subject, "decision": "denied"})
+		return "forbidden by guard rail " + v.Rule.Pattern
+	case guardrails.RequireApproval:
+		id, err := uuid.Parse(approvalID)
+		if err != nil {
+			return subject + " needs an approval first"
+		}
+		var redeemed uuid.UUID
+		err = o.Pool.QueryRow(ctx, `UPDATE approvals SET params = params || '{"redeemed": true}'::jsonb
+			WHERE id = $1 AND agent_id = $2 AND action = $3 AND status = 'approved' AND used
+			  AND NOT (params ? 'redeemed')
+			RETURNING id`, id, agent.ID, subject).Scan(&redeemed)
+		if err != nil {
+			return subject + " needs an approval first — the one given is not a granted approval of this action, or was used already"
+		}
+	}
+	return ""
+}
+
+// actionScoper is a plugin that says which ACCESS.md scope each of its actions
+// needs (manifest plugins through their "scope" field). Asked structurally, so
+// a compiled plugin opts in by having the method.
+type actionScoper interface {
+	ActionScope(action string) string
+}
+
+// scopeAllows compares an action's scope with the agent's ACCESS.md (#704).
+// The credential is brokered per system; without this, "scope: read" narrowed
+// only the prompt doc, and a read-only agent could call the write actions. A
+// plugin that names no scope for an action leaves it to every scope, as before.
+func (o *Orchestrator) scopeAllows(ctx context.Context, agent agents.Agent, system, action string) (string, bool) {
+	sys, err := o.system(ctx, agent.OrgID, system)
+	if err != nil {
+		return "", true // unknown system: the credential broker refuses it
+	}
+	sc, ok := sys.(actionScoper)
+	if !ok {
+		return "", true
+	}
+	need := sc.ActionScope(action)
+	if need == "" {
+		return "", true
+	}
+	ok, err = o.Registry.HasAccess(ctx, agent.ID, system, need)
+	return need, err == nil && ok
 }

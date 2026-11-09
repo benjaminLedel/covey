@@ -80,7 +80,7 @@ func usage() {
 
   covey-runner register --url <control plane> --token <registration token>
                         [--tag php --tag arm64] [--description "Build host Frankfurt"]
-                        [--config <path>] [--work-dir <path>]
+                        [--config <path>] [--work-dir <path>] [--egress-isolation network]
   covey-runner run      [--config <path>]
   covey-runner install-service [--config <path>] [--user <name>] [--no-start] [--print]
   covey-runner remove-service
@@ -94,6 +94,13 @@ On a systemd host, register installs the service itself and starts it — a
 runner that only runs while a shell is open shows as offline the moment
 somebody logs out, and its agents wait. --no-service leaves that out;
 install-service does it afterwards, remove-service undoes it.
+
+Egress is enforced here as on the control plane. The default,
+--egress-isolation proxy, is cooperative: sandboxes are told to use the
+allowlist proxy and can connect around it, so it does not stop exfiltration.
+network puts them on an internal network with the proxy container
+(covey-egress) as the only way out. The config's egress_* keys and the
+COVEY_EGRESS_* variables set the rest.
 
 The runner needs Docker on this host and no access to anything else — no
 database, no object store. It speaks exclusively the runner protocol.`)
@@ -111,6 +118,8 @@ type config struct {
 	// is a property of the iron: the scheduler can rank hosts, but it has no
 	// way of knowing that one of them is a laptop.
 	MaxSandboxes int
+	// Egress is how this host's sandboxes get out (#707). See egress.go.
+	Egress egressSettings
 }
 
 func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
@@ -126,11 +135,16 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	var tags stringList
 	fs.Var(&tags, "tag", "a capability of this host (repeatable), e.g. arm64")
 	maxSandboxes := fs.Int("max-sandboxes", 0, "how many sandboxes this host carries at once (0 = no limit)")
+	egressIsolation := fs.String("egress-isolation", "proxy", `how sandboxes on this host get out: "proxy" (cooperative, does not stop exfiltration) or "network" (hard)`)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *url == "" || *token == "" {
 		return errors.New("--url and --token are required")
+	}
+	eg := defaultEgressSettings()
+	if err := eg.set("isolation", *egressIsolation); err != nil {
+		return fmt.Errorf("--egress-isolation: %w", err)
 	}
 
 	rn, runnerToken, err := register(ctx, *url, *token, *description, tags)
@@ -148,7 +162,7 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 		return errors.New("--max-sandboxes cannot be negative (0 = no limit)")
 	}
 	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir,
-		Images: images, Tags: tags, MaxSandboxes: *maxSandboxes}
+		Images: images, Tags: tags, MaxSandboxes: *maxSandboxes, Egress: eg}
 	if err := writeConfig(*configPath, cfg); err != nil {
 		return fmt.Errorf("writing %s: %w — the runner token is lost with it, register again", *configPath, err)
 	}
@@ -205,6 +219,16 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 	if cfg.URL == "" || cfg.Token == "" {
 		return fmt.Errorf("%s carries no url/token — run `covey-runner register` first", *configPath)
 	}
+	if err := applyEgressEnv(&cfg.Egress, os.Getenv); err != nil {
+		return err
+	}
+
+	// The memory limit of a sandbox is the host's to set, like its sandbox
+	// cap: what fits depends on this machine, not on the control plane.
+	memory := strings.TrimSpace(os.Getenv("COVEY_SANDBOX_MEMORY"))
+	if err := runner.CheckMemoryLimit(memory); err != nil {
+		return err
+	}
 
 	me, err := whoami(ctx, cfg.URL, cfg.Token)
 	if err != nil {
@@ -215,6 +239,7 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 		RunnerID: me.RunnerID,
 		Image:    firstOr(cfg.Images, "covey-sandbox:latest"),
 		DataDir:  cfg.WorkDir,
+		Memory:   memory,
 		// The runner reads its catalogue from its own environment, not from a
 		// registration message: what a host installs is the host operator's
 		// decision, and the control plane does not push binaries at runners it
@@ -223,6 +248,16 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 		// plane reads, so one file reaches both sides of the seam.
 		Engines:     engines.NewSource(engineCatalogURL(), engines.FileCacheFor(cfg.WorkDir), log),
 		EngineStore: &engines.Store{Dir: filepath.Join(cfg.WorkDir, "engines"), Log: log},
+	}
+	// Before the node exists: a sandbox started without the enforcement point
+	// is the failure this is here to prevent, so a configuration that cannot
+	// set it up stops the runner rather than letting it take work.
+	closeEgress, err := wireEgress(ctx, docker, cfg, runningInContainer(), log)
+	if err != nil {
+		return fmt.Errorf("egress: %w", err)
+	}
+	if closeEgress != nil {
+		defer closeEgress()
 	}
 	node := runner.NewNode(me.RunnerID, me.OrgID, docker, log)
 	node.Tags = cfg.Tags
@@ -256,12 +291,23 @@ func writeConfig(path string, cfg config) error {
 	b.WriteString("# Change it here and restart the service; the control plane then stops\n")
 	b.WriteString("# choosing this host once it is full, and the host refuses anything beyond.\n")
 	fmt.Fprintf(&b, "max_sandboxes = %d\n", cfg.MaxSandboxes)
+	b.WriteString("# Egress: how sandboxes on this host get out. The same settings as the control\n")
+	b.WriteString("# plane's COVEY_EGRESS_* variables, which override these when set.\n")
+	b.WriteString("# egress_isolation = \"proxy\" is cooperative: sandboxes are told to use the\n")
+	b.WriteString("# allowlist proxy and can connect around it — it does NOT stop a sandbox from\n")
+	b.WriteString("# sending data elsewhere. \"network\" does: the sandbox sits on an internal\n")
+	b.WriteString("# network and the proxy container (egress_proxy_image) is its only way out.\n")
+	fmt.Fprintf(&b, "egress_enforce = %t\n", !cfg.Egress.Disabled)
+	fmt.Fprintf(&b, "egress_isolation = %q\n", cfg.Egress.mode())
+	fmt.Fprintf(&b, "egress_allow = [%s]\n", quoteList(cfg.Egress.Allow))
+	fmt.Fprintf(&b, "egress_listen_addr = %q\n", cfg.Egress.ListenAddr)
+	fmt.Fprintf(&b, "egress_proxy_image = %q\n", cfg.Egress.ProxyImage)
 	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // readConfig reads the handful of keys register writes. Deliberately no TOML
-// library: five scalar keys and one list are not worth a dependency on a host
-// that is supposed to carry as little of covey as possible.
+// library: a dozen scalar keys and three lists are not worth a dependency on a
+// host that is supposed to carry as little of covey as possible.
 func readConfig(path string) (config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -271,7 +317,10 @@ func readConfig(path string) (config, error) {
 	// for a reason — a claim nobody made cost an organisation its data plane
 	// (spec/16, "Scheduling") — and a hand-written config without the key must
 	// not get it back through the default (#165).
-	cfg := config{WorkDir: "/var/lib/covey-runner"}
+	//
+	// Egress is enforced by default, cooperatively, as on the control plane: a
+	// config written before #707 has no egress keys and must not run open.
+	cfg := config{WorkDir: "/var/lib/covey-runner", Egress: defaultEgressSettings()}
 	for _, line := range strings.Split(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -289,6 +338,15 @@ func readConfig(path string) (config, error) {
 			continue
 		case "images":
 			cfg.Images = parseList(value)
+			continue
+		case "egress_allow":
+			cfg.Egress.Allow = parseList(value)
+			continue
+		}
+		if name, ok := strings.CutPrefix(key, "egress_"); ok {
+			if err := cfg.Egress.set(name, strings.Trim(value, `"`)); err != nil {
+				return config{}, fmt.Errorf("%s: %w", path, err)
+			}
 			continue
 		}
 		value = strings.Trim(value, `"`)

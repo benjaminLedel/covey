@@ -32,6 +32,11 @@ var (
 	// ErrAlreadyMember: an account holds at most one seat per organization
 	// (humans_account_per_org, migration 0059).
 	ErrAlreadyMember = errors.New("the account already has a seat in this organization")
+	// ErrSharedLogin: an organisation's admin sets the password only of a login
+	// that exists for this organisation alone. One with a seat elsewhere, or a
+	// platform role, belongs to more than this organisation; its owner changes
+	// the password (profile or reset mail), nobody on their behalf (#688).
+	ErrSharedLogin = errors.New("this login is shared with another organisation or holds a platform role; its owner changes the password through the profile or the reset mail")
 )
 
 type Organization struct {
@@ -144,7 +149,11 @@ type HumanUpdate struct {
 	DisplayName  *string
 	Role         *string
 	PasswordHash *string
-	ManagerID    *uuid.NullUUID
+	// OwnLogin: the password change comes from the person themselves (the
+	// profile, behind the current password). Without it the change is an
+	// admin's, and allowed only for a login no other organisation shares.
+	OwnLogin  bool
+	ManagerID *uuid.NullUUID
 
 	JobTitle         *string
 	Phone            *string
@@ -415,6 +424,20 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 		var accountID uuid.UUID
 		if err := tx.QueryRow(ctx, `SELECT account_id FROM humans WHERE id=$1`, id).Scan(&accountID); err != nil {
 			return Human{}, err
+		}
+		// CreateHuman hands an existing login a seat here without asking its
+		// owner — which is only safe as long as the seat gives no power over
+		// the login itself. An admin's password reaches this organisation's
+		// own logins, never one that works elsewhere too (#688).
+		if !upd.OwnLogin {
+			var shared bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM humans WHERE account_id=$1 AND id<>$2)
+					OR (SELECT platform_role <> 'user' FROM accounts WHERE id=$1)`, accountID, id).Scan(&shared); err != nil {
+				return Human{}, err
+			}
+			if shared {
+				return Human{}, ErrSharedLogin
+			}
 		}
 		if _, err := tx.Exec(ctx, `UPDATE accounts SET password_hash=$1 WHERE id=$2`, *upd.PasswordHash, accountID); err != nil {
 			return Human{}, err

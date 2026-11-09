@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -219,7 +220,15 @@ func (s *Server) readTargetWebhook(w http.ResponseWriter, r *http.Request, orgID
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return target.WebhookEvent{}, false
 	}
-	if !hook.VerifyWebhook(s.WebhookSecrets[systemName], body, r.Header) {
+	secret, known := s.webhookSecret(r.Context(), orgID, systemName)
+	if !known {
+		// Fail-closed: an empty secret is "verification off" to every plugin,
+		// so no secret at all must not reach one (#690).
+		writeErr(w, http.StatusUnauthorized, "no webhook secret configured for "+systemName+
+			": set the organisation secret "+systemName+"_webhook_secret")
+		return target.WebhookEvent{}, false
+	}
+	if !hook.VerifyWebhook(secret, body, r.Header) {
 		writeErr(w, http.StatusUnauthorized, "invalid signature")
 		return target.WebhookEvent{}, false
 	}
@@ -265,4 +274,27 @@ func readTriggerPayload(w http.ResponseWriter, r *http.Request) (triggerPayload,
 		in.Priority = 3
 	}
 	return in, true
+}
+
+// webhookSecret is what an incoming webhook of systemName is verified with
+// for this organisation, and whether there is anything to verify with at all.
+//
+// The organisation's own secret (<system>_webhook_secret) comes first: a
+// secret shared by the whole instance has to be handed to every organisation
+// that wires up a webhook, and then each of them can sign for the others. The
+// instance-wide COVEY_<SYSTEM>_WEBHOOK_SECRET stays as the fallback for an
+// installation that serves one organisation. Neither set means no
+// verification is possible — refused, unless the operator named the system in
+// COVEY_UNSIGNED_WEBHOOKS, which hands the plugin an empty secret and so
+// switches its check off on purpose (#690).
+func (s *Server) webhookSecret(ctx context.Context, orgID uuid.UUID, systemName string) (string, bool) {
+	if s.Secrets != nil {
+		if v, err := s.orgSecret(ctx, orgID, systemName+"_webhook_secret"); err == nil && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v), true
+		}
+	}
+	if v := s.WebhookSecrets[systemName]; v != "" {
+		return v, true
+	}
+	return "", s.UnsignedWebhooks[systemName]
 }

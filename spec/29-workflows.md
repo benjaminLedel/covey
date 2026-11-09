@@ -301,6 +301,12 @@ available member) — and so under that colleague's rules:
 - the action is recorded in the colleague's audit, marked as done for the
   workflow.
 
+The action runs in the control plane, not in the colleague's sandbox. A system
+that works locally — `dev`, `browser`: no credentials, its actions run where they
+are executed — is therefore refused in an action step; it would run on the
+control plane's host. Work on such a system is a colleague step (§9), which runs
+in the agent's sandbox ([`#698`](https://github.com/benjaminLedel/covey/issues/698)).
+
 A workflow therefore has no identity of its own in a target system and no rights
 an agent could not be given. Parameter values may carry placeholders; a value
 that reads as a number or as true/false is passed as one.

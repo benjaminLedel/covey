@@ -183,10 +183,10 @@ setting here.
 > platform's own `WEBHOOK_MAX_SKEW`, so a deployment that wants to stop trusting a
 > timestamp that far back has a knob for it, and it lives with the platform.
 >
-> An **empty** `COVEY_ZENDESK_WEBHOOK_SECRET` switches the check off, which is how a
-> development setup is marked — exactly as with Zammad. On a production installation
-> the secret is set, and a webhook that arrives unsigned is then refused rather than
-> run. A local instance that cannot sign has to be driven by heartbeat instead.
+> The organisation's secret `zendesk_webhook_secret` comes first,
+> `COVEY_ZENDESK_WEBHOOK_SECRET` is the instance-wide fallback. With neither set the
+> webhook is refused rather than run; `COVEY_UNSIGNED_WEBHOOKS=zendesk` lets it in
+> unchecked, for a development setup only. A local instance that cannot sign has to be driven by heartbeat instead.
 
 ### 2.5 Process env
 
@@ -360,7 +360,7 @@ credential that no longer works — which is why the setup doc in
 | Variable | Default | Meaning |
 |---|---|---|
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | The base URL Zendesk delivers the webhook to |
-| `COVEY_ZENDESK_WEBHOOK_SECRET` | *(empty = check off, dev only)* | Signing key, identical to the webhook's signing key |
+| `COVEY_ZENDESK_WEBHOOK_SECRET` | *(empty)* | Signing key, identical to the webhook's signing key; instance-wide fallback for the organisation secret `zendesk_webhook_secret`. Neither set = webhook refused |
 | `COVEY_ZENDESK_INTAKE_GROUPS` | *(empty = every group)* | Groups this installation works on, by name |
 | `COVEY_ZENDESK_ESCALATION_GROUP` | *(empty = keep the group)* | Where `escalate` moves a ticket, by name |
 | `COVEY_ZENDESK_REPLY_STATUS` | *(empty = status untouched)* | One of `new open pending hold solved closed canceled` — the status an outgoing answer sets |

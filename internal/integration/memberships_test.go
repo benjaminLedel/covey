@@ -129,3 +129,43 @@ func TestOrganisationWithoutAdmin(t *testing.T) {
 		t.Fatalf("role %v after the switch, expected org_admin", switched["Role"])
 	}
 }
+
+// An organisation's admin can add a person who already has a login elsewhere —
+// that is what multi-organisation membership rests on — but the seat gives no
+// power over the login itself (#688): the password of a login that works in
+// another organisation, or holds a platform role, is its owner's to change.
+func TestAdminCannotSetPasswordOfSharedLogin(t *testing.T) {
+	s := newStack(t)
+	s.alsSystemadmin(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{
+		"name": "Second Org", "admin_email": "chef@second.local", "admin_name": "Chef",
+		"admin_password": "chef-passwort",
+	}, http.StatusCreated)
+	chef := login(t, s, "chef@second.local", "chef-passwort")
+
+	// The instance's system admin, added by address to the second organisation.
+	seat := chef.expect(http.MethodPost, "/api/v1/users", map[string]string{
+		"email": "admin@test.local", "display_name": "Admin", "role": "auditor", "password": "ignored-1",
+	}, http.StatusCreated)
+	chef.expect(http.MethodPatch, "/api/v1/users/"+seat["id"].(string),
+		map[string]string{"password": "taken-over"}, http.StatusConflict)
+	login(t, s, "admin@test.local", "admin-passwort")
+
+	// The same for a login that is only shared, without any platform role.
+	s.mitglied(t, "anna@test.local", "Anna", "agent_owner", "anna-passwort")
+	annaSeat := chef.expect(http.MethodPost, "/api/v1/users", map[string]string{
+		"email": "anna@test.local", "display_name": "Anna", "role": "auditor", "password": "ignored-1",
+	}, http.StatusCreated)
+	chef.expect(http.MethodPatch, "/api/v1/users/"+annaSeat["id"].(string),
+		map[string]string{"password": "taken-over"}, http.StatusConflict)
+	login(t, s, "anna@test.local", "anna-passwort")
+
+	// A login that exists for this organisation alone stays the admin's to reset.
+	own := chef.expect(http.MethodPost, "/api/v1/users", map[string]string{
+		"email": "bert@second.local", "display_name": "Bert", "role": "auditor", "password": "bert-passwort",
+	}, http.StatusCreated)
+	chef.expect(http.MethodPatch, "/api/v1/users/"+own["id"].(string),
+		map[string]string{"password": "neues-passwort"}, http.StatusOK)
+	login(t, s, "bert@second.local", "neues-passwort")
+}

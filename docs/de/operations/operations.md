@@ -31,7 +31,7 @@ Migrationen laufen beim Start automatisch, abgesichert über ein Advisory Lock; 
 Zwei Variablen sehen ähnlich aus und meinen Gegenteiliges:
 
 - `COVEY_PUBLIC_URL` zeigt **nach innen** — unter dieser Adresse erreichen die **Sandboxen** die Control Plane. Steht hier die Domain der Website, wählen die Container über das offene Netz zurück und scheitern an der Egress-Allowlist.
-- `COVEY_SITE_URL` zeigt **nach außen** — die kopierbaren Webhook- und Trigger-URLs, die Adresse im herunterladbaren Skill, die Links in den Mails der Installation. Leer lassen ist der Normalfall; der Server leitet sie aus dem Request ab. Die Einstellung `site.url` (*Plattform → Einstellungen*) sagt dasselbe aus dem Produkt heraus und hat Vorrang — die Benachrichtigungsmails werden aus einer Schleife ohne Request verschickt und brauchen eine der beiden.
+- `COVEY_SITE_URL` zeigt **nach außen** — die kopierbaren Webhook- und Trigger-URLs, die Adresse im herunterladbaren Skill, die Links in den Mails der Installation. Leer lassen ist der Normalfall; der Server leitet sie aus dem Request ab. Die Einstellung `site.url` (*Plattform → Einstellungen*) sagt dasselbe aus dem Produkt heraus und hat Vorrang. Mails brauchen eine der beiden: Die Benachrichtigungsmails werden aus einer Schleife ohne Request verschickt, und Mails zum Zurücksetzen des Passworts und zur Bestätigung werden nur auf einer konfigurierten Adresse gebaut, nie auf dem `Host`-Header des Requests — ohne sie werden sie nicht verschickt.
 
 Beim Start warnt covey, wenn diese beiden Rollen vertauscht aussehen.
 
@@ -74,15 +74,32 @@ Von Haus aus sagt eine Mitteilung nur, wer was getan hat („Bea hat eine Rückf
 
 Ein Reverse-Proxy davor, TLS dort terminieren, `COVEY_PUBLIC_URL` beziehungsweise `COVEY_SITE_URL` passend setzen. Das sichere Cookie schaltet sich dann von selbst ein. Für die Datenbank `sslmode=require` oder höher.
 
+Adressen, die eine Organisation einträgt — die Basis-URL eines Zielsystems, ein MCP-Server, der Sprachanbieter —, ruft die Steuerungsebene selbst ab und verweigert dabei Loopback-, Link-Local- und Multicast-Ziele, geprüft im Moment des Verbindens. Private Netze bleiben erreichbar, für ein selbst betriebenes Zielsystem im Firmennetz. Ein Zielsystem, das wirklich auf demselben Host läuft, etwa ein lokales Demo-Double, wird mit `COVEY_OUTBOUND_ALLOW` erlaubt (Adressen oder CIDRs, durch Kommas getrennt).
+
 ## Egress-Isolation
 
 Mit dem Docker-Provider von Haus aus an: Eine Sandbox erreicht nur die Hosts auf der Allowlist ihres Agenten — die Basisliste der Organisation (vorbelegt mit `api.anthropic.com`), die zugewiesenen Vorlagen und die eigenen Hosts des Agenten. `COVEY_EGRESS_ENFORCE=false` schaltet das ab; die Listen bleiben dann erhalten, werden aber nicht angewandt, und `covey serve` und `covey doctor` sagen das. Ein Provider, der nicht durchsetzen kann, sagt dasselbe, statt offen zu laufen. `GET /api/v1/egress` beantwortet mit `enforced`, ob es auf dieser Instanz greift.
 
-Zwei Stufen. **Kooperativ** (die Vorgabe): Der Datenverkehr der Sandbox läuft über einen Proxy, der die Allowlist durchsetzt. **Hart** (`COVEY_EGRESS_ISOLATION=network`): Die Sandbox hängt in einem internen Netz ohne Internet, und der Proxy-Container ist der einzige Weg hinaus — nicht mehr umgehbar. Für die harte Stufe wird ein zweites Image gebaut.
+Zwei Stufen, und nur die zweite hält Datenabfluss auf.
+
+- **Kooperativ** (`COVEY_EGRESS_ISOLATION=proxy`, die Vorgabe): Der Sandbox wird *gesagt*, einen Proxy zu benutzen, der die Allowlist durchsetzt (`HTTP_PROXY`/`HTTPS_PROXY`). Werkzeuge, die die Variablen beachten, bleiben auf der Liste. Direkte Verbindungen verhindert sie nicht: Ein Agent — oder Code, den er ausführt —, der einen Socket zu einer Adresse seiner Wahl öffnet, kommt hinaus, und die Allowlist sieht es nie. Diese Stufe hält gutwilligen Verkehr in der Spur; sie **hindert eine Sandbox nicht daran, Daten anderswohin zu schicken**.
+- **Hart** (`COVEY_EGRESS_ISOLATION=network`): Die Sandbox hängt in einem internen Docker-Netz ohne Weg ins Internet, und der Proxy-Container ist ihr einziger Ausgang. Eine direkte Verbindung führt nirgendwohin. Das ist die Stufe für den Fall, dass die Allowlist eine Grenze sein soll. Sie braucht ein zweites Image (`make egress-image`, `covey-egress:latest`).
+
+`covey doctor` sagt, welche der beiden gilt.
+
+Der Proxy prüft die Adresse, zu der ein erlaubter Name aufgelöst wird, im Moment des Verbindens und verweigert Loopback-, Link-Local- und Multicast-Ziele — ein Name, dessen DNS-Antwort sich ändert, führt eine Sandbox so weder zu den Diensten des Hosts noch zum Metadaten-Endpunkt der Cloud. Private Netze bleiben für erlaubte interne Hosts erreichbar. `COVEY_OUTBOUND_ALLOW` nennt auch hier die Ausnahmen; auf der harten Stufe gibt covey die Variable an den Proxy-Container weiter.
 
 Der kooperative Proxy läuft im covey-Prozess. Läuft covey selbst in einem Container, erreichen die Sandboxen ihn nur über einen veröffentlichten Port: `COVEY_EGRESS_LISTEN_ADDR` legt seine Adresse fest, und der Host muss denselben Port veröffentlichen. Die Compose-Dateien tun beides (`:8495`, `8495:8495`). Ohne das eigene Token einer Sandbox antwortet der Proxy mit 407.
 
+Ein entfernter Runner wendet dieselben Einstellungen auf seinem eigenen Host an — Einzelheiten auf der englischen Seite [Runners](../../en/operations/runner.md#egress-on-a-runner-host).
+
 Beim Update einer Installation, die mit offenem Egress lief: Vor dem Neustart die Allowlists prüfen (`GET /api/v1/egress`, die eigenen Hosts je Agent unter *Einstellungen → Egress* auf der Agentenseite) — Verkehr zu Hosts, die dort nicht stehen, wird danach abgewiesen. Wer das alte Verhalten behalten will, setzt `COVEY_EGRESS_ENFORCE=false` (in der `.env` der Compose-Installation). Einzelheiten stehen auf der englischen Seite [Upgrading](../../en/operations/upgrade.md).
+
+## Grenzen der Sandbox
+
+Eine Sandbox startet ohne jede Capability, mit `no-new-privileges` (ein setuid-Programm im Image führt nicht mehr zu root) und mit einer Grenze von 4096 Prozessen und Threads, damit eine Sandbox den anderen nicht die Prozesstabelle des Hosts nimmt. Die Arbeitsplatz-Images laufen als Nicht-root-Benutzer `agent` und brauchen keine Capability. Ein eigenes Image muss es genauso halten: eines, das als root startet und dann den Benutzer wechselt, wie viele Datenbank-Images, startet als Sandbox nicht. Die Dienste neben einer Sandbox sind davon nicht betroffen.
+
+Eine Speichergrenze je Sandbox ist ab Werk aus. `COVEY_SANDBOX_MEMORY` setzt eine in Dockers Schreibweise (`4g`, `512m`); ein entfernter Runner liest die Variable auf seinem eigenen Host.
 
 ## Sicherungen
 

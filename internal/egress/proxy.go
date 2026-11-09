@@ -15,6 +15,7 @@ package egress
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,6 +25,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/netguard"
 )
 
 // Allowlist decides which target hosts get through. Fail-closed: an empty list
@@ -95,6 +98,32 @@ type Resolver interface {
 	// Log records a decision (host, allowed/blocked).
 	Log(agent uuid.UUID, host, method string, allowed bool)
 }
+
+// The allowlist names hosts, and a name says nothing about where it leads: by
+// DNS rebinding, an expired domain or a mistake an allowed name can resolve to
+// the proxy's own loopback or to the link-local cloud metadata endpoint. So
+// every upstream connection is checked at dial time, against the address it
+// really goes to, with the policy the control plane applies to
+// organisation-configured URLs (netguard): loopback, link-local, unspecified
+// and multicast are refused, private ranges stay reachable for internal hosts,
+// and COVEY_OUTBOUND_ALLOW names the operator's exceptions (#705).
+var upstreamDialer = &net.Dialer{
+	Timeout:   15 * time.Second,
+	KeepAlive: 30 * time.Second,
+	Control:   netguard.Control,
+}
+
+// upstreamTransport carries plain HTTP. No Proxy of its own: the request goes
+// where CONNECT goes, directly, so the dial-time check sees the destination
+// and not some upstream proxy in the environment.
+var upstreamTransport = func() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.Proxy = nil
+	t.DialContext = upstreamDialer.DialContext
+	return t
+}()
+
+const refusedMessage = "egress denied (destination address refused: loopback, link-local or multicast)"
 
 // Proxy is an HTTP/HTTPS forward proxy with a per-agent allowlist.
 type Proxy struct {
@@ -171,9 +200,13 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "egress denied (not on allowlist)", http.StatusForbidden)
 		return
 	}
-	dstConn, err := net.DialTimeout("tcp", host, 15*time.Second)
+	dstConn, err := upstreamDialer.DialContext(r.Context(), "tcp", host)
 	if err != nil {
 		p.resolve.Log(agent, host, "CONNECT", false)
+		if errors.Is(err, netguard.ErrRefused) {
+			http.Error(w, refusedMessage, http.StatusForbidden)
+			return
+		}
 		http.Error(w, "upstream unreachable", http.StatusBadGateway)
 		return
 	}
@@ -211,11 +244,16 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "egress denied (not on allowlist)", http.StatusForbidden)
 		return
 	}
-	p.resolve.Log(agent, r.URL.Host, r.Method, true)
 	outReq := r.Clone(r.Context())
 	outReq.RequestURI = ""
 	stripHopByHop(outReq.Header)
-	resp, err := http.DefaultTransport.RoundTrip(outReq)
+	resp, err := upstreamTransport.RoundTrip(outReq)
+	if errors.Is(err, netguard.ErrRefused) {
+		p.resolve.Log(agent, r.URL.Host, r.Method, false)
+		http.Error(w, refusedMessage, http.StatusForbidden)
+		return
+	}
+	p.resolve.Log(agent, r.URL.Host, r.Method, true)
 	if err != nil {
 		http.Error(w, "upstream error", http.StatusBadGateway)
 		return

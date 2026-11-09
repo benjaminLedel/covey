@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -101,5 +102,23 @@ func TestJSONStringEscapeHandlesQuotesAndBackslashes(t *testing.T) {
 	}
 	if got.Text != `p@ss"w\ord` {
 		t.Fatalf("got %q, want %q", got.Text, `p@ss"w\ord`)
+	}
+}
+
+// TestMaskSecretsInResult is #691: a value substituted into an action came
+// back to the model whenever the action printed it.
+func TestMaskSecretsInResult(t *testing.T) {
+	values := map[string]string{`s3"cret`: "staging_pass"}
+	got := maskSecrets(map[string]any{"stdout": `login with s3"cret ok`, "code": 0}, values)
+	raw, _ := json.Marshal(got)
+	if strings.Contains(string(raw), "s3") || !strings.Contains(string(raw), "{{secret:staging_pass}}") {
+		t.Fatalf("result not masked: %s", raw)
+	}
+	clean := map[string]any{"stdout": "nothing to see"}
+	if got := maskSecrets(clean, values); got == nil || got.(map[string]any)["stdout"] != "nothing to see" {
+		t.Fatalf("a result without the value must come back unchanged: %v", got)
+	}
+	if got := maskSecretText(`exec: s3"cret rejected`, values); strings.Contains(got, "s3") {
+		t.Fatalf("error text not masked: %s", got)
 	}
 }

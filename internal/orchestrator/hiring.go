@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -524,6 +525,22 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 			return fail("a drafted agent may not get the system `covey` — drafting colleagues stays with the People department")
 		}
 	}
+	// A hired colleague's access does not grow here (#702). Its new ACCESS.md
+	// applies to its next run, and nobody reviews it on the way — unlike a
+	// draft, whose hiring is that review. So an ACCESS.md that adds a system,
+	// a scope or a tool the colleague does not already hold is refused for a
+	// hired agent: more access for a working colleague is a human's decision,
+	// asked for with propose_agent_config. Narrowing stays free.
+	if !target.Draft() {
+		var before string
+		if current, err := o.Registry.CurrentConfig(ctx, target.ID); err == nil {
+			before = current.Files["ACCESS.md"]
+		}
+		if added := accessAdded(agents.ParseAccess(before), agents.ParseAccess(files["ACCESS.md"])); len(added) > 0 {
+			return fail("%s is already working, and this would give it more access (%s) — a hired colleague's access grows only with a human's yes; propose it with propose_agent_config",
+				target.Slug, strings.Join(added, ", "))
+		}
+	}
 	// A config without a SOUL.md is an agent without a character: the platform
 	// would compile a prompt that says nothing about who this is. Refused with
 	// the reason, so the drafting agent writes the file instead of finishing.
@@ -812,4 +829,43 @@ func bindingOf(params map[string]any) string {
 		return v + ":" + fp
 	}
 	return fp
+}
+
+// accessAdded lists what after grants that before did not: a system, a scope
+// on it, or a tool. An entry without scopes (or without tools) holds them all,
+// so narrowing to a list is no addition and widening from one is.
+func accessAdded(before, after []agents.SystemAccess) []string {
+	held := map[string]agents.SystemAccess{}
+	for _, a := range before {
+		held[a.System] = a
+	}
+	var added []string
+	for _, a := range after {
+		h, ok := held[a.System]
+		if !ok {
+			added = append(added, a.System)
+			continue
+		}
+		if len(h.Scopes) > 0 {
+			if len(a.Scopes) == 0 {
+				added = append(added, a.System+" (every scope)")
+			}
+			for _, sc := range a.Scopes {
+				if !slices.Contains(h.Scopes, sc) {
+					added = append(added, a.System+" "+sc)
+				}
+			}
+		}
+		if len(h.Tools) > 0 {
+			if len(a.Tools) == 0 {
+				added = append(added, a.System+" (every tool)")
+			}
+			for _, tool := range a.Tools {
+				if !slices.Contains(h.Tools, tool) {
+					added = append(added, a.System+" tool "+tool)
+				}
+			}
+		}
+	}
+	return added
 }

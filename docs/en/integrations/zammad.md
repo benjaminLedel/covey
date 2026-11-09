@@ -296,7 +296,7 @@ otherwise a blocked agent never wakes up again.
 | Variable | Default | Meaning |
 |---|---|---|
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | The base URL at which Zammad reaches the webhook |
-| `COVEY_ZAMMAD_WEBHOOK_SECRET` | *(empty = signature check off)* | The HMAC-SHA1 secret, identical to the Zammad webhook token |
+| `COVEY_ZAMMAD_WEBHOOK_SECRET` | *(empty)* | The HMAC-SHA1 secret, identical to the Zammad webhook token; instance-wide fallback for the organisation secret `zammad_webhook_secret`. Neither set = webhook refused |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | The TTL of the credential passed into the sandbox |
 | `COVEY_EGRESS_ENFORCE` | `true` | The egress allowlist proxy (only the `docker` provider); `false` switches it off |
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts, e.g. the Zammad host (`*.suffix` allowed) |
@@ -327,8 +327,8 @@ otherwise a blocked agent never wakes up again.
 >   ```
 >
 > Patterns: an exact host or `*.suffix`. The standard mode is cooperative
-> (HTTP(S)_PROXY in the container) — it prevents naive exfiltration but can be
-> circumvented by the agent through direct IPs. For hard isolation see below.
+> (HTTP(S)_PROXY in the container) — it does not stop exfiltration: an agent
+> that connects directly gets past it. For hard isolation see below.
 
 ### 6.1 Hard network isolation (`COVEY_EGRESS_ISOLATION=network`)
 
@@ -381,8 +381,10 @@ real credentials; check it against the target environment.
 Secrets (per agent, in the SecretStore, **not** as env): `zammad_url`,
 `zammad_token`, `anthropic_api_key`/`claude_code_oauth_token`.
 
-> Signature check: an **empty** `COVEY_ZAMMAD_WEBHOOK_SECRET` disables the
-> check (dev only). Always set it in production.
+> Signature check: the organisation's secret `zammad_webhook_secret` comes
+> first, `COVEY_ZAMMAD_WEBHOOK_SECRET` is the instance-wide fallback. With
+> neither set the webhook is refused; `COVEY_UNSIGNED_WEBHOOKS=zammad` lets it
+> in unchecked, for a local demo only.
 
 ---
 
@@ -396,8 +398,8 @@ have to be considered (details and file references below). Prioritised:
 1. **Egress enforcement (implemented, two stages, on by default).** With the
    `docker` provider the sandbox traffic goes through a fail-closed
    allowlist proxy (`internal/egress`). Two modes (`COVEY_EGRESS_ISOLATION`):
-   - `proxy` (default): cooperative via HTTP(S)_PROXY — it prevents naive
-     exfiltration but can be circumvented by the agent through direct IPs.
+   - `proxy` (default): cooperative via HTTP(S)_PROXY — it does not stop
+     exfiltration: an agent that connects directly gets past it.
    - `network`: **hard isolation** — the sandbox on an internal Docker network
      without internet, the proxy container as the only exit. A direct bypass is
      thereby impossible (verified). Setup see above.

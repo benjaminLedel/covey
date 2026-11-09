@@ -350,3 +350,48 @@ func TestEinrichtungOhneZugangsdaten(t *testing.T) {
 		}
 	}
 }
+
+// TestAccessScopeHoldsPerAction is #704: ACCESS.md scopes narrowed only the
+// prompt doc — an agent with "scope: read" could call the write actions. A
+// manifest action names its scope; the control plane now compares it.
+func TestAccessScopeHoldsPerAction(t *testing.T) {
+	s := newStack(t)
+	helpdesk := newFakeHelpdesk(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost, "/api/v1/targets", map[string]any{
+		"name": "helpdesk", "label": "Helpdesk", "scopes": []string{"read", "write"},
+		"auth": map[string]any{"header": "X-API-Key", "format": "{token}"},
+		"actions": map[string]any{
+			"get_issue": map[string]any{"method": "GET", "path": "/issues/{issue_id}", "scope": "read"},
+			"comment":   map[string]any{"method": "POST", "path": "/issues/{issue_id}/comments", "scope": "write"},
+		},
+	}, http.StatusOK)
+	agent, err := s.registry.Create(ctx, s.orgID, "reader", "Lese-Agent", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md": "# Lese-Agent", "ACCESS.md": "- system: helpdesk scope: read",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{"helpdesk_token": "hd", "helpdesk_url": helpdesk.srv.URL} {
+		s.secrets.Put(ctx, s.orgID, k, v)
+		s.secrets.Assign(ctx, s.orgID, k, agent.ID)
+	}
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Lesen und schreiben",
+		`[mock:action helpdesk/get_issue {"issue_id":7}] [mock:action helpdesk/comment {"issue_id":7,"text":"geschrieben"}] [mock:result fertig]`,
+		"manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task finished", 15*time.Second, func() bool {
+		st := s.taskState(task.ID)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+	calls := helpdesk.calls()
+	if len(calls) != 1 || calls[0] != "GET /issues/7" {
+		t.Fatalf("a read-only agent may read and not write; calls: %v", calls)
+	}
+}

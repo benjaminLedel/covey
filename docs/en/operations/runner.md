@@ -177,6 +177,10 @@ max_sandboxes = 4
 `--max-sandboxes 4` at `register` writes it; afterwards you edit the file and
 restart the service. `0` — the default — means no limit.
 
+The memory of each sandbox is a statement about the iron as well:
+`COVEY_SANDBOX_MEMORY=4g` in the runner's environment (the service's unit)
+limits every sandbox on this host. Unset, there is no limit.
+
 It is deliberately **not** in the runner view, unlike tags and images. Those
 are steering decisions somebody makes about a fleet; this is a statement about
 the iron. The scheduler can rank hosts, but it has no way of knowing that one
@@ -626,18 +630,59 @@ that it exists and is not empty.
 The store's fill level is on the dashboard, so it is seen before the disk runs
 short rather than after.
 
-## Hard egress isolation with runners
+## Egress on a runner host
 
-In `COVEY_EGRESS_ISOLATION=network` the internal network and the proxy
-container exist **once per runner** (`covey-egress-internal-<runner>`,
-`covey-egress-proxy-<runner>`). Since a runner serves one organisation, two
-tenants never share a network segment — `--internal` cuts the way out, not the
-way sideways.
+A remote runner puts the same enforcement point in front of its sandboxes as
+the built-in one, on its own host, through the same provider code. Enforcement
+is on by default. The proxy fetches each agent's allowlist from the control
+plane with this runner's token, and the control plane answers only for agents
+of the runner's own organisation.
 
-The proxy fetches its allowlist from the control plane with the runner token.
-It is renewed once per control-plane start: the built-in runner's token is
-rolled at every start, and a leftover container would carry the old one and —
-fail-closed, correctly — block everything.
+The settings carry the control plane's names. They sit in the config file
+`register` writes, and the `COVEY_EGRESS_*` variables override them (a systemd
+drop-in, or the container's environment):
+
+```
+egress_enforce = true            # COVEY_EGRESS_ENFORCE
+egress_isolation = "network"     # COVEY_EGRESS_ISOLATION: "proxy" | "network"
+egress_allow = []                # COVEY_EGRESS_ALLOW: infrastructure hosts for every sandbox here
+egress_listen_addr = ""          # COVEY_EGRESS_LISTEN_ADDR: the cooperative proxy's address
+egress_proxy_image = ""          # COVEY_EGRESS_PROXY_IMAGE: default covey-egress:latest
+```
+
+`register --egress-isolation network` writes the hard mode right away. An
+unknown mode or an unreadable `egress_enforce` stops the runner at startup
+instead of falling back to a weaker mode. A config written by an earlier
+version has no `egress_*` keys and runs cooperatively.
+
+**The default, `proxy`, does not stop exfiltration.** The sandbox is told to
+use the proxy (`HTTP_PROXY`), and the proxy runs inside the `covey-runner`
+process. A direct connection to an address of the agent's choosing is not
+prevented, and the allowlist never sees it. A runner in a container needs
+`COVEY_EGRESS_LISTEN_ADDR` set and that port published, otherwise it refuses to
+start: the sandboxes could not reach a free port nobody published.
+
+**`network` is the mode that stops it.** The sandbox sits on an internal network
+without a route out; the proxy container is its only exit. The host needs the
+proxy image: build it from the repository (`make egress-image`) or push it to a
+registry and name it in `egress_proxy_image`. Without it the runner's self-check
+reports the image as missing and no sandbox starts there. Two requirements
+follow from the daemon's link running through the proxy: the control plane has
+to be reachable over TLS (`wss://`), and the host the sandbox dials
+(`COVEY_PUBLIC_URL` on the control plane) has to be the host in the runner's
+`url` — that one is put on the proxy's list automatically, any other has to go
+into `egress_allow`.
+
+The internal network and the proxy container exist **once per runner**
+(`covey-egress-internal-<runner>`, `covey-egress-proxy-<runner>`). Since a
+runner serves one organisation, two tenants never share a network segment —
+`--internal` cuts the way out, not the way sideways. The proxy container is
+renewed once per runner process: the built-in runner's token is rolled at every
+start of the control plane, and a leftover container would carry the old one
+and — fail-closed, correctly — block everything.
+
+`egress_enforce = false` leaves the sandboxes on this host open. The runner
+says so in its log at every start.
 
 ## Behind a reverse proxy
 

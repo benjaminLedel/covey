@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -544,6 +545,15 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 	// from the store — over a remote runner one HTTP round trip each — and a
 	// home has six figures of them: done one after the other that was minutes
 	// of latency with the line idle (#175).
+	// Nothing is written through a link (#695): a manifest that lists an
+	// entry below one of its own links is refused outright — a sync never
+	// produces one, since the walk does not follow links — and a link left in
+	// the working copy where the manifest wants a directory or a file is
+	// removed before anything is written there.
+	if err := refuseThroughLinks(m.Entries); err != nil {
+		return res, err
+	}
+
 	var files []Entry
 	for _, e := range entries {
 		target, err := safeJoin(root, e.Path)
@@ -551,6 +561,9 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 			return res, err
 		}
 		wanted[e.Path] = true
+		if err := unlinkAncestors(root, target, e.Dir); err != nil {
+			return res, err
+		}
 		switch {
 		case e.Dir:
 			if err := mkdirAllClearing(root, target, e.Mode|0o700); err != nil {
@@ -605,6 +618,10 @@ func MaterializeOwned(ctx context.Context, blobs BlobStore, orgID uuid.UUID, roo
 			defer func() { <-slots }()
 			target, err := safeJoin(root, e.Path)
 			if err != nil {
+				fail(err)
+				return
+			}
+			if err := unlinkAncestors(root, target, true); err != nil {
 				fail(err)
 				return
 			}
@@ -937,6 +954,60 @@ func removeUnknown(root string, wanted map[string]bool) (int, error) {
 		}
 	}
 	return len(toRemove), nil
+}
+
+// refuseThroughLinks refuses a manifest with an entry whose path runs through
+// one of the manifest's own links. Restored in order — links first — such an
+// entry would be written wherever the link points, outside the home (#695).
+func refuseThroughLinks(entries []Entry) error {
+	links := map[string]bool{}
+	for _, e := range entries {
+		if e.Link != "" {
+			links[path.Clean("/"+strings.ReplaceAll(e.Path, "\\", "/"))] = true
+		}
+	}
+	if len(links) == 0 {
+		return nil
+	}
+	for _, e := range entries {
+		p := path.Clean("/" + strings.ReplaceAll(e.Path, "\\", "/"))
+		for dir := path.Dir(p); dir != "/" && dir != "."; dir = path.Dir(dir) {
+			if links[dir] {
+				return fmt.Errorf("path %q runs through the link %q", e.Path, strings.TrimPrefix(dir, "/"))
+			}
+		}
+	}
+	return nil
+}
+
+// unlinkAncestors removes every symlink between root and target — and target
+// itself when self is set — that stands in the working copy. The manifest
+// decides what the home is; a link it does not list there is a leftover, and
+// writing through it would write outside the home.
+func unlinkAncestors(root, target string, self bool) error {
+	rel, err := filepath.Rel(root, target)
+	if err != nil || rel == "." {
+		return nil
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if !self {
+		parts = parts[:len(parts)-1]
+	}
+	prefix := root
+	for _, part := range parts {
+		prefix = filepath.Join(prefix, part)
+		info, err := os.Lstat(prefix)
+		if err != nil {
+			return nil // not here yet; nothing below it is either
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			if err := os.Remove(prefix); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 // safeJoin keeps a manifest path inside the home. The manifest comes back over

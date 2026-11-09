@@ -527,11 +527,17 @@ func (c *Client) hiring(ctx context.Context, req RequestHiring) (InjectHiring, e
 
 // checkAction fetches the central policy decision for an action.
 func (c *Client) checkAction(ctx context.Context, taskID, action string, params json.RawMessage) (ApprovalDecision, error) {
+	return c.checkPluginAction(ctx, taskID, action, "", params)
+}
+
+// checkPluginAction is checkAction for a target-system action, with the
+// plugin's own action name (see RequestApproval.Do).
+func (c *Client) checkPluginAction(ctx context.Context, taskID, action, do string, params json.RawMessage) (ApprovalDecision, error) {
 	reqID := uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	msg, err := c.request(reqCtx, TypeRequestApproval, reqID,
-		RequestApproval{RequestID: reqID, TaskID: taskID, Action: action, Params: params})
+		RequestApproval{RequestID: reqID, TaskID: taskID, Action: action, Params: params, Do: do})
 	if err != nil {
 		return ApprovalDecision{}, err
 	}

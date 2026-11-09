@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,6 +52,11 @@ type Docker struct {
 	DataDir string
 	// DockerBin overrides the CLI path (default "docker") — for tests.
 	DockerBin string
+	// Memory is the sandbox's memory limit in docker's notation ("4g",
+	// "512m"); empty = no limit (COVEY_SANDBOX_MEMORY). The host's operator
+	// decides it, on the control plane for the built-in runner and on the
+	// runner's own host for a remote one — what fits depends on the machine.
+	Memory string
 	// EgressProxyURL routes the container's outbound HTTP(S) traffic through the
 	// covey egress allowlist proxy (empty = no proxy). The value is the
 	// container-side URL (usually http://host.docker.internal:<port>).
@@ -66,10 +72,10 @@ type Docker struct {
 	// EgressProxyImage is the proxy image for network mode (make egress-image).
 	EgressProxyImage string
 	// EgressProxyEnv are the proxy container's env variables (COVEY_CONTROL_URL,
-	// COVEY_EGRESS_ALLOW incl. the control plane host,
-	// COVEY_EGRESS_PROXY_ADDR) — deliberately NOT the database URL: the proxy
-	// is an enforcement point, not a database client (spec/16, "Trust
-	// boundary"). The runner token is added from EgressRunnerToken.
+	// COVEY_EGRESS_ALLOW incl. the control plane host, COVEY_EGRESS_PROXY_ADDR,
+	// COVEY_OUTBOUND_ALLOW) — deliberately NOT the database URL: the proxy is
+	// an enforcement point, not a database client (spec/16, "Trust boundary").
+	// The runner token is added from EgressRunnerToken.
 	EgressProxyEnv map[string]string
 
 	// Engines and EngineStore carry the engine catalogue (spec/26): where an
@@ -110,6 +116,47 @@ func short(id uuid.UUID) string { return id.String()[:8] }
 
 // sandboxHome is the fixed home path inside the container (user `agent` in the image).
 const sandboxHome = "/home/agent"
+
+// sandboxPidsLimit bounds the processes and threads of one sandbox. Threads
+// count: a Gradle daemon, a Kotlin compiler and a headless chromium together
+// stay in the hundreds, and the limit only has to be far enough above that to
+// never be felt — what it is for is a fork loop that would otherwise take the
+// host's process table from every other sandbox on it.
+const sandboxPidsLimit = 4096
+
+// confinement are the flags that keep a sandbox to itself (#706). Docker's
+// default capability set is meant for a root process; the sandbox runs as the
+// non-root `agent` and needs none of it — chromium runs with --no-sandbox,
+// mariadbd as the agent, nothing in the images calls sudo. no-new-privileges
+// closes the other door: a setuid binary in the image no longer raises the
+// agent to root. The process limit is fixed; the memory limit is the
+// operator's, because what fits depends on the machine.
+func (p *Docker) confinement() []string {
+	args := []string{
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"--pids-limit=" + strconv.Itoa(sandboxPidsLimit),
+	}
+	if m := strings.TrimSpace(p.Memory); m != "" {
+		args = append(args, "--memory="+m)
+	}
+	return args
+}
+
+// memorySize is the notation docker's CLI accepts for --memory (go-units
+// RAMInBytes): a number and an optional unit, "4g", "512m", "1.5GiB".
+var memorySize = regexp.MustCompile(`^(\d+(\.\d+)*) ?([kKmMgGtTpP])?[iI]?[bB]?$`)
+
+// CheckMemoryLimit validates a COVEY_SANDBOX_MEMORY value at startup, so that
+// a typo stops the process with a sentence instead of failing every wake with
+// docker's. Empty means no limit.
+func CheckMemoryLimit(v string) error {
+	v = strings.TrimSpace(v)
+	if v == "" || memorySize.MatchString(v) {
+		return nil
+	}
+	return fmt.Errorf("COVEY_SANDBOX_MEMORY: %q is not a memory size (e.g. 4g, 512m)", v)
+}
 
 // sandboxUID/GID is the user `agent` from Dockerfile.sandbox. The home is
 // chowned to it: if the control plane (running as root in its container)
@@ -245,6 +292,7 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, []sandbo
 		"-e", "HOME=" + sandboxHome,
 		"-e", "COVEY_HOME=" + sandboxHome,
 	}
+	args = append(args, p.confinement()...)
 
 	switch p.EgressIsolation {
 	case "network":
@@ -739,6 +787,12 @@ func (p *Docker) ensureEgressProxy(ctx context.Context) error {
 		"--network", egressNetworkFor(p.RunnerID),
 		"--network-alias", egressProxyAlias,
 		"--add-host", "host.docker.internal:host-gateway",
+		// The proxy binds an unprivileged port and dials out; it needs no
+		// capability either, and it is the one container every sandbox of the
+		// segment talks to (#706).
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"--pids-limit=" + strconv.Itoa(sandboxPidsLimit),
 	}
 	for k, v := range p.EgressProxyEnv {
 		args = append(args, "-e", k+"="+v)

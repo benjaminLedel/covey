@@ -11,6 +11,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/daemon"
+	"covey/internal/netguard"
 	"covey/internal/secrets"
 	"covey/internal/target/manifestplug"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
@@ -46,9 +47,11 @@ type setupWebhook struct {
 	// URL with the real public address; <agent-slug> stays as a placeholder
 	// until the assistant knows the agent.
 	URL string `json:"url,omitempty"`
-	// SecretEnv is the process variable holding the HMAC secret, SecretSet
-	// says whether it is set. Without it the endpoint does accept, but
-	// unchecked — and one should see that before using it in production.
+	// SecretEnv names the organisation secret holding the webhook secret
+	// (<system>_webhook_secret); SecretSet says whether a webhook would be
+	// verified — by that secret or the instance's COVEY_<SYSTEM>_WEBHOOK_SECRET.
+	// Without either the endpoint refuses calls (#690). The JSON name stays
+	// as the screen reads it.
 	SecretEnv string `json:"secret_env,omitempty"`
 	SecretSet bool   `json:"secret_set"`
 }
@@ -158,12 +161,12 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	// target.Probes asks both together.
 	if sys, err := s.Targets.Definition(r.Context(), p.OrgID, name); err == nil {
 		if _, isHook := sys.(target.Webhooker); isHook {
-			env := "COVEY_" + strings.ToUpper(name) + "_WEBHOOK_SECRET"
+			env := name + "_webhook_secret"
 			state.Webhook = setupWebhook{
 				Supported: true,
 				URL:       s.origin(r) + "/api/webhooks/" + name + "/<agent-slug>",
 				SecretEnv: env,
-				SecretSet: s.WebhookSecrets[name] != "",
+				SecretSet: s.webhookSecretSet(r.Context(), p.OrgID, name),
 			}
 		}
 		_, state.Probe = target.Probes(sys)
@@ -283,6 +286,13 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
+	// The URL is the organisation's, the request the control plane's: it may
+	// not reach the host's own services (#692).
+	ctx = netguard.Guard(ctx)
+	if err := netguard.CheckURL(ctx, cred.BaseURL); err != nil {
+		writeJSON(w, http.StatusOK, probeResult{Error: err.Error()})
+		return
+	}
 	var info target.CredentialInfo
 	if inspects {
 		info, err = inspector.Inspect(ctx, cred)
@@ -354,4 +364,11 @@ func (s *Server) probeSecret(ctx context.Context, orgID uuid.UUID, agentID *uuid
 		return s.Secrets.Resolve(ctx, orgID, *agentID, key)
 	}
 	return s.orgSecret(ctx, orgID, key)
+}
+
+// webhookSecretSet tells the setup screen whether a webhook of this system
+// would be verified — by the organisation's secret or the instance's.
+func (s *Server) webhookSecretSet(ctx context.Context, orgID uuid.UUID, name string) bool {
+	v, known := s.webhookSecret(ctx, orgID, name)
+	return known && v != ""
 }

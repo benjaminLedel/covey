@@ -203,7 +203,10 @@ type Server struct {
 	// WebhookSecrets: target-system name → signature secret
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, e.g. COVEY_ZAMMAD_WEBHOOK_SECRET).
 	WebhookSecrets map[string]string
-	SessionTTL     time.Duration
+	// UnsignedWebhooks: systems whose webhooks pass without any secret, by the
+	// operator's explicit choice (COVEY_UNSIGNED_WEBHOOKS). See webhookSecret.
+	UnsignedWebhooks map[string]bool
+	SessionTTL       time.Duration
 	// SiteURL is this instance's externally reachable address: canonical and
 	// sitemap.xml of the website, the webhook and trigger URLs to copy, the
 	// target URL in the downloadable skill. Empty = derive it from the request
@@ -1044,7 +1047,7 @@ func mapErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
-		errors.Is(err, org.ErrAlreadyMember),
+		errors.Is(err, org.ErrAlreadyMember), errors.Is(err, org.ErrSharedLogin),
 		errors.Is(err, accounts.ErrLastSystemAdmin), errors.Is(err, org.ErrManagerCycle):
 		writeErr(w, http.StatusConflict, err.Error())
 	default:

@@ -47,4 +47,4 @@ COPY internal/sandbox/workplaces/dev-php.json /etc/covey/workplace.json
 
 USER agent
 WORKDIR /home/agent
-ENTRYPOINT ["coveyd"]
+ENTRYPOINT ["/usr/local/bin/coveyd"]

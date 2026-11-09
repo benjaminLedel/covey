@@ -1,12 +1,18 @@
 package integration
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 
 	"covey/internal/agents"
 	"covey/internal/memory"
@@ -218,4 +224,120 @@ func TestEgressVorlageBleibtInDerOrganisation(t *testing.T) {
 	if err := s.egress.SetAgentTemplate(ctx, eigener.ID, eigeneVorlage.ID, true); err != nil {
 		t.Errorf("die eigene Vorlage muss anhängbar bleiben: %v", err)
 	}
+}
+
+// F (#689): a webhook event continued the parked task of whichever
+// organisation happened to wait on the same correlation key — ticket numbers
+// repeat across organisations — and its dedup key could swallow the other
+// organisation's event as a "duplicate".
+func TestWebhookWecktNurDieEigeneOrganisation(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	eigener := s.newSupportAgent("support")
+	fremdeOrg, fremder := nachbar(t, s)
+
+	parke := func(orgID, agentID uuid.UUID) uuid.UUID {
+		task, err := s.backlog.Create(ctx, orgID, agentID, "Ticket 42", "", "test", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET state='blocked', correlation_key='zammad:ticket:42'
+			WHERE id=$1`, task.ID); err != nil {
+			t.Fatal(err)
+		}
+		return task.ID
+	}
+	fremdeAufgabe := parke(fremdeOrg, fremder.ID)
+
+	ev := target.WebhookEvent{DedupKey: "zammad:42:7:open", CorrelationKey: "zammad:ticket:42",
+		ResumeInput: "Antwort aus der eigenen Organisation", Wake: true, CorrelateOnly: true}
+	outcome, err := s.orch.HandleWebhook(ctx, eigener, "zammad", ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome == "correlated" {
+		t.Fatal("das Ereignis hat eine Aufgabe der fremden Organisation geweckt")
+	}
+	var state string
+	if err := s.pool.QueryRow(ctx, `SELECT state FROM backlog_tasks WHERE id=$1`, fremdeAufgabe).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "blocked" {
+		t.Errorf("fremde Aufgabe steht auf %q, erwartet blocked", state)
+	}
+
+	// The neighbour's own event with the same plugin dedup key is not a
+	// duplicate of ours, and it does wake the neighbour's task.
+	outcome, err = s.orch.HandleWebhook(ctx, fremder, "zammad", ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome != "correlated" {
+		t.Errorf("das Ereignis der Nachbarorganisation ergibt %q, erwartet correlated", outcome)
+	}
+}
+
+// G (#690): the webhook secret was one per system for the whole instance —
+// every organisation wiring up a webhook had to know it, and could then sign
+// for the others — and none at all switched verification off.
+func TestWebhookSecretGehoertDerOrganisation(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	s.newSupportAgent("support")
+	body := []byte(`{"ticket":{"id":5,"number":"5","title":"x","state":"open"},"article":{"id":9,"sender":"Customer","body":"hi","internal":false}}`)
+	post := func(signature string) int {
+		req, _ := http.NewRequest(http.MethodPost, s.http.URL+"/api/webhooks/zammad/support", bytes.NewReader(body))
+		if signature != "" {
+			req.Header.Set("X-Hub-Signature", signature)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	sign := func(secret string) string {
+		mac := hmac.New(sha1.New, []byte(secret))
+		mac.Write(body)
+		return "sha1=" + hex.EncodeToString(mac.Sum(nil))
+	}
+
+	// The organisation's own secret takes precedence over the instance's.
+	if err := s.secrets.Put(ctx, s.orgID, "zammad_webhook_secret", "eigenes-geheimnis"); err != nil {
+		t.Fatal(err)
+	}
+	if code := post(sign(webhookSecret)); code != http.StatusUnauthorized {
+		t.Errorf("signed with the instance's secret: %d, expected 401", code)
+	}
+	if code := post(sign("eigenes-geheimnis")); code != http.StatusOK {
+		t.Errorf("signed with the organisation's secret: %d, expected 200", code)
+	}
+
+	// Neither one set: refused, not waved through unchecked.
+	if err := s.secrets.Delete(ctx, s.orgID, "zammad_webhook_secret"); err != nil {
+		t.Fatal(err)
+	}
+	s.srv.WebhookSecrets = map[string]string{}
+	if code := post(""); code != http.StatusUnauthorized {
+		t.Errorf("without any secret: %d, expected 401", code)
+	}
+}
+
+// H (#694): a template could be made from any agent id — the agent's
+// organisation was never compared with the caller's, and another
+// organisation's configuration was copied into a template of one's own.
+func TestVorlageNurAusEigenemAgenten(t *testing.T) {
+	s := newStack(t)
+	_, fremder := nachbar(t, s)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost, "/api/v1/templates", map[string]string{
+		"name": "Nachbars Agent", "from_agent_id": fremder.ID.String(),
+	}, http.StatusNotFound)
+
+	// The own agent still makes a template.
+	eigener := s.newSupportAgent("eigener")
+	admin.expect(http.MethodPost, "/api/v1/templates", map[string]string{
+		"name": "Eigener Agent", "from_agent_id": eigener.ID.String(),
+	}, http.StatusCreated)
 }

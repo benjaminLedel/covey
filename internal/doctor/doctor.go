@@ -120,6 +120,7 @@ func (d *doctor) check(ctx context.Context, pool *pgxpool.Pool) {
 	d.checkRunners(ctx, pool)
 	d.checkEngines(ctx, pool)
 	d.checkAccounts(ctx, pool)
+	d.checkSiteAddress(ctx, pool)
 }
 
 // checkMigrations says what a restart is about to do to the database — the one
@@ -370,7 +371,10 @@ func (d *doctor) checkEgressMode(inContainer bool) {
 		d.problem("egress", "enforced, but the proxy binds a free port inside this container that no host publishes — sandboxes get nothing out, not even to their LLM",
 			"COVEY_EGRESS_LISTEN_ADDR=:8495 and publish 8495:8495 (docker-compose.yml does both)", true)
 	case d.cfg.EgressIsolation != "network":
-		d.ok("egress", "enforced, cooperative — the agent can bypass it; `network` is the hard mode")
+		// Said as plainly as it is: "enforced" alone read as a guarantee, and
+		// in this mode the allowlist binds only what chooses to use the proxy.
+		d.ok("egress", "enforced, but only cooperatively — a sandbox can connect around the proxy, so this does not stop "+
+			"exfiltration; COVEY_EGRESS_ISOLATION=network is the mode that does")
 	}
 }
 

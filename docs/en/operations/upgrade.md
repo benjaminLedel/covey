@@ -105,10 +105,12 @@ The lists stay and are not applied. `covey serve` says so at every start and
 `covey doctor` reports it, so an open egress is a decision that is written
 down, not a default nobody chose.
 
-Two limits of what "enforced" means, unchanged by this release: the default
-mode is cooperative (`HTTP(S)_PROXY` in the container — an agent that ignores
-it gets past; `COVEY_EGRESS_ISOLATION=network` closes that), and it applies to
-the sandboxes this control plane starts itself, through its built-in runner.
+A limit of what "enforced" means, unchanged by this release: the default mode
+is cooperative (`HTTP(S)_PROXY` in the container). An agent that ignores the
+variable gets past it, so the default mode does not stop exfiltration;
+`COVEY_EGRESS_ISOLATION=network` does. This release applied it to the
+sandboxes this control plane starts through its built-in runner only; remote
+runners enforce it since #707, see [Runners](runner.md#egress-on-a-runner-host).
 
 ---
 

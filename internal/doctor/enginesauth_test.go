@@ -8,7 +8,7 @@ import (
 func TestEngineOriginWhereTheTokenIsMissingIsNotSettled(t *testing.T) {
 	t.Helper()
 	on := EngineOrigin{Engine: "sevencode", Known: true, Binary: "sevencode",
-		Version: "1.0.27", Kind: "tarball", AuthEnv: "COVEY_SEVENCODE_ARTIFACT_TOKEN", AuthSet: true}
+		Version: "1.0.27", Kind: "tarball", AuthEnv: "COVEY_SEVENCODE_DOWNLOAD_TOKEN", AuthSet: true}
 	if !on.Settled() || on.AssignmentWarning() != "" {
 		t.Errorf("a release whose token is on the host is settled: %v / %q", on.Settled(), on.AssignmentWarning())
 	}
@@ -22,7 +22,7 @@ func TestEngineOriginWhereTheTokenIsMissingIsNotSettled(t *testing.T) {
 	if warn == "" {
 		t.Fatal("somebody putting an agent on this engine has to be told")
 	}
-	for _, want := range []string{"COVEY_SEVENCODE_ARTIFACT_TOKEN", "runner"} {
+	for _, want := range []string{"COVEY_SEVENCODE_DOWNLOAD_TOKEN", "runner"} {
 		if !strings.Contains(warn, want) {
 			t.Errorf("the warning should say %s: %s", want, warn)
 		}

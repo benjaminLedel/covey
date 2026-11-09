@@ -240,6 +240,11 @@ type RequestApproval struct {
 	TaskID    string          `json:"task_id,omitempty"`
 	Action    string          `json:"action"` // e.g. "zammad:reply_external"
 	Params    json.RawMessage `json:"params"`
+	// Do is the plugin's own action name behind the subject ("reply"); the
+	// subject can be refined away from it. The control plane needs it to
+	// compare the action's scope with ACCESS.md (#704). Empty for the covey
+	// meta actions.
+	Do string `json:"do,omitempty"`
 }
 
 type Blocked struct {
@@ -383,6 +388,10 @@ type RequestCreateTask struct {
 	Title     string `json:"title"`
 	Body      string `json:"body"`
 	Priority  int    `json:"priority,omitempty"`
+	// ApprovalID is the approval the daemon's guard-rail check consumed for
+	// this request, if a rule required one. The control plane checks the rule
+	// again itself and accepts the request only with that approval (#703).
+	ApprovalID string `json:"approval_id,omitempty"`
 }
 
 // RequestTool/InjectTool are the meta action covey/request_tool: "I am missing
@@ -442,6 +451,8 @@ type RequestMessage struct {
 	To        string        `json:"to,omitempty"`
 	Text      string        `json:"text"`
 	Files     []MessageFile `json:"files,omitempty"`
+	// ApprovalID: as on RequestCreateTask (#703).
+	ApprovalID string `json:"approval_id,omitempty"`
 }
 
 // MessageFile is one file of a covey/message: its base name and its bytes
