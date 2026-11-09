@@ -46,7 +46,19 @@ func (o *Orchestrator) SignsItems(ctx context.Context, orgID uuid.UUID, system s
 //
 // The style gate stays with agents: it measures text an agent wrote, and a
 // workflow only carries out what its definition says.
+//
+// A system that works locally — no credentials, its actions run where they
+// are executed (dev: a shell, files; browser: a chromium) — is refused. ActAs
+// executes in the control plane's own process, and for such a system that
+// would be a shell on the control plane's host, outside every sandbox, with
+// its environment and network (#698). Its place is the agent's sandbox,
+// which a workflow step does not reach yet.
 func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, action string, params json.RawMessage, pending string) (string, error) {
+	if d, ok := target.Describe(system); ok && d.NoCredentials {
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindGuardrail,
+			map[string]any{"rule": "local_system_in_workflow", "action": system + ":" + action, "decision": "denied", "via": "workflow"})
+		return "", fmt.Errorf("%s works inside an agent's sandbox, and a workflow step does not run there — give the step to the agent as a task instead", system)
+	}
 	sys, err := o.system(ctx, agent.OrgID, system)
 	if err != nil {
 		return "", fmt.Errorf("target system %s: %w", system, err)
