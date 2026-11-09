@@ -191,6 +191,14 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 	if err != nil {
 		return agentBundle{}, err
 	}
+	// The id alone is not the caller's: the template endpoint takes it from
+	// the request body, outside the agentScoped wrapper the export routes
+	// sit behind, and copied another organisation's agent configuration
+	// into a template of the caller's (#694). "Not found", as for an id
+	// that does not exist.
+	if a.OrgID != orgID {
+		return agentBundle{}, agents.ErrNotFound
+	}
 
 	b := agentBundle{
 		Kind: bundleKind, Version: bundleVersion,

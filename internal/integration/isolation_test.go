@@ -323,3 +323,21 @@ func TestWebhookSecretGehoertDerOrganisation(t *testing.T) {
 		t.Errorf("without any secret: %d, expected 401", code)
 	}
 }
+
+// H (#694): a template could be made from any agent id — the agent's
+// organisation was never compared with the caller's, and another
+// organisation's configuration was copied into a template of one's own.
+func TestVorlageNurAusEigenemAgenten(t *testing.T) {
+	s := newStack(t)
+	_, fremder := nachbar(t, s)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost, "/api/v1/templates", map[string]string{
+		"name": "Nachbars Agent", "from_agent_id": fremder.ID.String(),
+	}, http.StatusNotFound)
+
+	// The own agent still makes a template.
+	eigener := s.newSupportAgent("eigener")
+	admin.expect(http.MethodPost, "/api/v1/templates", map[string]string{
+		"name": "Eigener Agent", "from_agent_id": eigener.ID.String(),
+	}, http.StatusCreated)
+}
