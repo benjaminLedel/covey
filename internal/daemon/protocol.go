@@ -240,6 +240,11 @@ type RequestApproval struct {
 	TaskID    string          `json:"task_id,omitempty"`
 	Action    string          `json:"action"` // e.g. "zammad:reply_external"
 	Params    json.RawMessage `json:"params"`
+	// Do is the plugin's own action name behind the subject ("reply"); the
+	// subject can be refined away from it. The control plane needs it to
+	// compare the action's scope with ACCESS.md (#704). Empty for the covey
+	// meta actions.
+	Do string `json:"do,omitempty"`
 }
 
 type Blocked struct {

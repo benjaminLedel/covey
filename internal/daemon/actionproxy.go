@@ -108,7 +108,7 @@ func (p *actionProxy) run(ctx context.Context, system, action string, params jso
 
 	subject := p.actionSubject(ctx, system, action, params)
 
-	dec, err := p.client.checkAction(ctx, p.taskID, subject, params)
+	dec, err := p.client.checkPluginAction(ctx, p.taskID, subject, action, params)
 	if err != nil {
 		return map[string]string{"status": "error", "error": err.Error()}
 	}

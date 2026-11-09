@@ -3666,6 +3666,14 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			}
 		}
 	}
+	if system, _, ok := strings.Cut(req.Action, ":"); ok && req.Do != "" {
+		if need, allowed := o.scopeAllows(ctx, agent, system, req.Do); !allowed {
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
+				map[string]any{"rule": "access_scope", "action": req.Action, "scope": need, "decision": "denied"})
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
+				Reason: req.Do + " needs the scope " + need + " on " + system + ", which ACCESS.md does not grant"}
+		}
+	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
@@ -4238,4 +4246,32 @@ func (o *Orchestrator) enforceRails(ctx context.Context, agent agents.Agent, tas
 		}
 	}
 	return ""
+}
+
+// actionScoper is a plugin that says which ACCESS.md scope each of its actions
+// needs (manifest plugins through their "scope" field). Asked structurally, so
+// a compiled plugin opts in by having the method.
+type actionScoper interface {
+	ActionScope(action string) string
+}
+
+// scopeAllows compares an action's scope with the agent's ACCESS.md (#704).
+// The credential is brokered per system; without this, "scope: read" narrowed
+// only the prompt doc, and a read-only agent could call the write actions. A
+// plugin that names no scope for an action leaves it to every scope, as before.
+func (o *Orchestrator) scopeAllows(ctx context.Context, agent agents.Agent, system, action string) (string, bool) {
+	sys, err := o.system(ctx, agent.OrgID, system)
+	if err != nil {
+		return "", true // unknown system: the credential broker refuses it
+	}
+	sc, ok := sys.(actionScoper)
+	if !ok {
+		return "", true
+	}
+	need := sc.ActionScope(action)
+	if need == "" {
+		return "", true
+	}
+	ok, err = o.Registry.HasAccess(ctx, agent.ID, system, need)
+	return need, err == nil && ok
 }

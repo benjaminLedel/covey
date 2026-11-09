@@ -64,6 +64,9 @@ func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, ac
 		return "", fmt.Errorf("target system %s: %w", system, err)
 	}
 	subject := sys.ActionSubject(action, params)
+	if need, allowed := o.scopeAllows(ctx, agent, system, action); !allowed {
+		return "", fmt.Errorf("%s needs the scope %s on %s, which %s's ACCESS.md does not grant", action, need, system, agent.Slug)
+	}
 	if o.Targets != nil {
 		allowed, err := o.Targets.AgentToolAllowed(ctx, agent.ID, system, action)
 		if err != nil {

@@ -997,7 +997,9 @@ func (r *Registry) HasAccess(ctx context.Context, agentID uuid.UUID, system, sco
 		if a.System != system {
 			continue
 		}
-		if scope == "" {
+		// No scope asked, or none declared: an entry without scopes holds
+		// the whole system, as it always has for the credential.
+		if scope == "" || len(a.Scopes) == 0 {
 			return true, nil
 		}
 		for _, s := range a.Scopes {

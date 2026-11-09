@@ -336,6 +336,13 @@ func (s *Sys) ActionSubject(action string, params json.RawMessage) string {
 	return s.M.Name + ":" + action
 }
 
+// ActionScope is the scope from ACCESS.md an action needs (#704): the
+// manifest's own "scope" field, which until now only narrowed the prompt
+// doc. Empty = the action belongs to every scope.
+func (s *Sys) ActionScope(action string) string {
+	return s.M.Actions[action].Scope
+}
+
 func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	a, ok := s.M.Actions[action]
 	if !ok {
