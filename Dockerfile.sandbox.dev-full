@@ -43,4 +43,4 @@ COPY internal/sandbox/workplaces/dev-full.json /etc/covey/workplace.json
 
 USER agent
 WORKDIR /home/agent
-ENTRYPOINT ["coveyd"]
+ENTRYPOINT ["/usr/local/bin/coveyd"]

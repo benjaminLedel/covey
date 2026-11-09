@@ -71,4 +71,4 @@ COPY internal/sandbox/workplaces/dev-flutter.json /etc/covey/workplace.json
 
 USER agent
 WORKDIR /home/agent
-ENTRYPOINT ["coveyd"]
+ENTRYPOINT ["/usr/local/bin/coveyd"]

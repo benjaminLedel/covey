@@ -108,4 +108,9 @@ COPY internal/sandbox/workplaces/base.json /etc/covey/workplace.json
 
 USER agent
 WORKDIR /home/agent
-ENTRYPOINT ["coveyd"]
+# By its absolute path, in this image and in every one built on it. The PATH
+# above starts with two directories of the agent's home — which the agent
+# writes and which outlives the sandbox — so a bare "coveyd" would start
+# whatever the agent put there under that name, in place of the daemon that
+# holds the brokered credentials (#699).
+ENTRYPOINT ["/usr/local/bin/coveyd"]
