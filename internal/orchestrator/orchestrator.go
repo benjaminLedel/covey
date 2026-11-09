@@ -3508,11 +3508,20 @@ func (o *Orchestrator) brokerCA(ctx context.Context, agent agents.Agent, system 
 // {{secret:<key>}} placeholder substitution in action params (spec/04): the
 // agent's own secret (PutAgent) before an org-wide one explicitly assigned to
 // it (Assign) — same precedence as brokerCredential's <system>_token/_url
-// lookups. Unlike brokerCredential there is no ACCESS.md/target-system gate to
-// check first: the key is not a target system, and the explicit
-// PutAgent/Assign onto this specific agent already IS the authorization —
-// nothing reaches an agent it was not put there for.
+// lookups. There is no ACCESS.md/target-system gate here because the key is
+// not a target system's — and that is checked, not assumed: a target system's
+// credentials (and the engine's download secret) are refused, because handed
+// out here they would skip ACCESS.md, the activation and the deny_system
+// guard rail that brokerCredential applies to exactly the same values (#691).
+// For everything else the explicit PutAgent/Assign onto this agent IS the
+// authorization.
 func (o *Orchestrator) brokerSecret(ctx context.Context, agent agents.Agent, req daemon.RequestSecret) daemon.InjectSecret {
+	if system, ok := o.systemCredentialKey(ctx, agent, req.Key); ok {
+		reason := req.Key + " is a credential of " + system + "; it reaches the " + system + " plugin through its own broker, not a placeholder"
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": "secret:" + req.Key, "granted": false, "reason": reason})
+		return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: false, Reason: reason}
+	}
 	value, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.Key)
 	if err != nil {
 		reason := "no secret named " + req.Key + " set for this agent"
@@ -3526,6 +3535,33 @@ func (o *Orchestrator) brokerSecret(ctx context.Context, agent agents.Agent, req
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "secret:" + req.Key, "granted": true})
 	return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: true, Value: value}
+}
+
+// systemCredentialKey tells whether key is one the platform brokers itself:
+// <system>_token/_url/_ca/_webhook_secret of a target system known to this
+// organisation (compiled, manifest or wasm — whether enabled or not), or the
+// secret the agent's engine is downloaded with. It names the owner.
+func (o *Orchestrator) systemCredentialKey(ctx context.Context, agent agents.Agent, key string) (string, bool) {
+	for _, suffix := range []string{"_token", "_url", "_ca", "_webhook_secret"} {
+		system, ok := strings.CutSuffix(key, suffix)
+		if !ok || system == "" {
+			continue
+		}
+		if _, known := target.Describe(system); known {
+			return system, true
+		}
+		if o.Targets != nil {
+			if _, err := o.Targets.Definition(ctx, agent.OrgID, system); err == nil {
+				return system, true
+			}
+		}
+	}
+	if o.Engines != nil && agent.Runtime != "" {
+		if r, ok := o.Engines.For(ctx, agent.Runtime, ""); ok && r.SecretName() != "" && r.SecretName() == key {
+			return "the engine " + agent.Runtime, true
+		}
+	}
+	return "", false
 }
 
 // engineDownloadSecret answers one question for the start of a sandbox: what

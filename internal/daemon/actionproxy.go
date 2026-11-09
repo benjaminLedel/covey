@@ -132,10 +132,15 @@ func (p *actionProxy) run(ctx context.Context, system, action string, params jso
 	// context so it applies to this action only.
 	ctx = reqlog.WithSink(ctx, p.httpSink(system))
 
-	data, err := p.execute(ctx, system, action, params)
+	data, substituted, err := p.execute(ctx, system, action, params)
+	// A value substituted for {{secret:<key>}} goes into the action, not back
+	// into the model: a command that prints it (echo, a curl that reflects
+	// the request) would otherwise hand it to the conversation and the
+	// recording that the placeholder exists to keep it out of (#691).
+	data = maskSecrets(data, substituted)
 	result := map[string]any{"status": "ok", "data": data}
 	if err != nil {
-		result = map[string]any{"status": "error", "error": err.Error()}
+		result = map[string]any{"status": "error", "error": maskSecretText(err.Error(), substituted)}
 	}
 	// Action + outcome into the recording (kind=action). An artifact travels
 	// along base64-encoded; the orchestrator stores it as a blob and replaces it
@@ -638,23 +643,23 @@ func (p *actionProxy) resolveSystem(ctx context.Context, system string) (target.
 
 // execute runs the action with brokered credentials. Which systems exist is
 // decided by the plugin registry (or the manifest) — not by this code.
-func (p *actionProxy) execute(ctx context.Context, system, action string, params json.RawMessage) (any, error) {
+func (p *actionProxy) execute(ctx context.Context, system, action string, params json.RawMessage) (any, map[string]string, error) {
 	sys, ok := p.resolveSystem(ctx, system)
 	if !ok {
-		return nil, fmt.Errorf("unknown target system %q", system)
+		return nil, nil, fmt.Errorf("unknown target system %q", system)
 	}
 	cred, err := p.client.credential(ctx, system, p.taskID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// {{secret:<key>}} inside a string parameter (e.g. the text of a browser
 	// "type" action, so an agent can fill a login form without a password ever
 	// sitting in its own prompt/context) — substituted here, after the model has
 	// already committed to the call, before the plugin ever sees the params. A
 	// no-op (no RPC) when the params contain no placeholder.
-	params, err = p.substituteSecrets(ctx, params)
+	params, substituted, err := p.substituteSecretsTracked(ctx, params)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Workdir for actions that materialize files into the sandbox (e.g. gitlab
 	// checkout) — the credential itself stays in the daemon.
@@ -662,8 +667,9 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	// Sub-agent runner: lets a plugin (dev:agent) start a nested runtime run in
 	// the project checkout without knowing the daemon.
 	ctx = target.WithSubAgent(ctx, p.client.subAgentRunner(p.taskID))
-	return sys.Execute(ctx, action, params,
+	data, err := sys.Execute(ctx, action, params,
 		target.Credential{BaseURL: cred.BaseURL, Token: cred.Token, CA: cred.CA})
+	return data, substituted, err
 }
 
 // secretPlaceholder matches {{secret:<key>}} — key restricted to the charset
@@ -684,10 +690,18 @@ var secretPlaceholder = regexp.MustCompile(`\{\{secret:([A-Za-z0-9_.-]+)\}\}`)
 // audit log (actionProxy.run) still records the params as the model wrote
 // them — with the placeholder, never the value.
 func (p *actionProxy) substituteSecrets(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	out, _, err := p.substituteSecretsTracked(ctx, params)
+	return out, err
+}
+
+// substituteSecretsTracked is substituteSecrets that also reports what it
+// put in: value → key, so the action's result can be masked again.
+func (p *actionProxy) substituteSecretsTracked(ctx context.Context, params json.RawMessage) (json.RawMessage, map[string]string, error) {
 	matches := secretPlaceholder.FindAllStringSubmatch(string(params), -1)
 	if len(matches) == 0 {
-		return params, nil
+		return params, nil, nil
 	}
+	values := map[string]string{}
 	out := string(params)
 	seen := map[string]bool{}
 	for _, m := range matches {
@@ -698,11 +712,45 @@ func (p *actionProxy) substituteSecrets(ctx context.Context, params json.RawMess
 		seen[key] = true
 		sec, err := p.fetchSecret(ctx, key, p.taskID)
 		if err != nil {
-			return nil, fmt.Errorf("secret %q: %w", key, err)
+			return nil, nil, fmt.Errorf("secret %q: %w", key, err)
 		}
 		out = strings.ReplaceAll(out, "{{secret:"+key+"}}", jsonStringEscape(sec.Value))
+		if sec.Value != "" {
+			values[sec.Value] = key
+		}
 	}
-	return json.RawMessage(out), nil
+	return json.RawMessage(out), values, nil
+}
+
+// maskSecrets puts the placeholder back wherever a substituted value shows
+// up in an action's result. Done on the JSON text, as the substitution is:
+// the result's shape is the plugin's, and the value can sit in any string of
+// it. A result that cannot be marshalled cannot be checked, and is withheld.
+func maskSecrets(data any, values map[string]string) any {
+	if len(values) == 0 || data == nil {
+		return data
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return "action result withheld: it could not be checked for a substituted secret"
+	}
+	text := string(raw)
+	masked := text
+	for value, key := range values {
+		masked = strings.ReplaceAll(masked, jsonStringEscape(value), "{{secret:"+key+"}}")
+	}
+	if masked == text {
+		return data
+	}
+	return json.RawMessage(masked)
+}
+
+// maskSecretText does the same for plain text, an error message.
+func maskSecretText(text string, values map[string]string) string {
+	for value, key := range values {
+		text = strings.ReplaceAll(text, value, "{{secret:"+key+"}}")
+	}
+	return text
 }
 
 // jsonStringEscape renders s the way it would appear INSIDE a JSON string
