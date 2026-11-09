@@ -17,7 +17,8 @@ them, and what a choice costs.
 | `base` | `covey-sandbox:latest` | — | 1.54 GB | support, mail, QA, research |
 | `dev` | `covey-sandbox-dev:latest` | PHP, JDK, `fvm`, `uv`, node-gyp, MariaDB | 2.53 GB | developer agents without a settled field |
 | `dev-flutter` | `covey-sandbox-dev-flutter:latest` | Flutter SDK, `fvm`, JDK | 3.21 GB | Flutter agents |
-| `dev-php` | `covey-sandbox-dev-php:latest` | PHP 8.2, Composer, MariaDB, node-gyp | 2.12 GB | PHP/Laravel agents |
+| `dev-php` | `covey-sandbox-dev-php:latest` | PHP 8.2, Composer, MariaDB, node-gyp | 2.12 GB | PHP/Laravel agents on 8.2 |
+| `dev-php84` | `covey-sandbox-dev-php84:latest` | PHP 8.4, Composer, MariaDB, node-gyp | — | PHP/Laravel agents on 8.4 |
 | `dev-web` | `covey-sandbox-dev-web:latest` | node-gyp toolchain | 1.82 GB | Node/TypeScript agents |
 | `dev-full` | `covey-sandbox-dev-full:latest` | everything above, Flutter SDK included | 3.89 GB | an installation that would rather not split |
 

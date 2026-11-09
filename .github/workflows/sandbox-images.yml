@@ -158,7 +158,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [dev, dev-flutter, dev-php, dev-web]
+        profile: [dev, dev-flutter, dev-php, dev-php84, dev-web]
         arch: [amd64, arm64]
         include:
           - arch: amd64
@@ -213,7 +213,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [dev, dev-flutter, dev-php, dev-web]
+        profile: [dev, dev-flutter, dev-php, dev-php84, dev-web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -425,7 +425,7 @@ jobs:
           # union, then the roles. Whoever adds a profile here adds it there too —
           # otherwise this run publishes an
           # image no instance knows.
-          profiles="base dev dev-flutter dev-php dev-web dev-full"
+          profiles="base dev dev-flutter dev-php dev-php84 dev-web dev-full"
           digests=""
           for p in $profiles; do
             d=$(docker buildx imagetools inspect "${image}:${p}-${imgtag}" --format '{{ .Manifest.Digest }}')
@@ -468,13 +468,14 @@ jobs:
               "dev": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain — the union, for an agent whose field is not settled.",
               "dev-flutter": "Base plus a Flutter SDK that is already in the image, fvm for projects that pin another version, and a JDK for Gradle.",
               "dev-php": "Base plus PHP 8.2 with the projects' extensions, Composer, a MariaDB to test against, and the node-gyp toolchain.",
+              "dev-php84": "The same as dev-php with PHP 8.4 — for projects whose CI and lock file require 8.4.",
               "dev-web": "Base plus the native build toolchain for npm packages — for Node and TypeScript projects.",
               "dev-full": "Every developer toolchain in one image, including the Flutter SDK — for an installation that would rather not split.",
           }
-          label = {"dev-flutter": "dev · Flutter", "dev-php": "dev · PHP", "dev-web": "dev · Web",
+          label = {"dev-flutter": "dev · Flutter", "dev-php": "dev · PHP", "dev-php84": "dev · PHP 8.4", "dev-web": "dev · Web",
                    "dev-full": "dev · Full stack"}
           digests = dict(t.split("=", 1) for t in digestliste.split())
-          reihenfolge = [n for n in ("base", "dev", "dev-flutter", "dev-php", "dev-web", "dev-full") if n in digests]
+          reihenfolge = [n for n in ("base", "dev", "dev-flutter", "dev-php", "dev-php84", "dev-web", "dev-full") if n in digests]
 
           eintraege = {e["name"]: e for e in cat.get("workplaces", [])}
           for name in reihenfolge:

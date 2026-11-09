@@ -489,7 +489,8 @@ The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07
 | `base` | coveyd, Node, Python, git, chromium, ripgrep | support, mail, QA, research |
 | `dev` | + PHP, JDK, `fvm`, `uv`, node-gyp | developer agents without a settled field |
 | `dev-flutter` | + Flutter SDK (in the image), `fvm`, JDK | Flutter agents |
-| `dev-php` | + PHP 8.2, Composer, MariaDB, node-gyp | PHP/Laravel agents |
+| `dev-php` | + PHP 8.2, Composer, MariaDB, node-gyp | PHP/Laravel agents on 8.2 |
+| `dev-php84` | + PHP 8.4, Composer, MariaDB, node-gyp | PHP/Laravel agents on 8.4 |
 | `dev-web` | + node-gyp toolchain | Node/TypeScript agents |
 | `dev-full` | + all of the above, Flutter SDK included | an installation that would rather not split |
 | org-owned | anything | special cases, tighter sandboxes |

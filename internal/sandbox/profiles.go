@@ -115,6 +115,16 @@ func init() {
 		Dockerfile: "Dockerfile.sandbox.dev-php",
 	})
 	Register(Profile{
+		Name:  "dev-php84",
+		Label: "dev · PHP 8.4",
+		Description: "The PHP workplace one minor version further: base plus PHP 8.4 with the " +
+			"same extensions, Composer, a MariaDB to test against, and the node-gyp toolchain — " +
+			"for projects whose CI and lock file require 8.4, which dev-php cannot install.",
+		Image:      "covey-sandbox-dev-php84:latest",
+		Build:      "make sandbox-image-dev-php84",
+		Dockerfile: "Dockerfile.sandbox.dev-php84",
+	})
+	Register(Profile{
 		Name:  "dev-web",
 		Label: "dev · Web",
 		Description: "Base plus the native build toolchain for npm packages — node, git and " +

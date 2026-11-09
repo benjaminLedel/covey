@@ -781,6 +781,7 @@
         "dev": "dev — dodatkowo PHP, JDK, fvm, uv",
         "dev-flutter": "dev · Flutter — Flutter SDK w obrazie, fvm, JDK",
         "dev-php": "dev · PHP — PHP 8.2, Composer, MariaDB",
+        "dev-php84": "dev · PHP 8.4 — PHP 8.4, Composer, MariaDB",
         "dev-web": "dev · Web — zestaw node-gyp, chromium",
         "dev-full": "dev · Pełny stos — wszystko, razem z Flutter SDK"
       },

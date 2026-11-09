@@ -11,7 +11,7 @@
   ],
   "sdk_dirs": {},
   "notes": [
-    "PHP 8.2 is the version the target projects' CI runs. Do not install another one — a suite that is green against a different minor version turns the pipeline red.",
+    "PHP 8.2 is here for projects whose CI runs 8.2. Do not install another one — a suite that is green against a different minor version turns the pipeline red. A project whose lock file needs 8.4 (composer refuses with 'requires php ^8.4') belongs on the workplace dev-php84; say so rather than working around it.",
     "A database is here. Do not download one into your home — a server unpacked from a tarball costs 1.4 GB in every sync, for good.",
     "No JDK and no Flutter here. This workplace is for PHP work; if your ticket needs another toolchain, that is worth saying out loud rather than fetching it into your home.",
     "You are not root and apt is not available to you. If a tool is missing, say so instead of building a way around it — that is a request, not a defeat.",

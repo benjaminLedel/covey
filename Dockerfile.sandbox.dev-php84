@@ -1,0 +1,55 @@
+# Sandbox image, profile `dev-php84`: base plus PHP 8.4, Composer and a database
+# to test against. Build: `make sandbox-image-dev-php84` (builds base along with
+# it).
+#
+# The same workplace as `dev-php`, one minor version further: for projects whose
+# CI runs PHP 8.4 and whose lock file says so (a package requiring `^8.4` makes
+# `composer install` refuse on 8.2 — an agent on `dev-php` cannot even set such a
+# project up). Both images call the same install script, so they differ in the
+# version and nothing else.
+#
+# A ROLE, not a language cut — see Dockerfile.sandbox.dev-flutter for the
+# reasoning. `dev` remains the union for an agent whose field is not settled;
+# this image is for one whose field is, and it saves that agent the JDK and the
+# Flutter toolchain on every runner it lands on.
+ARG BASE_IMAGE=covey-sandbox:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+# PHP 8.4 + Composer, through the install script all PHP images share
+# (internal/sandbox/install-php.sh — the package list, the extensions and the
+# reasoning behind both stand there). 8.4 is the version Debian trixie ships, so
+# no third-party package source is involved here.
+COPY internal/sandbox/install-php.sh /tmp/install-php.sh
+RUN sh /tmp/install-php.sh 8.4 debian && rm -f /tmp/install-php.sh
+
+# A database server for test runs. The image used to bring the PHP extensions
+# for MySQL and Postgres and no server to go with them — a Laravel suite whose
+# CI runs against MariaDB therefore had nothing to run against. An agent
+# thereupon unpacked MariaDB into its home as a tarball: 1.4 GB, 21,951 files,
+# walked at every wake and written back after every run. ~150 MB here replace
+# that, for everybody.
+#
+# Started without systemd and without root: mariadbd runs as the agent, with a
+# data directory in its home. The workplace tells it so (workplaces/
+# dev-php84.json) — otherwise it goes looking for a service that does not exist
+# here.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        mariadb-server mariadb-client \
+    && rm -rf /var/lib/apt/lists/* /var/lib/mysql
+
+# The build toolchain for npm packages with a native part. A Laravel project is
+# a PHP project with a frontend build in front of it, and node-sass, sharp or
+# bcrypt look for exactly these three. Without them the agent sees an
+# `npm install` that breaks off halfway, cannot install anything as a non-root
+# user, and builds itself a replacement harness out of stubs instead.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY internal/sandbox/workplaces/dev-php84.json /etc/covey/workplace.json
+
+USER agent
+WORKDIR /home/agent
+ENTRYPOINT ["coveyd"]
