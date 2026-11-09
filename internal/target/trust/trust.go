@@ -63,9 +63,10 @@ func Client(system string, timeout time.Duration, caPEM string) (*http.Client, e
 // property would have moved nowhere — so it is here now, for every plugin the
 // host dials for rather than only for that one.
 //
-// The stricter half is not about the token. Go already strips Authorization on
-// a cross-host redirect, so the credential does not travel. What is left is
-// that an API server able to answer "look over there" could aim a plugin at a
+// It is about the token first. Go strips Authorization on a redirect to another
+// domain, but a custom auth header (X-API-Key, X-Redmine-API-Key) travels on
+// every redirect, so the credential would go wherever the target points (#708).
+// And an API server able to answer "look over there" could aim a plugin at a
 // host nobody allowed and hand back whatever it found, which is a poor way to
 // learn what your cluster is running. An in-origin redirect is ordinary and
 // stays allowed.

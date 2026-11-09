@@ -311,3 +311,51 @@ func TestGetSendsItsParametersAsTheQuery(t *testing.T) {
 		t.Errorf("empty params made a query: %q", got.RawQuery)
 	}
 }
+
+// TestTheTokenDoesNotFollowARedirectToAnotherHost is #708: a manifest plugin
+// without a CA of its own used Go's default redirect policy, which keeps a
+// custom auth header on every redirect. A target that answers "look over
+// there" must not hand the brokered token to the host it names; the request
+// is refused, as on the path with a CA.
+func TestTheTokenDoesNotFollowARedirectToAnotherHost(t *testing.T) {
+	var elsewhereKey, elsewhereAuth string
+	reached := false
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		elsewhereKey = r.Header.Get("X-API-Key")
+		elsewhereAuth = r.Header.Get("Authorization")
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	}))
+	defer elsewhere.Close()
+	brokered := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+r.URL.Path, http.StatusFound)
+	}))
+	defer brokered.Close()
+
+	sys := New(mustManifest(t))
+	cred := target.Credential{BaseURL: brokered.URL, Token: "tok-123"}
+	_, err := sys.Execute(context.Background(), "get_issue", []byte(`{"issue_id":7}`), cred)
+	if err == nil {
+		t.Fatal("a redirect to another host must be refused")
+	}
+	if reached {
+		t.Errorf("the other host was reached (X-API-Key=%q, Authorization=%q)", elsewhereKey, elsewhereAuth)
+	}
+
+	// A redirect that stays on the brokered origin is ordinary.
+	sameOrigin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/issues/7" {
+			http.Redirect(w, r, "/issues/8", http.StatusFound)
+			return
+		}
+		if r.Header.Get("X-API-Key") != "tok-123" {
+			t.Errorf("in-origin redirect lost the token")
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	}))
+	defer sameOrigin.Close()
+	cred.BaseURL = sameOrigin.URL
+	if _, err := sys.Execute(context.Background(), "get_issue", []byte(`{"issue_id":7}`), cred); err != nil {
+		t.Fatalf("in-origin redirect: %v", err)
+	}
+}
