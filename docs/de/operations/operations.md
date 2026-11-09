@@ -95,6 +95,12 @@ Ein entfernter Runner wendet dieselben Einstellungen auf seinem eigenen Host an 
 
 Beim Update einer Installation, die mit offenem Egress lief: Vor dem Neustart die Allowlists prüfen (`GET /api/v1/egress`, die eigenen Hosts je Agent unter *Einstellungen → Egress* auf der Agentenseite) — Verkehr zu Hosts, die dort nicht stehen, wird danach abgewiesen. Wer das alte Verhalten behalten will, setzt `COVEY_EGRESS_ENFORCE=false` (in der `.env` der Compose-Installation). Einzelheiten stehen auf der englischen Seite [Upgrading](../../en/operations/upgrade.md).
 
+## Grenzen der Sandbox
+
+Eine Sandbox startet ohne jede Capability, mit `no-new-privileges` (ein setuid-Programm im Image führt nicht mehr zu root) und mit einer Grenze von 4096 Prozessen und Threads, damit eine Sandbox den anderen nicht die Prozesstabelle des Hosts nimmt. Die Arbeitsplatz-Images laufen als Nicht-root-Benutzer `agent` und brauchen keine Capability. Ein eigenes Image muss es genauso halten: eines, das als root startet und dann den Benutzer wechselt, wie viele Datenbank-Images, startet als Sandbox nicht. Die Dienste neben einer Sandbox sind davon nicht betroffen.
+
+Eine Speichergrenze je Sandbox ist ab Werk aus. `COVEY_SANDBOX_MEMORY` setzt eine in Dockers Schreibweise (`4g`, `512m`); ein entfernter Runner liest die Variable auf seinem eigenen Host.
+
 ## Sicherungen
 
 Zwei Dinge: die Postgres-Datenbank und der `COVEY_MASTER_KEY`. Ohne den Schlüssel ist ein Datenbank-Backup zwar vollständig, aber jedes Secret darin unlesbar. Die Homes der Agenten (`COVEY_DATA_DIR`) sind nützlich, aber wiederherstellbar — sie enthalten Arbeitsstände, keinen unersetzlichen Zustand.

@@ -94,6 +94,9 @@ type Config struct {
 	SandboxProvider string
 	// DataDir holds the persistent sandbox homes (docker provider).
 	DataDir string
+	// SandboxMemory is the memory limit of one sandbox in docker's notation
+	// ("4g"), empty = none (COVEY_SANDBOX_MEMORY, docker provider).
+	SandboxMemory string
 	// SandboxImage is the image of the default profile and at the same time the
 	// default for agents that name no workplace of their own. Derived from
 	// SandboxImages — not read separately.
@@ -371,6 +374,7 @@ func FromEnv() (Config, error) {
 		SecretStore:        getenv("COVEY_SECRET_STORE", "builtin"),
 		SandboxProvider:    getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:            getenv("COVEY_DATA_DIR", "./data"),
+		SandboxMemory:      strings.TrimSpace(os.Getenv("COVEY_SANDBOX_MEMORY")),
 		SpeechModel:        strings.TrimSpace(getenv("COVEY_SPEECH_MODEL", "parakeet")),
 		SpeechModels:       splitList(getenv("COVEY_SPEECH_MODELS", "parakeet,sensevoice")),
 		SandboxImageEnv:    sandboxImageEnv(),

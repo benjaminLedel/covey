@@ -72,10 +72,18 @@ func TestDockerStart(t *testing.T) {
 		"HOME=" + sandboxHome,
 		"host.docker.internal:host-gateway",
 		"covey-sandbox:test",
+		// #706: no capabilities, no setuid escalation, a process limit.
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"--pids-limit=4096",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("docker invocation does not contain %q:\n%s", want, got)
 		}
+	}
+	// No memory limit unless the operator sets one.
+	if strings.Contains(got, "--memory") {
+		t.Errorf("a memory limit nobody set:\n%s", got)
 	}
 	// The agent home has to exist on the host and be mounted.
 	home := filepath.Join(dir, "homes", agentID.String())
@@ -452,6 +460,71 @@ func TestCooperativeNoProxyCarriesTheControlPlane(t *testing.T) {
 	} {
 		if got := cooperativeNoProxy(tc.ws); got != tc.want {
 			t.Errorf("cooperativeNoProxy(%q) = %q, expected %q", tc.ws, got, tc.want)
+		}
+	}
+}
+
+// TestSandboxConfinement is #706: the operator's memory limit reaches the
+// sandbox, the confinement flags reach the egress proxy container as well, and
+// a malformed limit is caught at startup rather than by docker at every wake.
+func TestSandboxConfinement(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "docker")
+	// One line per invocation, so the proxy's run and the sandbox's can be told apart.
+	script := "#!/bin/sh\necho \"$*\" >> " + argsFile + "\necho ok\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := &Docker{
+		RunnerID: uuid.New(), Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake,
+		Memory:          "4g",
+		EgressIsolation: "network", EgressProxyImage: "covey-egress:test",
+	}
+	if _, _, err := p.Start(context.Background(), StartSandbox{
+		AgentID: uuid.New(),
+		Env:     map[string]string{"COVEY_WS_URL": "wss://covey.example/api/daemon/ws"},
+	}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sandboxRun, proxyRun string
+	for _, line := range strings.Split(string(raw), "\n") {
+		switch {
+		case strings.HasPrefix(line, "run ") && strings.HasSuffix(line, "covey-sandbox:test"):
+			sandboxRun = line
+		case strings.HasPrefix(line, "run ") && strings.HasSuffix(line, "covey-egress:test"):
+			proxyRun = line
+		}
+	}
+	if sandboxRun == "" || proxyRun == "" {
+		t.Fatalf("expected a sandbox and a proxy run:\n%s", raw)
+	}
+	for _, want := range []string{"--cap-drop=ALL", "--security-opt=no-new-privileges", "--pids-limit=4096", "--memory=4g"} {
+		if !strings.Contains(sandboxRun, want) {
+			t.Errorf("sandbox run lacks %q: %s", want, sandboxRun)
+		}
+	}
+	for _, want := range []string{"--cap-drop=ALL", "--security-opt=no-new-privileges", "--pids-limit=4096"} {
+		if !strings.Contains(proxyRun, want) {
+			t.Errorf("proxy run lacks %q: %s", want, proxyRun)
+		}
+	}
+
+	for _, ok := range []string{"", "4g", "512m", "1.5GiB", "2048MB", "1073741824"} {
+		if err := CheckMemoryLimit(ok); err != nil {
+			t.Errorf("CheckMemoryLimit(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"4 gigs", "g4", "-1g", "four"} {
+		if err := CheckMemoryLimit(bad); err == nil {
+			t.Errorf("CheckMemoryLimit(%q) accepted a malformed value", bad)
 		}
 	}
 }

@@ -95,6 +95,12 @@ A remote runner applies the same settings on its own host — see [Runners](runn
 
 Upgrading an installation that ran with open egress: see [Upgrading](upgrade.md).
 
+## Sandbox limits
+
+A sandbox starts with every capability dropped, with `no-new-privileges` (a setuid binary in the image no longer leads to root) and with a limit of 4096 processes and threads, so one sandbox cannot exhaust the host's process table for the others. The workplace images run as the non-root user `agent` and need no capability. An image of your own has to do the same: one that starts as root and switches user, as many database images do, does not start as a sandbox. The services beside a sandbox are not restricted this way.
+
+A memory limit per sandbox is off by default. `COVEY_SANDBOX_MEMORY` sets one in docker's notation (`4g`, `512m`); a remote runner reads the variable on its own host.
+
 ## Backups
 
 Two things: the Postgres database and the `COVEY_MASTER_KEY`. Without the key a database backup is complete but every secret in it is unreadable. The agents' homes (`COVEY_DATA_DIR`) are useful but reproducible — they hold work in progress, not irreplaceable state.

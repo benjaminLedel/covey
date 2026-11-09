@@ -36,12 +36,25 @@ func TestLiveServicesAreReachableFromTheSandbox(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
+	// The sandbox itself has to be what a workplace image is: a non-root
+	// process that needs no capability, because it starts without any (#706).
+	// The postgres image starts as root and switches user, which the confined
+	// sandbox cannot; a layer on top that runs as `postgres` and waits is built
+	// here from the image already on the host, no network involved. The
+	// service beside it stays the unchanged image — services are not confined.
+	sandboxImage := "covey-live-sandbox:" + uuid.NewString()[:8]
+	build := exec.CommandContext(ctx, "docker", "build", "-q", "-t", sandboxImage, "-")
+	build.Stdin = strings.NewReader("FROM " + liveImage + "\nUSER postgres\nENTRYPOINT [\"sleep\", \"infinity\"]\n")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building the sandbox layer: %v: %s", err, out)
+	}
+	t.Cleanup(func() { _ = exec.Command("docker", "rmi", "-f", sandboxImage).Run() })
+
 	agentID := uuid.New()
-	p := &Docker{Image: liveImage, DataDir: t.TempDir()}
+	p := &Docker{Image: sandboxImage, DataDir: t.TempDir()}
 	spec := StartSandbox{
 		AgentID: agentID,
-		Image:   liveImage,
-		Env:     map[string]string{"POSTGRES_PASSWORD": "test"},
+		Image:   sandboxImage,
 		Services: []sandbox.Service{
 			{Name: "db", Image: liveImage, Env: map[string]string{"POSTGRES_PASSWORD": "test"}},
 		},

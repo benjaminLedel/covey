@@ -223,6 +223,13 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 		return err
 	}
 
+	// The memory limit of a sandbox is the host's to set, like its sandbox
+	// cap: what fits depends on this machine, not on the control plane.
+	memory := strings.TrimSpace(os.Getenv("COVEY_SANDBOX_MEMORY"))
+	if err := runner.CheckMemoryLimit(memory); err != nil {
+		return err
+	}
+
 	me, err := whoami(ctx, cfg.URL, cfg.Token)
 	if err != nil {
 		return err
@@ -232,6 +239,7 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 		RunnerID: me.RunnerID,
 		Image:    firstOr(cfg.Images, "covey-sandbox:latest"),
 		DataDir:  cfg.WorkDir,
+		Memory:   memory,
 		// The runner reads its catalogue from its own environment, not from a
 		// registration message: what a host installs is the host operator's
 		// decision, and the control plane does not push binaries at runners it

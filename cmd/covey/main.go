@@ -865,6 +865,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if err := netguard.SetAllow(os.Getenv("COVEY_OUTBOUND_ALLOW")); err != nil {
 		return err
 	}
+	// A malformed sandbox memory limit stops here rather than in every wake.
+	if err := runner.CheckMemoryLimit(cfg.SandboxMemory); err != nil {
+		return err
+	}
 	// Make hardening hints for non-local deployments visible.
 	for _, warn := range cfg.SecurityWarnings() {
 		log.Warn("security: " + warn)
@@ -1271,6 +1275,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			RunnerID: runnerID,
 			Image:    cfg.SandboxImage,
 			DataDir:  cfg.DataDir,
+			Memory:   cfg.SandboxMemory,
 			// The engine catalogue, and the directory its layers land in
 			// (spec/26). An empty URL leaves both inert.
 			Engines:     engines.NewSource(cfg.EngineCatalogURL, engines.FileCacheFor(cfg.DataDir), log),

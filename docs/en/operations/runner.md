@@ -177,6 +177,10 @@ max_sandboxes = 4
 `--max-sandboxes 4` at `register` writes it; afterwards you edit the file and
 restart the service. `0` — the default — means no limit.
 
+The memory of each sandbox is a statement about the iron as well:
+`COVEY_SANDBOX_MEMORY=4g` in the runner's environment (the service's unit)
+limits every sandbox on this host. Unset, there is no limit.
+
 It is deliberately **not** in the runner view, unlike tags and images. Those
 are steering decisions somebody makes about a fleet; this is a statement about
 the iron. The scheduler can rank hosts, but it has no way of knowing that one
