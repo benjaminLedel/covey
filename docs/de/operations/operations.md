@@ -31,7 +31,7 @@ Migrationen laufen beim Start automatisch, abgesichert über ein Advisory Lock; 
 Zwei Variablen sehen ähnlich aus und meinen Gegenteiliges:
 
 - `COVEY_PUBLIC_URL` zeigt **nach innen** — unter dieser Adresse erreichen die **Sandboxen** die Control Plane. Steht hier die Domain der Website, wählen die Container über das offene Netz zurück und scheitern an der Egress-Allowlist.
-- `COVEY_SITE_URL` zeigt **nach außen** — die kopierbaren Webhook- und Trigger-URLs, die Adresse im herunterladbaren Skill, die Links in den Mails der Installation. Leer lassen ist der Normalfall; der Server leitet sie aus dem Request ab. Die Einstellung `site.url` (*Plattform → Einstellungen*) sagt dasselbe aus dem Produkt heraus und hat Vorrang — die Benachrichtigungsmails werden aus einer Schleife ohne Request verschickt und brauchen eine der beiden.
+- `COVEY_SITE_URL` zeigt **nach außen** — die kopierbaren Webhook- und Trigger-URLs, die Adresse im herunterladbaren Skill, die Links in den Mails der Installation. Leer lassen ist der Normalfall; der Server leitet sie aus dem Request ab. Die Einstellung `site.url` (*Plattform → Einstellungen*) sagt dasselbe aus dem Produkt heraus und hat Vorrang. Mails brauchen eine der beiden: Die Benachrichtigungsmails werden aus einer Schleife ohne Request verschickt, und Mails zum Zurücksetzen des Passworts und zur Bestätigung werden nur auf einer konfigurierten Adresse gebaut, nie auf dem `Host`-Header des Requests — ohne sie werden sie nicht verschickt.
 
 Beim Start warnt covey, wenn diese beiden Rollen vertauscht aussehen.
 

@@ -261,3 +261,41 @@ func TestExpiredTokenIsRefused(t *testing.T) {
 		t.Error("an expired link set a password")
 	}
 }
+
+// TestResetLinkIgnoresTheHostHeader is #693: without a configured site
+// address the reset link took its host from the request, so whoever asked for
+// somebody else's reset chose where the genuine mail sent the token.
+func TestResetLinkIgnoresTheHostHeader(t *testing.T) {
+	s := newStack(t)
+	smtp := startFakeSMTP(t)
+	s.configureMailer(t, smtp)
+	reset := func() *http.Response {
+		body := strings.NewReader(`{"email":"admin@test.local","lang":"en"}`)
+		req, _ := http.NewRequest(http.MethodPost, s.http.URL+"/api/v1/public/password-reset", body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Host = "evil.example"
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res
+	}
+
+	// No site address: the answer is unchanged, and no mail goes out.
+	s.srv.SiteURL = ""
+	if res := reset(); res.StatusCode != http.StatusAccepted {
+		t.Fatalf("reset answers %d, expected 202", res.StatusCode)
+	}
+	if _, _, msg := smtp.snapshot(); msg != "" {
+		t.Fatalf("a reset mail went out without a configured site address:\n%s", msg)
+	}
+
+	// With one, the link is built on it, whatever the Host header says.
+	s.srv.SiteURL = "https://covey.example"
+	reset()
+	_, _, msg := smtp.snapshot()
+	if link := linkIn(t, msg, "/reset"); !strings.HasPrefix(link, "https://covey.example/reset?") {
+		t.Fatalf("reset link %s, expected it on the configured site address", link)
+	}
+}

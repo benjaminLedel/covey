@@ -139,13 +139,17 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The link's host comes from the CONFIGURED site address where there is
-	// one. Deriving it from the request would let anybody who can set a Host
+	// The link's host comes from the CONFIGURED site address and nowhere
+	// else. Deriving it from the request would let anybody who can set a Host
 	// header decide which domain a confirmation link points at — and the mail
-	// would carry the token there. Behind a proxy that passes the origin
-	// through, the fallback is right; on a public instance, COVEY_SITE_URL is
-	// what makes it safe (docs/en/operations/mail.md).
-	base := s.origin(r)
+	// would carry the token there (#693). Without one, nothing is created: an
+	// account whose link cannot be sent is one nobody can confirm.
+	base, ok := s.tokenLinkBase(r.Context())
+	if !ok {
+		writeErr(w, http.StatusServiceUnavailable,
+			"registration is currently unavailable — this installation has no site address configured")
+		return
+	}
 	lang := mail.Lang(in.Lang)
 	site, _ := s.Settings.Get(r.Context(), settings.SiteName)
 
@@ -317,8 +321,12 @@ func (s *Server) handleResendVerification(w http.ResponseWriter, r *http.Request
 	if name == "" {
 		name = acc.Email
 	}
+	base, ok := s.tokenLinkBase(r.Context())
+	if !ok {
+		return // said in the log by tokenLinkBase; the answer stays the same
+	}
 	if err := s.Mail.Send(r.Context(), transactional(lang, "verify", site, name,
-		s.origin(r)+"/verify?token="+url.QueryEscape(token), acc.Email)); err != nil {
+		base+"/verify?token="+url.QueryEscape(token), acc.Email)); err != nil {
 		s.Log.Error("could not send the confirmation mail again", "err", err)
 	}
 }
@@ -378,8 +386,12 @@ func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = acc.Email
 	}
+	base, ok := s.tokenLinkBase(r.Context())
+	if !ok {
+		return // said in the log by tokenLinkBase; the answer stays the same
+	}
 	if err := s.Mail.Send(r.Context(), transactional(lang, "reset", site, name,
-		s.origin(r)+"/reset?token="+url.QueryEscape(token), acc.Email)); err != nil {
+		base+"/reset?token="+url.QueryEscape(token), acc.Email)); err != nil {
 		// Into the log, not into the answer: the person waiting for the mail
 		// cannot act on an SMTP error, and whoever can is reading the log.
 		s.Log.Error("could not send the reset mail", "err", err)

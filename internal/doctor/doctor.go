@@ -120,6 +120,7 @@ func (d *doctor) check(ctx context.Context, pool *pgxpool.Pool) {
 	d.checkRunners(ctx, pool)
 	d.checkEngines(ctx, pool)
 	d.checkAccounts(ctx, pool)
+	d.checkSiteAddress(ctx, pool)
 }
 
 // checkMigrations says what a restart is about to do to the database — the one

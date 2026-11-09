@@ -462,6 +462,8 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	s.srv = srv
 	s.http = httptest.NewServer(srv.Handler())
 	t.Cleanup(s.http.Close)
+	// Mails with a one-time link need a configured site address (#693).
+	srv.SiteURL = s.http.URL
 	s.orch.PublicWSURL = strings.Replace(s.http.URL, "http", "ws", 1) + "/api/daemon/ws"
 
 	orchCtx, cancel := context.WithCancel(ctx)

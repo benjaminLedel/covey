@@ -106,14 +106,15 @@ their own account page which of them they want; the installation's
 `notify.<class>` switches stand above that choice, and a class switched off
 there shows greyed out on the account page.
 
-**Set `site.url` on a public instance.** The links in those mails need a host.
-The notification sender has no request to derive one from and leaves the links
-out while neither the setting nor `COVEY_SITE_URL` is set; the confirmation and
-reset mails fall back to the request — which means to the `Host` header. Behind
-a proxy that passes the origin through, that is right; where anybody can set
-the header, it lets a stranger decide which domain a confirmation link points
-at, and the mail would carry the token there. The setting closes both gaps
-from the same page the mail server is configured on.
+**Set `site.url`.** The links in those mails need a host. The notification
+sender has no request to derive one from and leaves the links out while neither
+the setting nor `COVEY_SITE_URL` is set. The confirmation and reset mails carry
+a one-time token, and their link is built on the configured address only —
+taken from the request, it would come from the `Host` header, which lets
+whoever sends the request decide which domain the token goes to. Without a
+configured address those mails are not sent, registration answers that it is
+unavailable, and `covey doctor` reports it. The setting closes this from the
+same page the mail server is configured on.
 
 ## 5. Why registration hangs on it
 

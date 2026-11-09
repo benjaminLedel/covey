@@ -13,6 +13,7 @@ package httpapi
 // the decision here.
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -84,6 +85,27 @@ func (a appRouten) istAppPfad(path string) bool {
 // and, behind it, COVEY_SITE_URL are the way out for setups in which the proxy
 // does not pass it through — and the way to stop a stranger's Host header
 // from deciding where a confirmation link points (#180).
+// tokenLinkBase is the address a link carrying a one-time token is built
+// on: the configured site address (setting site.url, then COVEY_SITE_URL),
+// never the request's Host. A mail with a reset or confirmation token is the
+// one place where the fallback in origin() is not harmless — whoever sends the
+// request chooses the Host, and the token would go to that host on the first
+// click (#693). Without a configured address the mail is not sent, and the
+// log says what to set.
+func (s *Server) tokenLinkBase(ctx context.Context) (string, bool) {
+	var base string
+	if s.Settings != nil {
+		base = s.Settings.SiteURLValue(ctx, s.SiteURL)
+	} else {
+		base = strings.TrimRight(strings.TrimSpace(s.SiteURL), "/")
+	}
+	if base == "" {
+		s.Log.Error("a mail with a one-time link was not sent: no site address is configured — set COVEY_SITE_URL or the site.url setting")
+		return "", false
+	}
+	return base, true
+}
+
 func (s *Server) origin(r *http.Request) string {
 	if s.Settings != nil {
 		if v := s.Settings.SiteURLValue(r.Context(), s.SiteURL); v != "" {
