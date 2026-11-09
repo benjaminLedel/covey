@@ -66,10 +66,10 @@ type Docker struct {
 	// EgressProxyImage is the proxy image for network mode (make egress-image).
 	EgressProxyImage string
 	// EgressProxyEnv are the proxy container's env variables (COVEY_CONTROL_URL,
-	// COVEY_EGRESS_ALLOW incl. the control plane host,
-	// COVEY_EGRESS_PROXY_ADDR) — deliberately NOT the database URL: the proxy
-	// is an enforcement point, not a database client (spec/16, "Trust
-	// boundary"). The runner token is added from EgressRunnerToken.
+	// COVEY_EGRESS_ALLOW incl. the control plane host, COVEY_EGRESS_PROXY_ADDR,
+	// COVEY_OUTBOUND_ALLOW) — deliberately NOT the database URL: the proxy is
+	// an enforcement point, not a database client (spec/16, "Trust boundary").
+	// The runner token is added from EgressRunnerToken.
 	EgressProxyEnv map[string]string
 
 	// Engines and EngineStore carry the engine catalogue (spec/26): where an

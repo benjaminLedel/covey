@@ -9,11 +9,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/netguard"
 )
+
+// allowLoopback lets the proxy reach the test's own upstream on 127.0.0.1 —
+// the exception an operator names in COVEY_OUTBOUND_ALLOW. Without it the
+// dial-time check refuses loopback (#705).
+func allowLoopback(t *testing.T) {
+	t.Helper()
+	if err := netguard.SetAllow("127.0.0.0/8,::1"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = netguard.SetAllow("") })
+}
 
 func TestAllowlistMatching(t *testing.T) {
 	a := NewAllowlist([]string{"api.anthropic.com", "*.example.com", "helpdesk.local:443"})
@@ -113,6 +127,7 @@ func TestNormalizePattern(t *testing.T) {
 }
 
 func TestProxyPerAgentAllowDenyAndAuth(t *testing.T) {
+	allowLoopback(t)
 	var gotProxyAuth string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotProxyAuth = r.Header.Get("Proxy-Authorization")
@@ -180,6 +195,7 @@ func TestProxyPerAgentAllowDenyAndAuth(t *testing.T) {
 // what the proxy decides there it decides blind — it sees the host and nothing
 // else. So the three answers have to be right at exactly that point.
 func TestProxyConnectAllowsDeniesAndDemandsCredentials(t *testing.T) {
+	allowLoopback(t)
 	// A plain TCP listener standing in for the far end: CONNECT does not care
 	// what speaks there, only that the tunnel carries bytes both ways.
 	upstream, err := net.Listen("tcp", "127.0.0.1:0")
@@ -283,5 +299,74 @@ func TestProxyConnectAllowsDeniesAndDemandsCredentials(t *testing.T) {
 	res.allow = NewAllowlist([]string{upHost, "127.0.0.1"})
 	if code, _ := connect(res.agent.String()+":s3cret", "127.0.0.1:1"); code != http.StatusBadGateway {
 		t.Errorf("an unreachable far end answered %d, expected 502", code)
+	}
+}
+
+// TestProxyRefusesTheHostBehindAnAllowedName is #705: the allowlist names
+// hosts, and an allowed name that resolves to loopback or link-local must not
+// carry a sandbox there — not by CONNECT, not by plain HTTP. "localhost"
+// stands in for a rebound name; it resolves to 127.0.0.1 without DNS.
+func TestProxyRefusesTheHostBehindAnAllowedName(t *testing.T) {
+	_ = netguard.SetAllow("")
+	reached := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		_, _ = io.WriteString(w, "inside")
+	}))
+	defer upstream.Close()
+	_, upPort, _ := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+
+	res := &stubResolver{agent: uuid.New(), token: "s3cret",
+		allow: NewAllowlist([]string{"localhost", "169.254.169.254"})}
+	p := New(res, nil)
+	addr, err := p.Start("127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	proxyURL, _ := url.Parse("http://" + res.agent.String() + ":s3cret@" + addr)
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
+
+	// Plain HTTP to an allowed name on loopback.
+	resp, err := client.Get("http://localhost:" + upPort + "/")
+	if err != nil {
+		t.Fatalf("plain HTTP: transport error %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("plain HTTP to an allowed name on loopback answered %d, expected 403", resp.StatusCode)
+	}
+
+	// CONNECT to the same name, and to the metadata address itself.
+	for _, target := range []string{"localhost:" + upPort, "169.254.169.254:80"} {
+		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = conn.Write([]byte("CONNECT " + target + " HTTP/1.1\r\nHost: " + target +
+			"\r\nProxy-Authorization: Basic " +
+			base64.StdEncoding.EncodeToString([]byte(res.agent.String()+":s3cret")) + "\r\n\r\n"))
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		conn.Close()
+		if err != nil {
+			t.Fatalf("CONNECT %s: %v", target, err)
+		}
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("CONNECT %s answered %d, expected 403", target, resp.StatusCode)
+		}
+	}
+	if reached {
+		t.Error("the upstream on loopback was reached")
+	}
+
+	// The operator's exception lets the same name through.
+	allowLoopback(t)
+	resp, err = client.Get("http://localhost:" + upPort + "/")
+	if err != nil {
+		t.Fatalf("allowed loopback: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !reached {
+		t.Errorf("with COVEY_OUTBOUND_ALLOW the upstream answered %d", resp.StatusCode)
 	}
 }

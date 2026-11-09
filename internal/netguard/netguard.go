@@ -17,7 +17,8 @@
 // goes to, so neither a redirect nor a DNS answer that changes between a check
 // and the request gets around it. It applies to requests whose context is
 // marked with Guard; everything else — the sandbox, the platform's own
-// fetches — is untouched.
+// fetches — is untouched. The egress proxy applies the same check to every
+// connection it makes for a sandbox (Control), with the same exceptions.
 package netguard
 
 import (
@@ -141,17 +142,22 @@ func dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 		return dialer.DialContext(ctx, network, addr)
 	}
 	d := *dialer
-	d.Control = func(_, address string, _ syscall.RawConn) error {
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			return err
-		}
-		if ip := net.ParseIP(host); ip == nil || Refused(ip) {
-			return ErrRefused
-		}
-		return nil
-	}
+	d.Control = Control
 	return d.DialContext(ctx, network, addr)
+}
+
+// Control is a net.Dialer.Control hook that refuses a connection to a refused
+// address. It runs after name resolution, on the address the socket is about
+// to connect to — the egress proxy dials with it too (#705).
+func Control(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return err
+	}
+	if ip := net.ParseIP(host); ip == nil || Refused(ip) {
+		return ErrRefused
+	}
+	return nil
 }
 
 var (

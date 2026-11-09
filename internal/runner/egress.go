@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 
 	"covey/internal/egress"
@@ -41,6 +42,9 @@ func (p *Docker) UseHardEgress(controlURL, runnerToken string, allow []string, i
 		"COVEY_CONTROL_URL":       rewriteLoopbackForDocker(controlURL),
 		"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, allow...), controlPlaneHosts(controlURL)...), ","),
 		"COVEY_EGRESS_PROXY_ADDR": ":8888",
+		// The exceptions to the proxy's refusal of loopback and link-local
+		// destinations, the same this host's other proxies apply (#705).
+		"COVEY_OUTBOUND_ALLOW": os.Getenv("COVEY_OUTBOUND_ALLOW"),
 	}
 }
 

@@ -87,6 +87,8 @@ Two levels, and only the second one stops exfiltration.
 
 `covey doctor` says which of the two is in effect.
 
+The proxy checks the address an allowed name resolves to, at the moment of connecting, and refuses loopback, link-local and multicast destinations — so a name whose DNS answer changes cannot lead a sandbox to the host's own services or to the cloud metadata endpoint. Private ranges stay reachable for allowlisted internal hosts. `COVEY_OUTBOUND_ALLOW` names the exceptions here as well; at the hard level covey passes it on to the proxy container.
+
 The cooperative proxy runs inside the covey process. When covey itself runs in a container, the sandboxes reach it only through a published port: `COVEY_EGRESS_LISTEN_ADDR` fixes its address, and the host has to publish the same port. The compose files do both (`:8495`, `8495:8495`). Without a sandbox's own token the proxy answers 407.
 
 A remote runner applies the same settings on its own host — see [Runners](runner.md#egress-on-a-runner-host).

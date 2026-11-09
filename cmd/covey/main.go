@@ -755,6 +755,11 @@ func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) er
 		return fmt.Errorf("egress-proxy: COVEY_CONTROL_URL and COVEY_RUNNER_TOKEN are required — " +
 			"the proxy fetches its allowlist from the control plane")
 	}
+	// The operator's exceptions to the proxy's refusal of loopback, link-local
+	// and multicast destinations (#705), handed over by the control plane.
+	if err := netguard.SetAllow(os.Getenv("COVEY_OUTBOUND_ALLOW")); err != nil {
+		return err
+	}
 
 	// No reachability check at startup: in network mode the container is
 	// attached to the bridge network only AFTER it has started, so the control
@@ -854,8 +859,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
 		return fmt.Errorf("COVEY_MASTER_KEY missing (generate one with `covey genkey`)")
 	}
-	// The exceptions to the guard on organisation-configured URLs (#692): a
-	// target that genuinely runs on this host, a local demo double.
+	// The exceptions to the guard on organisation-configured URLs (#692) and
+	// to the egress proxy's address check (#705): a target that genuinely runs
+	// on this host, a local demo double.
 	if err := netguard.SetAllow(os.Getenv("COVEY_OUTBOUND_ALLOW")); err != nil {
 		return err
 	}

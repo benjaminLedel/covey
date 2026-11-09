@@ -87,6 +87,8 @@ Zwei Stufen, und nur die zweite hält Datenabfluss auf.
 
 `covey doctor` sagt, welche der beiden gilt.
 
+Der Proxy prüft die Adresse, zu der ein erlaubter Name aufgelöst wird, im Moment des Verbindens und verweigert Loopback-, Link-Local- und Multicast-Ziele — ein Name, dessen DNS-Antwort sich ändert, führt eine Sandbox so weder zu den Diensten des Hosts noch zum Metadaten-Endpunkt der Cloud. Private Netze bleiben für erlaubte interne Hosts erreichbar. `COVEY_OUTBOUND_ALLOW` nennt auch hier die Ausnahmen; auf der harten Stufe gibt covey die Variable an den Proxy-Container weiter.
+
 Der kooperative Proxy läuft im covey-Prozess. Läuft covey selbst in einem Container, erreichen die Sandboxen ihn nur über einen veröffentlichten Port: `COVEY_EGRESS_LISTEN_ADDR` legt seine Adresse fest, und der Host muss denselben Port veröffentlichen. Die Compose-Dateien tun beides (`:8495`, `8495:8495`). Ohne das eigene Token einer Sandbox antwortet der Proxy mit 407.
 
 Ein entfernter Runner wendet dieselben Einstellungen auf seinem eigenen Host an — Einzelheiten auf der englischen Seite [Runners](../../en/operations/runner.md#egress-on-a-runner-host).
