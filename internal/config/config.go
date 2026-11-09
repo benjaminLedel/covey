@@ -185,6 +185,11 @@ type Config struct {
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
 	WebhookSecrets map[string]string
+	// UnsignedWebhooks names the target systems whose webhooks are accepted
+	// without any secret (COVEY_UNSIGNED_WEBHOOKS, comma-separated, e.g.
+	// "zammad,teams") — for local demo doubles that cannot sign. Without it a
+	// webhook with no secret configured is refused (#690).
+	UnsignedWebhooks map[string]bool
 	// TickInterval is the dispatch loop's periodic "anything to do?" impulse.
 	TickInterval time.Duration
 
@@ -392,6 +397,7 @@ func FromEnv() (Config, error) {
 		S3SecretKey:          getenv("COVEY_S3_SECRET_KEY", ""),
 		S3PathStyle:          getenvBool("COVEY_S3_PATH_STYLE", true),
 		WebhookSecrets:       webhookSecretsFromEnv(),
+		UnsignedWebhooks:     unsignedWebhooksFromEnv(),
 		TickInterval:         getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:              getenv("COVEY_DREAM_AT", "03:00"),
 		SessionTTL:           getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
@@ -768,4 +774,16 @@ func homeExcludes(v string) []string {
 		return nil
 	}
 	return list
+}
+
+// unsignedWebhooksFromEnv reads COVEY_UNSIGNED_WEBHOOKS: the systems an
+// operator explicitly lets in without a signature.
+func unsignedWebhooksFromEnv() map[string]bool {
+	out := map[string]bool{}
+	for _, name := range strings.Split(os.Getenv("COVEY_UNSIGNED_WEBHOOKS"), ",") {
+		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {
+			out[name] = true
+		}
+	}
+	return out
 }

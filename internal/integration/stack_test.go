@@ -447,7 +447,11 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		ReqLog:        s.reqlog,
 		Orch:          s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret, "jira": webhookSecret},
-		SessionTTL:     time.Hour,
+		// The demo doubles (faketeams, the test's own manifest plugin) sign
+		// nothing; they pass because the operator says so, the way a local
+		// demo does (#690).
+		UnsignedWebhooks: map[string]bool{"teams": true, "helpdesk": true},
+		SessionTTL:       time.Hour,
 	}
 	s.srv = srv
 	s.http = httptest.NewServer(srv.Handler())

@@ -1765,7 +1765,7 @@
       "webhookHint": "Potrzebne tylko wtedy, gdy system ma sam powiadamiać covey o zmianach. Jeśli agent pracuje tylko na prośbę, możesz pominąć ten krok. W przeciwnym razie wpisz ten adres w systemie.",
       "webhookNoAgent": "Wybierz agenta w poprzednim kroku, a tutaj pojawi się jego gotowy adres.",
       "secretSet": "{{env}} jest ustawione — przychodzące wywołania mają sprawdzany podpis.",
-      "secretMissing": "{{env}} nie jest ustawione. Punkt końcowy przyjmuje wywołania, ale nie sprawdza podpisu — ustaw to, zanim ruszysz produkcyjnie.",
+      "secretMissing": "{{env}} nie jest ustawione. Punkt końcowy odrzuca wywołania, dopóki nie zostanie ustawione — dodaj je jako sekret organizacji.",
       "probeHint": "Test loguje się do systemu zapisanym kluczem, niczego nie zmienia i pokazuje, jako kto covey się tam pojawia.",
       "probeAsAgent": "Test wykonywany jako {{agent}} — własne poświadczenie agenta liczy się przed poświadczeniem organizacji.",
       "probeBtn": "Sprawdź połączenie",

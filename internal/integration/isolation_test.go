@@ -1,7 +1,11 @@
 package integration
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 	"net/http"
 	"testing"
 	"time"
@@ -270,5 +274,52 @@ func TestWebhookWecktNurDieEigeneOrganisation(t *testing.T) {
 	}
 	if outcome != "correlated" {
 		t.Errorf("das Ereignis der Nachbarorganisation ergibt %q, erwartet correlated", outcome)
+	}
+}
+
+// G (#690): the webhook secret was one per system for the whole instance —
+// every organisation wiring up a webhook had to know it, and could then sign
+// for the others — and none at all switched verification off.
+func TestWebhookSecretGehoertDerOrganisation(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	s.newSupportAgent("support")
+	body := []byte(`{"ticket":{"id":5,"number":"5","title":"x","state":"open"},"article":{"id":9,"sender":"Customer","body":"hi","internal":false}}`)
+	post := func(signature string) int {
+		req, _ := http.NewRequest(http.MethodPost, s.http.URL+"/api/webhooks/zammad/support", bytes.NewReader(body))
+		if signature != "" {
+			req.Header.Set("X-Hub-Signature", signature)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	sign := func(secret string) string {
+		mac := hmac.New(sha1.New, []byte(secret))
+		mac.Write(body)
+		return "sha1=" + hex.EncodeToString(mac.Sum(nil))
+	}
+
+	// The organisation's own secret takes precedence over the instance's.
+	if err := s.secrets.Put(ctx, s.orgID, "zammad_webhook_secret", "eigenes-geheimnis"); err != nil {
+		t.Fatal(err)
+	}
+	if code := post(sign(webhookSecret)); code != http.StatusUnauthorized {
+		t.Errorf("signed with the instance's secret: %d, expected 401", code)
+	}
+	if code := post(sign("eigenes-geheimnis")); code != http.StatusOK {
+		t.Errorf("signed with the organisation's secret: %d, expected 200", code)
+	}
+
+	// Neither one set: refused, not waved through unchecked.
+	if err := s.secrets.Delete(ctx, s.orgID, "zammad_webhook_secret"); err != nil {
+		t.Fatal(err)
+	}
+	s.srv.WebhookSecrets = map[string]string{}
+	if code := post(""); code != http.StatusUnauthorized {
+		t.Errorf("without any secret: %d, expected 401", code)
 	}
 }

@@ -1765,7 +1765,7 @@
       "webhookHint": "Solo hace falta si el sistema debe avisar a covey por sí mismo cuando algo cambia. Si el agente solo trabaja cuando se le pide, puede saltarse este paso. Si no, introduzca esta dirección en el sistema.",
       "webhookNoAgent": "Elige un agente en el paso anterior y aquí aparecerá su dirección terminada.",
       "secretSet": "{{env}} está definido: las llamadas entrantes se comprueban por firma.",
-      "secretMissing": "{{env}} no está definido. El extremo acepta llamadas pero no verifica ninguna firma: defínelo antes de ponerlo en producción.",
+      "secretMissing": "{{env}} no está definido. El extremo rechaza las llamadas hasta que lo esté: añádelo como secreto de la organización.",
       "probeHint": "La prueba inicia sesión en el sistema con la clave guardada, no cambia nada y muestra como quién llega covey.",
       "probeAsAgent": "Se prueba como {{agent}}: la credencial propia del agente cuenta antes que la de la organización.",
       "probeBtn": "Probar la conexión",

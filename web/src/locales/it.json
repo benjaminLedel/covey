@@ -1765,7 +1765,7 @@
       "webhookHint": "Serve solo se il sistema deve avvisare covey da solo quando qualcosa cambia. Se l'agente lavora solo su richiesta, puoi saltare questo passo. Altrimenti inserisci questo indirizzo nel sistema.",
       "webhookNoAgent": "Scegli un agente nel passaggio precedente e qui comparirà il suo indirizzo completo.",
       "secretSet": "{{env}} è impostato — le chiamate in arrivo vengono verificate nella firma.",
-      "secretMissing": "{{env}} non è impostato. L'endpoint accetta le chiamate ma non verifica alcuna firma: impostalo prima di andare in produzione.",
+      "secretMissing": "{{env}} non è impostato. L'endpoint rifiuta le chiamate finché non lo è: aggiungilo come segreto dell'organizzazione.",
       "probeHint": "Il test accede al sistema con la chiave salvata, non modifica nulla e mostra con quale identità arriva covey.",
       "probeAsAgent": "Il test viene eseguito come {{agent}}: la credenziale propria dell'agente vale prima di quella dell'organizzazione.",
       "probeBtn": "Prova la connessione",

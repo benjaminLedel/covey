@@ -1765,7 +1765,7 @@
       "webhookHint": "Only needed if the system should tell covey on its own when something changes there. If the agent only works when asked, you can skip this step. Otherwise enter this address in the system.",
       "webhookNoAgent": "Pick an agent in the previous step and its finished address appears here.",
       "secretSet": "{{env}} is set — incoming calls are signature-checked.",
-      "secretMissing": "{{env}} is not set. The endpoint accepts calls but verifies no signature — set it before going live.",
+      "secretMissing": "{{env}} is not set. The endpoint refuses calls until it is — add it as an organisation secret.",
       "probeHint": "The test signs in to the system with the stored key, changes nothing there, and shows who covey arrives as.",
       "probeAsAgent": "Tested as {{agent}} — the agent's own credential counts before the organisation's.",
       "probeBtn": "Test connection",

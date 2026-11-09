@@ -156,4 +156,4 @@ Later (not now): adaptive cards instead of plain text, files into **channels** (
 ## Notes
 
 - The bot needs an **Azure bot registration** (a Microsoft app ID + client secret) and the messaging endpoint `{public_url}/api/webhooks/teams/<agent-slug>`; the Teams manifest embeds the bot into Teams. Operational details: `docs/en/integrations/teams.md`.
-- JWT validation checked against the Bot Framework auth documentation (as of July 2026) — check the current issuer/JWKS endpoints before production use. With an empty `COVEY_TEAMS_WEBHOOK_SECRET` validation is disabled (only for local tests / the `faketeams` double).
+- JWT validation checked against the Bot Framework auth documentation (as of July 2026) — check the current issuer/JWKS endpoints before production use. The expected app ID comes from the organisation secret `teams_webhook_secret`, falling back to `COVEY_TEAMS_WEBHOOK_SECRET`; with neither the endpoint refuses calls, and only `COVEY_UNSIGNED_WEBHOOKS=teams` disables validation (local tests / the `faketeams` double).

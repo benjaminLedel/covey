@@ -1765,7 +1765,7 @@
       "webhookHint": "Alleen nodig als het systeem covey uit zichzelf moet laten weten dat er iets verandert. Werkt de agent alleen op verzoek, dan kunt u deze stap overslaan. Anders vult u dit adres in het systeem in.",
       "webhookNoAgent": "Kies in de vorige stap een agent en het volledige adres verschijnt hier.",
       "secretSet": "{{env}} is gezet — inkomende aanroepen worden op handtekening gecontroleerd.",
-      "secretMissing": "{{env}} is niet gezet. Het endpoint accepteert aanroepen maar controleert geen handtekening — zet het voordat u live gaat.",
+      "secretMissing": "{{env}} is niet gezet. Het endpoint weigert aanroepen tot het gezet is — voeg het toe als geheim van de organisatie.",
       "probeHint": "De test meldt zich met de opgeslagen sleutel aan bij het systeem, verandert daar niets en laat zien als wie covey binnenkomt.",
       "probeAsAgent": "Er wordt getest als {{agent}} — de eigen inloggegevens van de agent gaan vóór die van de organisatie.",
       "probeBtn": "Verbinding testen",
