@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"covey/internal/netguard"
 	"covey/internal/target/mcp"
 	targetstore "covey/internal/target/store"
 )
@@ -242,6 +243,11 @@ func (s *Server) handleListMCPTools(w http.ResponseWriter, r *http.Request) {
 func (s *Server) discoverMCP(ctx context.Context, cfg mcp.Config, token string) ([]mcp.Tool, error) {
 	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
+	// An organisation's MCP URL, fetched by the control plane (#692).
+	dctx = netguard.Guard(dctx)
+	if err := netguard.CheckURL(dctx, cfg.URL); err != nil {
+		return nil, err
+	}
 	var hdr, val string
 	if token != "" {
 		hdr = cfg.Auth.Header

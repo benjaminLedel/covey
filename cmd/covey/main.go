@@ -43,6 +43,7 @@ import (
 	"covey/internal/mail"
 	"covey/internal/marketplace"
 	"covey/internal/memory"
+	"covey/internal/netguard"
 	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -901,6 +902,11 @@ func startReembed(ctx context.Context, mem *memory.Store, log *slog.Logger) {
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
 		return fmt.Errorf("COVEY_MASTER_KEY missing (generate one with `covey genkey`)")
+	}
+	// The exceptions to the guard on organisation-configured URLs (#692): a
+	// target that genuinely runs on this host, a local demo double.
+	if err := netguard.SetAllow(os.Getenv("COVEY_OUTBOUND_ALLOW")); err != nil {
+		return err
 	}
 	// Make hardening hints for non-local deployments visible.
 	for _, warn := range cfg.SecurityWarnings() {

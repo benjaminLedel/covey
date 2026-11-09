@@ -74,6 +74,8 @@ Von Haus aus sagt eine Mitteilung nur, wer was getan hat („Bea hat eine Rückf
 
 Ein Reverse-Proxy davor, TLS dort terminieren, `COVEY_PUBLIC_URL` beziehungsweise `COVEY_SITE_URL` passend setzen. Das sichere Cookie schaltet sich dann von selbst ein. Für die Datenbank `sslmode=require` oder höher.
 
+Adressen, die eine Organisation einträgt — die Basis-URL eines Zielsystems, ein MCP-Server, der Sprachanbieter —, ruft die Steuerungsebene selbst ab und verweigert dabei Loopback-, Link-Local- und Multicast-Ziele, geprüft im Moment des Verbindens. Private Netze bleiben erreichbar, für ein selbst betriebenes Zielsystem im Firmennetz. Ein Zielsystem, das wirklich auf demselben Host läuft, etwa ein lokales Demo-Double, wird mit `COVEY_OUTBOUND_ALLOW` erlaubt (Adressen oder CIDRs, durch Kommas getrennt).
+
 ## Egress-Isolation
 
 Mit dem Docker-Provider von Haus aus an: Eine Sandbox erreicht nur die Hosts auf der Allowlist ihres Agenten — die Basisliste der Organisation (vorbelegt mit `api.anthropic.com`), die zugewiesenen Vorlagen und die eigenen Hosts des Agenten. `COVEY_EGRESS_ENFORCE=false` schaltet das ab; die Listen bleiben dann erhalten, werden aber nicht angewandt, und `covey serve` und `covey doctor` sagen das. Ein Provider, der nicht durchsetzen kann, sagt dasselbe, statt offen zu laufen. `GET /api/v1/egress` beantwortet mit `enforced`, ob es auf dieser Instanz greift.

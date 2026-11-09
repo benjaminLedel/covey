@@ -12,6 +12,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/daemon"
+	"covey/internal/netguard"
 	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/secrets"
@@ -209,6 +210,11 @@ func (o *Orchestrator) storedCredential(ctx context.Context, st secrets.Stored, 
 func (o *Orchestrator) probeStored(ctx context.Context, inspector target.CredentialInspector, prober target.Prober, cred target.Credential) (target.CredentialInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, credentialProbeTimeout)
 	defer cancel()
+	// The URL is the organisation's; the request is the control plane's (#692).
+	ctx = netguard.Guard(ctx)
+	if err := netguard.CheckURL(ctx, cred.BaseURL); err != nil {
+		return target.CredentialInfo{}, err
+	}
 	if inspector != nil {
 		return inspector.Inspect(ctx, cred)
 	}

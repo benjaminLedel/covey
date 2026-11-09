@@ -74,6 +74,8 @@ By default a notification says only who did what ("Bea has a question"), in the 
 
 A reverse proxy in front, TLS terminated there, `COVEY_PUBLIC_URL` and `COVEY_SITE_URL` set accordingly. The secure cookie then switches itself on. For the database, `sslmode=require` or higher.
 
+URLs an organisation configures — a target system's base URL, an MCP server, the voice provider — are fetched by the control plane, and it refuses loopback, link-local and multicast destinations for them, checked at the moment of connecting. Private ranges stay reachable for a self-hosted target in the company network. A target that genuinely runs on the same host, such as a local demo double, is allowed with `COVEY_OUTBOUND_ALLOW` (addresses or CIDRs, comma-separated).
+
 ## Egress isolation
 
 On by default with the docker provider: a sandbox reaches only the hosts on its agent's allowlist — the organisation's base list (seeded with `api.anthropic.com`), the assigned templates and the agent's own hosts. `COVEY_EGRESS_ENFORCE=false` switches it off; the lists are then kept but not applied, and `covey serve` and `covey doctor` say so. A provider that cannot enforce says the same instead of running open. `GET /api/v1/egress` answers with `enforced` whether it applies on this instance.

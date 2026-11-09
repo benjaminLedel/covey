@@ -38,6 +38,7 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/mail"
 	"covey/internal/memory"
+	"covey/internal/netguard"
 	"covey/internal/notify"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -302,6 +303,11 @@ func newStack(t *testing.T) *stack {
 func newStackWith(t *testing.T, opts stackOpts) *stack {
 	t.Helper()
 	ctx := context.Background()
+	// The fake target systems and providers listen on loopback; the stack
+	// allows it the way an operator with a local demo double does (#692).
+	if err := netguard.SetAllow("127.0.0.0/8,::1"); err != nil {
+		t.Fatal(err)
+	}
 
 	admin, err := db.Connect(ctx, adminDBURL)
 	if err != nil {

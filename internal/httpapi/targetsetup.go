@@ -11,6 +11,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/daemon"
+	"covey/internal/netguard"
 	"covey/internal/secrets"
 	"covey/internal/target/manifestplug"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
@@ -285,6 +286,13 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
+	// The URL is the organisation's, the request the control plane's: it may
+	// not reach the host's own services (#692).
+	ctx = netguard.Guard(ctx)
+	if err := netguard.CheckURL(ctx, cred.BaseURL); err != nil {
+		writeJSON(w, http.StatusOK, probeResult{Error: err.Error()})
+		return
+	}
 	var info target.CredentialInfo
 	if inspects {
 		info, err = inspector.Inspect(ctx, cred)
