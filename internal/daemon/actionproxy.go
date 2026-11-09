@@ -457,6 +457,7 @@ func (p *actionProxy) createTask(ctx context.Context, params json.RawMessage) an
 
 	resp, err := p.client.createTask(ctx, RequestCreateTask{
 		TaskID: p.taskID, Agent: in.Agent, Title: in.Title, Body: in.Body, Priority: in.Priority,
+		ApprovalID: dec.ApprovalID,
 	})
 	if err != nil {
 		return map[string]string{"status": "error", "error": err.Error()}
@@ -509,7 +510,8 @@ func (p *actionProxy) message(ctx context.Context, params json.RawMessage) any {
 			"correlation_key": dec.CorrelationKey,
 		}
 	}
-	resp, err := p.client.message(ctx, RequestMessage{TaskID: p.taskID, To: in.To, Text: in.Text, Files: files})
+	resp, err := p.client.message(ctx, RequestMessage{TaskID: p.taskID, To: in.To, Text: in.Text, Files: files,
+		ApprovalID: dec.ApprovalID})
 	if err != nil {
 		return map[string]string{"status": "error", "error": err.Error()}
 	}

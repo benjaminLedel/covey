@@ -383,6 +383,10 @@ type RequestCreateTask struct {
 	Title     string `json:"title"`
 	Body      string `json:"body"`
 	Priority  int    `json:"priority,omitempty"`
+	// ApprovalID is the approval the daemon's guard-rail check consumed for
+	// this request, if a rule required one. The control plane checks the rule
+	// again itself and accepts the request only with that approval (#703).
+	ApprovalID string `json:"approval_id,omitempty"`
 }
 
 // RequestTool/InjectTool are the meta action covey/request_tool: "I am missing
@@ -442,6 +446,8 @@ type RequestMessage struct {
 	To        string        `json:"to,omitempty"`
 	Text      string        `json:"text"`
 	Files     []MessageFile `json:"files,omitempty"`
+	// ApprovalID: as on RequestCreateTask (#703).
+	ApprovalID string `json:"approval_id,omitempty"`
 }
 
 // MessageFile is one file of a covey/message: its base name and its bytes

@@ -2726,7 +2726,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
-		resp := o.createAgentTask(ctx, agent, taskID, req)
+		resp := o.CreateAgentTask(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectCreateTask, resp)
 
 	case daemon.TypeRequestMessage:
@@ -2734,7 +2734,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
-		resp := o.messageHuman(ctx, agent, taskID, req)
+		resp := o.MessageHuman(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectMessage, resp)
 
 	case daemon.TypeRequestTool:
@@ -3172,7 +3172,7 @@ const (
 	maxAgentTasksPerRun = 10
 )
 
-// createAgentTask serves covey/create_task: the agent creates a subtask for
+// CreateAgentTask serves covey/create_task: the agent creates a subtask for
 // itself or delegates to a colleague. The new task hangs as a child off the
 // running one — that carries both the audit trail (who created it) and the loop
 // protection.
@@ -3191,13 +3191,20 @@ const (
 //
 // The delegation stays within the organization: the target agent is resolved by
 // its slug **within the sender's org**.
-func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
+func (o *Orchestrator) CreateAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
 	fail := func(m string) daemon.InjectCreateTask {
 		return daemon.InjectCreateTask{RequestID: req.RequestID, OK: false, Error: m}
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
 		return fail("title is missing")
+	}
+	subject := "covey:create_task"
+	if strings.TrimSpace(req.Agent) != "" {
+		subject += guardrails.ForeignSuffix
+	}
+	if reason := o.enforceRails(ctx, agent, taskID, subject, req.ApprovalID); reason != "" {
+		return fail(reason)
 	}
 
 	// Target agent: empty = myself, otherwise a colleague from the same org.
@@ -3681,7 +3688,9 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 		case v.Error != "":
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
 		case v.Approved:
-			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
+			// The id goes back with the yes: for covey:create_task and
+			// covey:message the control plane asks for it again (#703).
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved", ApprovalID: v.ApprovalID}
 		}
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "pending",
 			ApprovalID: v.ApprovalID, CorrelationKey: v.CorrelationKey}
@@ -4195,4 +4204,38 @@ func (o *Orchestrator) RebindCorrected(ctx context.Context, appr observability.A
 	_, err := o.Pool.Exec(ctx, `UPDATE approvals SET params = jsonb_set(params, '{binding}', to_jsonb($2::text))
 		WHERE id = $1 AND org_id = $3`, appr.ID, bindingOf(m), appr.OrgID)
 	return err
+}
+
+// enforceRails is the control plane's own guard-rail decision for the two
+// covey actions that produce something — a task, a message to a person
+// (#703). The daemon asks first and stops the agent early; that is a
+// courtesy, not the enforcement, since whatever speaks the protocol can skip
+// it. A deny is refused here; a rule that requires approval is satisfied only
+// by the approval the daemon's check consumed for this request, and each such
+// approval is redeemed once. Returns the refusal, or "" to go on.
+func (o *Orchestrator) enforceRails(ctx context.Context, agent agents.Agent, taskID uuid.UUID, subject, approvalID string) string {
+	rules, err := o.Rails.List(ctx, agent.OrgID)
+	if err != nil {
+		return "guard rails not readable (fail-closed)"
+	}
+	switch v := guardrails.Evaluate(rules, agent.ID, subject); v.Decision {
+	case guardrails.Deny:
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
+			map[string]any{"rule": v.Rule.RuleType, "pattern": v.Rule.Pattern, "action": subject, "decision": "denied"})
+		return "forbidden by guard rail " + v.Rule.Pattern
+	case guardrails.RequireApproval:
+		id, err := uuid.Parse(approvalID)
+		if err != nil {
+			return subject + " needs an approval first"
+		}
+		var redeemed uuid.UUID
+		err = o.Pool.QueryRow(ctx, `UPDATE approvals SET params = params || '{"redeemed": true}'::jsonb
+			WHERE id = $1 AND agent_id = $2 AND action = $3 AND status = 'approved' AND used
+			  AND NOT (params ? 'redeemed')
+			RETURNING id`, id, agent.ID, subject).Scan(&redeemed)
+		if err != nil {
+			return subject + " needs an approval first — the one given is not a granted approval of this action, or was used already"
+		}
+	}
+	return ""
 }

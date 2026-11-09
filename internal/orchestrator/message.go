@@ -14,7 +14,7 @@ import (
 	"covey/internal/org"
 )
 
-// messageHuman is the control-plane side of covey/message (#537): the agent
+// MessageHuman is the control-plane side of covey/message (#537): the agent
 // tells a person of its organisation something, in their direct
 // conversation.
 //
@@ -29,13 +29,16 @@ import (
 // organisation's humans, named unambiguously; an empty recipient is the
 // agent's supervisor and nobody else. An agent without a supervisor and
 // without a name gets a refusal that says what to do, not a guess.
-func (o *Orchestrator) messageHuman(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestMessage) daemon.InjectMessage {
+func (o *Orchestrator) MessageHuman(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestMessage) daemon.InjectMessage {
 	fail := func(m string) daemon.InjectMessage {
 		return daemon.InjectMessage{RequestID: req.RequestID, OK: false, Error: m}
 	}
 	text := strings.TrimSpace(req.Text)
 	if text == "" {
 		return fail("text is missing")
+	}
+	if reason := o.enforceRails(ctx, agent, taskID, "covey:message", req.ApprovalID); reason != "" {
+		return fail(reason)
 	}
 	if o.Chat == nil || o.Org == nil {
 		return fail("messages to people are not available on this instance")
