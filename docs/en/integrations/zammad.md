@@ -327,8 +327,8 @@ otherwise a blocked agent never wakes up again.
 >   ```
 >
 > Patterns: an exact host or `*.suffix`. The standard mode is cooperative
-> (HTTP(S)_PROXY in the container) — it prevents naive exfiltration but can be
-> circumvented by the agent through direct IPs. For hard isolation see below.
+> (HTTP(S)_PROXY in the container) — it does not stop exfiltration: an agent
+> that connects directly gets past it. For hard isolation see below.
 
 ### 6.1 Hard network isolation (`COVEY_EGRESS_ISOLATION=network`)
 
@@ -398,8 +398,8 @@ have to be considered (details and file references below). Prioritised:
 1. **Egress enforcement (implemented, two stages, on by default).** With the
    `docker` provider the sandbox traffic goes through a fail-closed
    allowlist proxy (`internal/egress`). Two modes (`COVEY_EGRESS_ISOLATION`):
-   - `proxy` (default): cooperative via HTTP(S)_PROXY — it prevents naive
-     exfiltration but can be circumvented by the agent through direct IPs.
+   - `proxy` (default): cooperative via HTTP(S)_PROXY — it does not stop
+     exfiltration: an agent that connects directly gets past it.
    - `network`: **hard isolation** — the sandbox on an internal Docker network
      without internet, the proxy container as the only exit. A direct bypass is
      thereby impossible (verified). Setup see above.

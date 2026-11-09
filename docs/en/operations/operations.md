@@ -80,9 +80,16 @@ URLs an organisation configures — a target system's base URL, an MCP server, t
 
 On by default with the docker provider: a sandbox reaches only the hosts on its agent's allowlist — the organisation's base list (seeded with `api.anthropic.com`), the assigned templates and the agent's own hosts. `COVEY_EGRESS_ENFORCE=false` switches it off; the lists are then kept but not applied, and `covey serve` and `covey doctor` say so. A provider that cannot enforce says the same instead of running open. `GET /api/v1/egress` answers with `enforced` whether it applies on this instance.
 
-Two levels. **Cooperative** (the default): the sandbox's traffic goes through a proxy that enforces the allowlist. **Hard** (`COVEY_EGRESS_ISOLATION=network`): the sandbox sits on an internal network without internet, and the proxy container is the only way out — no longer bypassable. The hard level needs a second image built.
+Two levels, and only the second one stops exfiltration.
+
+- **Cooperative** (`COVEY_EGRESS_ISOLATION=proxy`, the default): the sandbox is *told* to use a proxy that enforces the allowlist (`HTTP_PROXY`/`HTTPS_PROXY`). Tools that honour the variables stay on the list. Nothing prevents a direct connection: an agent — or code it runs — that opens a socket to an address of its choosing gets out, and the allowlist never sees it. This mode keeps well-behaved traffic in line; it **does not stop a sandbox from sending data elsewhere**.
+- **Hard** (`COVEY_EGRESS_ISOLATION=network`): the sandbox sits on an internal docker network without a route to the internet, and the proxy container is its only way out. A direct connection has nowhere to go. This is the mode to run when the allowlist is meant as a boundary. It needs a second image (`make egress-image`, `covey-egress:latest`).
+
+`covey doctor` says which of the two is in effect.
 
 The cooperative proxy runs inside the covey process. When covey itself runs in a container, the sandboxes reach it only through a published port: `COVEY_EGRESS_LISTEN_ADDR` fixes its address, and the host has to publish the same port. The compose files do both (`:8495`, `8495:8495`). Without a sandbox's own token the proxy answers 407.
+
+A remote runner applies the same settings on its own host — see [Runners](runner.md#egress-on-a-runner-host).
 
 Upgrading an installation that ran with open egress: see [Upgrading](upgrade.md).
 

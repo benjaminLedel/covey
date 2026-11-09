@@ -186,7 +186,7 @@ func TestEgressModeFindings(t *testing.T) {
 		blocking    bool
 		mentions    string
 	}{
-		{"enforced", config.Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy"}, false, true, false, "enforced"},
+		{"enforced", config.Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy"}, false, true, false, "does not stop exfiltration"},
 		{"switched off", config.Config{SandboxProvider: "docker"}, false, true, false, "NOT enforced (COVEY_EGRESS_ENFORCE=false)"},
 		{"provider cannot enforce", config.Config{SandboxProvider: "e2b", EgressEnforce: true}, false, false, false, `NOT enforced — the sandbox provider "e2b"`},
 		{"free port in a container", config.Config{SandboxProvider: "docker", EgressEnforce: true, EgressIsolation: "proxy"}, true, false, true, "no host publishes"},

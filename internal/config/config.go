@@ -256,6 +256,8 @@ type Config struct {
 	// EgressIsolation selects how strongly egress is enforced (docker provider):
 	// "proxy" (default, cooperative via HTTP_PROXY) | "network" (hard: sandbox on
 	// an internal network without internet, the proxy container as the only exit).
+	// Only "network" stops a sandbox from sending data elsewhere: in "proxy" the
+	// sandbox is told to use the proxy, and nothing prevents a direct connection.
 	EgressIsolation string
 	// EgressProxyAddr is the bind address of the standalone egress proxy
 	// (subcommand `covey egress-proxy`, a container in network mode).

@@ -80,9 +80,16 @@ Adressen, die eine Organisation einträgt — die Basis-URL eines Zielsystems, e
 
 Mit dem Docker-Provider von Haus aus an: Eine Sandbox erreicht nur die Hosts auf der Allowlist ihres Agenten — die Basisliste der Organisation (vorbelegt mit `api.anthropic.com`), die zugewiesenen Vorlagen und die eigenen Hosts des Agenten. `COVEY_EGRESS_ENFORCE=false` schaltet das ab; die Listen bleiben dann erhalten, werden aber nicht angewandt, und `covey serve` und `covey doctor` sagen das. Ein Provider, der nicht durchsetzen kann, sagt dasselbe, statt offen zu laufen. `GET /api/v1/egress` beantwortet mit `enforced`, ob es auf dieser Instanz greift.
 
-Zwei Stufen. **Kooperativ** (die Vorgabe): Der Datenverkehr der Sandbox läuft über einen Proxy, der die Allowlist durchsetzt. **Hart** (`COVEY_EGRESS_ISOLATION=network`): Die Sandbox hängt in einem internen Netz ohne Internet, und der Proxy-Container ist der einzige Weg hinaus — nicht mehr umgehbar. Für die harte Stufe wird ein zweites Image gebaut.
+Zwei Stufen, und nur die zweite hält Datenabfluss auf.
+
+- **Kooperativ** (`COVEY_EGRESS_ISOLATION=proxy`, die Vorgabe): Der Sandbox wird *gesagt*, einen Proxy zu benutzen, der die Allowlist durchsetzt (`HTTP_PROXY`/`HTTPS_PROXY`). Werkzeuge, die die Variablen beachten, bleiben auf der Liste. Direkte Verbindungen verhindert sie nicht: Ein Agent — oder Code, den er ausführt —, der einen Socket zu einer Adresse seiner Wahl öffnet, kommt hinaus, und die Allowlist sieht es nie. Diese Stufe hält gutwilligen Verkehr in der Spur; sie **hindert eine Sandbox nicht daran, Daten anderswohin zu schicken**.
+- **Hart** (`COVEY_EGRESS_ISOLATION=network`): Die Sandbox hängt in einem internen Docker-Netz ohne Weg ins Internet, und der Proxy-Container ist ihr einziger Ausgang. Eine direkte Verbindung führt nirgendwohin. Das ist die Stufe für den Fall, dass die Allowlist eine Grenze sein soll. Sie braucht ein zweites Image (`make egress-image`, `covey-egress:latest`).
+
+`covey doctor` sagt, welche der beiden gilt.
 
 Der kooperative Proxy läuft im covey-Prozess. Läuft covey selbst in einem Container, erreichen die Sandboxen ihn nur über einen veröffentlichten Port: `COVEY_EGRESS_LISTEN_ADDR` legt seine Adresse fest, und der Host muss denselben Port veröffentlichen. Die Compose-Dateien tun beides (`:8495`, `8495:8495`). Ohne das eigene Token einer Sandbox antwortet der Proxy mit 407.
+
+Ein entfernter Runner wendet dieselben Einstellungen auf seinem eigenen Host an — Einzelheiten auf der englischen Seite [Runners](../../en/operations/runner.md#egress-on-a-runner-host).
 
 Beim Update einer Installation, die mit offenem Egress lief: Vor dem Neustart die Allowlists prüfen (`GET /api/v1/egress`, die eigenen Hosts je Agent unter *Einstellungen → Egress* auf der Agentenseite) — Verkehr zu Hosts, die dort nicht stehen, wird danach abgewiesen. Wer das alte Verhalten behalten will, setzt `COVEY_EGRESS_ENFORCE=false` (in der `.env` der Compose-Installation). Einzelheiten stehen auf der englischen Seite [Upgrading](../../en/operations/upgrade.md).
 
