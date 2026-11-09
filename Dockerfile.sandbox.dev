@@ -24,35 +24,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# PHP 8.2 + Composer for agents that work on PHP projects (Laravel).
-# The version is not arbitrary: Debian trixie delivers 8.4, the CI of the target
-# projects runs 8.2 — an agent that builds and tests against another minor
-# version reports green and the pipeline goes red. So the packages from
-# packages.sury.org, where 8.2 is still maintained. Extensions: zip/gd/ldap as in
-# the project CI, plus the ones composer.json requires (dom/json/openssl/pdo)
-# and pdo_sqlite, because PHPUnit runs there against an in-memory SQLite. Plus
-# pgsql (projects whose test database is Postgres) and pcov: without a coverage
-# driver every `phpunit --coverage-*` breaks off with "No code coverage
-# driver available" — the agent reads that as a broken suite and starts repairing
-# the test environment that was never broken. pcov instead of xdebug, because
-# xdebug slows every test run by a multiple and contributes nothing else.
-# As non-root the agent cannot install anything afterwards — what is missing
-# here is missing for it at runtime.
-# A side effect of sury one has to know about: the source brings its own rebuilds
-# of some system libraries, and php8.2-gd pulls their libgd3 instead of the
-# Debian version. That is unavoidable with sury (the dependency is built that
-# way), but it means: a third-party repo delivers more than PHP here. So the
-# source file is thrown out again in the same layer — the image should not carry
-# an active foreign source, and the agent never needs apt anyway.
-RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ trixie main" \
-         > /etc/apt/sources.list.d/sury-php.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-         php8.2-cli php8.2-xml php8.2-mbstring php8.2-curl php8.2-zip php8.2-gd \
-         php8.2-ldap php8.2-sqlite3 php8.2-mysql php8.2-bcmath php8.2-intl composer \
-         php8.2-pgsql php8.2-pcov \
-    && rm -f /etc/apt/sources.list.d/sury-php.list \
-    && rm -rf /var/lib/apt/lists/*
+# PHP 8.2 + Composer for agents that work on PHP projects (Laravel), through the
+# install script all PHP images share (internal/sandbox/install-php.sh — the
+# package list, the extensions and the reasoning behind both stand there).
+# A project whose CI runs PHP 8.4 takes the workplace `dev-php84`.
+COPY internal/sandbox/install-php.sh /tmp/install-php.sh
+RUN sh /tmp/install-php.sh 8.2 sury && rm -f /tmp/install-php.sh
 
 # A database server for test runs. The image carried the PHP extensions for MySQL
 # and Postgres and no server along with them — a Laravel suite whose CI runs

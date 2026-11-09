@@ -781,6 +781,7 @@
         "dev": "dev — 另加 PHP、JDK、fvm、uv",
         "dev-flutter": "dev · Flutter — 镜像内含 Flutter SDK、fvm、JDK",
         "dev-php": "dev · PHP — PHP 8.2、Composer、MariaDB",
+        "dev-php84": "dev · PHP 8.4 — PHP 8.4、Composer、MariaDB",
         "dev-web": "dev · Web — node-gyp 工具链、chromium",
         "dev-full": "dev · 全栈 — 全都有，含 Flutter SDK"
       },

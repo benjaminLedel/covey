@@ -353,12 +353,34 @@ func dockerfileKette(datei string) (string, error) {
 		// own occasion — the comment above the apt line names jq, and a
 		// test that takes prose for an installation never says anything
 		// again.
+		var skripte []string
 		for _, zeile := range strings.Split(string(roh), "\n") {
 			if strings.HasPrefix(strings.TrimSpace(zeile), "#") {
 				continue
 			}
 			alles.WriteString(zeile)
 			alles.WriteString("\n")
+			// A shared install script (install-php.sh, install-flutter.sh)
+			// is part of the image as much as an apt line is: the packages
+			// it installs are kept promises of every Dockerfile that copies
+			// it in.
+			if f := strings.Fields(zeile); len(f) >= 3 && f[0] == "COPY" &&
+				strings.HasPrefix(f[1], "internal/sandbox/") && strings.HasSuffix(f[1], ".sh") {
+				skripte = append(skripte, f[1])
+			}
+		}
+		for _, skript := range skripte {
+			roh, err := os.ReadFile(filepath.Join("..", "..", skript))
+			if err != nil {
+				return "", err
+			}
+			for _, zeile := range strings.Split(string(roh), "\n") {
+				if strings.HasPrefix(strings.TrimSpace(zeile), "#") {
+					continue
+				}
+				alles.WriteString(zeile)
+				alles.WriteString("\n")
+			}
 		}
 		datei = ""
 		// Which image it builds on, and which Dockerfile produces that one.
