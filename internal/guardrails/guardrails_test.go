@@ -148,3 +148,23 @@ func TestStyleGateRules(t *testing.T) {
 		t.Fatalf("defaults rejected: %v", err)
 	}
 }
+
+// TestRuleOnActionCoversItsForeignRefinement is #701.
+func TestRuleOnActionCoversItsForeignRefinement(t *testing.T) {
+	agent := uuid.New()
+	plain := []Rule{{Enabled: true, RuleType: RuleDenyAction, Pattern: "covey:set_agent_config"}}
+	if v := Evaluate(plain, agent, "covey:set_agent_config:foreign"); v.Decision != Deny {
+		t.Errorf("a deny on the plain action has to cover :foreign, got %v", v.Decision)
+	}
+	if v := Evaluate(plain, agent, "covey:set_agent_config"); v.Decision != Deny {
+		t.Errorf("the plain action itself: %v", v.Decision)
+	}
+	foreignOnly := []Rule{{Enabled: true, RuleType: RuleRequireApproval, Pattern: "covey:create_task:foreign"}}
+	if v := Evaluate(foreignOnly, agent, "covey:create_task"); v.Decision != Allow {
+		t.Errorf("a rule on the refinement alone must not cover the plain action, got %v", v.Decision)
+	}
+	other := []Rule{{Enabled: true, RuleType: RuleDenyAction, Pattern: "covey:create"}}
+	if v := Evaluate(other, agent, "covey:create_task:foreign"); v.Decision != Allow {
+		t.Errorf("only the exact base name is covered, got %v", v.Decision)
+	}
+}
