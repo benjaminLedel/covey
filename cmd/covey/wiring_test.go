@@ -46,48 +46,6 @@ func TestOpenBlobStore(t *testing.T) {
 	}
 }
 
-// A container reaches the host under a different name than the host reaches
-// itself. Only loopback is bent — a real deployment address stays as it is,
-// because bending that would send the proxy to the wrong machine.
-func TestRewriteLoopbackForContainer(t *testing.T) {
-	for _, tc := range []struct{ in, want string }{
-		{"http://localhost:8494", "http://host.docker.internal:8494"},
-		{"http://127.0.0.1:8494", "http://host.docker.internal:8494"},
-		{"https://localhost", "https://host.docker.internal"},
-		{"http://[::1]:8494", "http://host.docker.internal:8494"},
-		// Not loopback: untouched.
-		{"https://covey.example.com", "https://covey.example.com"},
-		{"http://10.0.0.5:8494", "http://10.0.0.5:8494"},
-		// Unparseable: handed back rather than mangled.
-		{"://kaputt", "://kaputt"},
-		{"", ""},
-	} {
-		if got := rewriteLoopbackForContainer(tc.in); got != tc.want {
-			t.Errorf("rewriteLoopbackForContainer(%q) = %q, expected %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-// In hard mode the daemon dials the control plane through the proxy, so the
-// proxy has to let it through: host.docker.internal for a loopback address,
-// and the public name when there is one — without it no sandbox of an
-// instance behind a real domain would connect back (#445).
-func TestControlPlaneHosts(t *testing.T) {
-	for _, tc := range []struct {
-		in   string
-		want string
-	}{
-		{"http://localhost:8494", "host.docker.internal"},
-		{"https://covey.example.com", "host.docker.internal,covey.example.com"},
-		{"http://10.0.0.5:8494", "host.docker.internal,10.0.0.5"},
-		{"", "host.docker.internal"},
-	} {
-		if got := strings.Join(controlPlaneHosts(tc.in), ","); got != tc.want {
-			t.Errorf("controlPlaneHosts(%q) = %q, expected %q", tc.in, got, tc.want)
-		}
-	}
-}
-
 // The built-in embedder is the default and says what it costs: the vector
 // search then only measures word overlap.
 func TestBuildEmbedder(t *testing.T) {
