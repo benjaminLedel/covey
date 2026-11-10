@@ -28,6 +28,7 @@ var responseTypes = []string{
 	TypeInjectHiring,
 	TypeInjectSecret,
 	TypeInjectTool,
+	TypeInjectPlatformAction,
 	TypeInjectMessage,
 }
 

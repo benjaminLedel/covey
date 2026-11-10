@@ -235,17 +235,18 @@ func (c *Client) Run(ctx context.Context) error {
 // That is exactly how inject_skills slipped through when it was added and made
 // every integration test run into a 15-second timeout.
 var routedInjectTypes = map[string]bool{
-	TypeInjectCredentials: true, // also pushed proactively — then without request_id
-	TypeApprovalDecision:  true,
-	TypeInjectTarget:      true,
-	TypeInjectOrgChart:    true,
-	TypeInjectWiki:        true,
-	TypeInjectSkills:      true,
-	TypeInjectCreateTask:  true,
-	TypeInjectHiring:      true,
-	TypeInjectMessage:     true,
-	TypeInjectTool:        true,
-	TypeInjectSecret:      true,
+	TypeInjectCredentials:    true, // also pushed proactively — then without request_id
+	TypeApprovalDecision:     true,
+	TypeInjectTarget:         true,
+	TypeInjectOrgChart:       true,
+	TypeInjectWiki:           true,
+	TypeInjectSkills:         true,
+	TypeInjectCreateTask:     true,
+	TypeInjectHiring:         true,
+	TypeInjectMessage:        true,
+	TypeInjectTool:           true,
+	TypeInjectPlatformAction: true,
+	TypeInjectSecret:         true,
 }
 
 // deliverIfResponse hands an answer to one of our own requests to its waiting
@@ -523,6 +524,18 @@ func (c *Client) hiring(ctx context.Context, req RequestHiring) (InjectHiring, e
 		return InjectHiring{}, err
 	}
 	return DecodePayload[InjectHiring](msg)
+}
+
+// platformAction hands a control-plane system's action over (#710).
+func (c *Client) platformAction(ctx context.Context, req RequestPlatformAction) (InjectPlatformAction, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestPlatformAction, req.RequestID, req)
+	if err != nil {
+		return InjectPlatformAction{}, err
+	}
+	return DecodePayload[InjectPlatformAction](msg)
 }
 
 // checkAction fetches the central policy decision for an action.

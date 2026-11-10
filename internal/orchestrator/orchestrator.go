@@ -139,7 +139,16 @@ type Options struct {
 	// answers that it is not available on this instance.
 	Chat *chat.Store
 	Org  *org.Store
-	Log  *slog.Logger
+	// Platform are the target systems whose actions run here instead of in
+	// the sandbox, by name (#710: teamsapp). Empty = none on this instance.
+	Platform map[string]PlatformSystem
+	Log      *slog.Logger
+}
+
+// PlatformSystem executes an agent's action in the control plane. The
+// orchestrator has checked ACCESS, scope and guard rails before the call.
+type PlatformSystem interface {
+	Execute(ctx context.Context, agent agents.Agent, action string, params json.RawMessage) (any, error)
 }
 
 // Upstream is the one thing the orchestrator asks of the channel to the
@@ -2744,6 +2753,13 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		resp := o.toolRequest(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectTool, resp)
+
+	case daemon.TypeRequestPlatformAction:
+		req, err := daemon.DecodePayload[daemon.RequestPlatformAction](msg)
+		if err != nil {
+			return false, nil
+		}
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectPlatformAction, o.platformAction(ctx, agent, taskID, req))
 
 	case daemon.TypeRequestHiring:
 		req, err := daemon.DecodePayload[daemon.RequestHiring](msg)
