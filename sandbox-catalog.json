@@ -8,7 +8,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:e91b0d1b96ecb8bfe201f9a98cc855119121d604bb10e7293c1473ea7bc99254",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:36ab6ed772737457a7b0d34cc57efc1a7a0d14369910dd356f04300ae564b316",
           "tag": "base-latest",
           "platforms": [
             "linux/amd64",
@@ -231,7 +231,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:fab90f653a91780c8f51bc4f084a3cd6927e74c14a599ec60731f8668d2f8291",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:560e854593063170e447a066c1b74fa4e5f779920c5d8426e3fbf28d3d2c6641",
           "tag": "dev-latest",
           "platforms": [
             "linux/amd64",
@@ -454,7 +454,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:2b8f9709e034aa49b13355d88b0ca749eb863d9f525887939ae664cd54e5f56c",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:b98f3c81a33f9af93ad3f9ad51549facade11dcbe2a21e20ed327b610a91cf1d",
           "tag": "dev-flutter-latest",
           "platforms": [
             "linux/amd64",
@@ -605,7 +605,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:9a0075c24648880c5d5c0d34839d607d475b20db19011af5f7b372731cd7c961",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:ad2678051147108a7bb7e7e769e4480cd414840c05c79f665d60b37e25045295",
           "tag": "dev-php-latest",
           "platforms": [
             "linux/amd64",
@@ -756,7 +756,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:8c19dc498652a1c9a508321e7a98addb366cc666db0b701485881aa14df82485",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:94bc29296a5795be9758ff4f774188e7c43906211df8db283b012ddaea2d2fba",
           "tag": "dev-php84-latest",
           "platforms": [
             "linux/amd64",
@@ -781,7 +781,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:0eea2c834412cfc4961a80319703b40b3be8bc8189e0d0d1e481bd636a801d48",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:ef72ba1f662543ee4307a6ad3ef52d3b17a3e49df2c949975ff1d68776046ae4",
           "tag": "dev-web-latest",
           "platforms": [
             "linux/amd64",
@@ -932,7 +932,7 @@
       "images": [
         {
           "covey_version": "main",
-          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:1aebc2c3c31e233048961c1a72dacaa95e1f89c86e334e0d44ebec02c9567f4d",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:fc2db9d3be26cc1431f4a4aaf6170ce04c3bbb197d01b5cd3c09d04da0d577e9",
           "tag": "dev-full-latest",
           "platforms": [
             "linux/amd64",
@@ -1077,5 +1077,5 @@
       ]
     }
   ],
-  "generated_at": "2026-11-09T14:29:43Z"
+  "generated_at": "2026-11-10T16:50:38Z"
 }
