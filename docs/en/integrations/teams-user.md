@@ -4,34 +4,20 @@ title: Microsoft Teams as a person
 description: A person lets an agent work in their own Teams through delegated access — it reads their chats and channels and writes in their name, marked as sent by the agent. Proof of concept.
 ---
 
-A runbook for the connector `teamsuser` (proof of concept). Where the
-[covey app](teams-app.md) is a bot people write to, this one lets **a person
-hand an agent their own Teams**: the agent reads the chats and channels that
+A runbook for the connector `teamsuser`. With the [organisation bot](teams-app.md),
+an agent holding it works as **the person who writes to it** (section 4 there).
+This page covers the second way: **a person hands one agent their own Teams**
+for runs no Teams message started (a heartbeat, a scheduled digest): the agent reads the chats and channels that
 person is in and answers or posts in their name. It sees exactly what the
 person sees, nothing more. Design: [`spec/15`](../../../spec/15-teams-integration.md),
 section "Teams as a person".
 
-## 1. Once per installation: the app registration
+## 1. Prerequisite: the organisation's bot
 
-A registration of its own, not the Teams bot's.
-
-1. **Entra ID → App registrations → New registration**, multitenant.
-   Redirect URI (Web): `https://<your covey>/api/teamsuser/callback`.
-2. **API permissions → Microsoft Graph → Delegated:** `offline_access`,
-   `User.Read`, `Chat.ReadWrite`, `ChatMessage.Send`, `Team.ReadBasic.All`,
-   `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMessage.Send`.
-   `ChannelMessage.Read.All` needs an administrator's consent in each tenant.
-3. **Certificates & secrets → New client secret.**
-4. On the control plane:
-
-   ```sh
-   COVEY_TEAMSUSER_APP_ID=<application (client) id>
-   COVEY_TEAMSUSER_APP_PASSWORD=<client secret>
-   COVEY_SITE_URL=https://<your covey>
-   ```
-
-   The tokens are sealed with the master key; without one the connector is
-   not offered.
+Delegated access runs through your organisation's [Teams bot](teams-app.md) —
+its app registration, or the delegation app entered beside it. Set up the
+delegated Graph permissions and the redirect URI there as described in
+section 4 of that page. Nothing is configured on the server.
 
 ## 2. Per person: connect
 

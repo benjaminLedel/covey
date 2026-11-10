@@ -23,12 +23,11 @@ var outlineSource []byte
 // every change to the manifest below.
 const PackageVersion = "1.1.0"
 
-// Package builds the Teams app package for this installation: manifest.json
-// with the app ID and the installation's address, and the two icons.
-func (s *Service) Package(siteURL, name string) ([]byte, error) {
-	if s == nil {
-		return nil, errNoApp
-	}
+// Package builds the Teams app package for an organisation's bot:
+// manifest.json with its app ID, name and the installation's address, and
+// the two icons.
+func (s *Service) Package(b Bot, siteURL string) ([]byte, error) {
+	name := b.Name
 	host := siteURL
 	if u, err := url.Parse(siteURL); err == nil && u.Host != "" {
 		host = u.Hostname()
@@ -40,7 +39,7 @@ func (s *Service) Package(siteURL, name string) ([]byte, error) {
 		"$schema":         "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
 		"manifestVersion": "1.17",
 		"version":         PackageVersion,
-		"id":              s.cfg.AppID,
+		"id":              b.AppID,
 		"developer": map[string]any{
 			"name":          "covey",
 			"websiteUrl":    siteURL,
@@ -55,13 +54,16 @@ func (s *Service) Package(siteURL, name string) ([]byte, error) {
 		"icons":       map[string]any{"color": "color.png", "outline": "outline.png"},
 		"accentColor": "#2A5B9E",
 		"bots": []map[string]any{{
-			"botId":              s.cfg.AppID,
+			"botId":              b.AppID,
 			"scopes":             []string{"personal", "team", "groupChat"},
 			"supportsFiles":      false,
 			"isNotificationOnly": false,
 		}},
 		"permissions":  []string{"identity", "messageTeamMembers"},
 		"validDomains": []string{host},
+		// Single sign-on for the bot (#713): Teams issues the writer's token
+		// for this resource, and covey exchanges it on their behalf.
+		"webApplicationInfo": map[string]any{"id": b.SSOAppID(), "resource": b.SSOResource(siteURL)},
 	}
 	mj, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {

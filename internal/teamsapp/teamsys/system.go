@@ -12,38 +12,40 @@ import (
 // store: `- system: teamsapp scope: read,write`.
 const Name = "teamsapp"
 
-// System is the agent-facing half of the installation's Teams app. Unlike
-// every other target system its actions do not run in the sandbox: the
-// credential is the installation's, and it can reach every tenant that
-// installed the app, so it never leaves the control plane. The daemon sees
+// System is the agent-facing half of an organisation's Teams bot. Unlike
+// every other target system its actions do not run in the sandbox: the bot's
+// credential reaches every conversation the bot is part of, so it never
+// leaves the control plane. The daemon sees
 // RunsInControlPlane and hands the call over; Execute here is never the path.
 type System struct{}
 
-// Register puts the system into the target registry. Called from the
-// binaries' bundled-plugin lists, so a `nopack` build leaves it out together
-// with the Teams client it depends on.
+// Register puts the system into the target registry; both binaries call it
+// at start (the daemon only to recognise the actions as the control
+// plane's).
 func Register() {
 	target.Register(target.Descriptor{
 		Name:          Name,
-		Label:         "Microsoft Teams (covey app)",
-		Description:   "Chats and channels in Microsoft Teams through the installation's covey app: one app for every organisation and agent, no Azure registration per agent. Messages that name an agent reach it; agents reply and post into channels.",
+		Label:         "Microsoft Teams (organisation bot)",
+		Description:   "Chats and channels in Microsoft Teams through your organisation's own bot: one Azure registration for every agent, set up in covey. Messages that name an agent reach it; agents reply and post into channels.",
 		Kind:          "builtin",
 		Category:      target.CategoryComms,
 		Scopes:        []string{"read", "write"},
 		System:        System{},
 		NoCredentials: true,
-		SetupDoc: `1. Settings → Microsoft Teams: "Connect Microsoft 365". Sign in as a
-   Teams or Global Administrator of your Microsoft tenant.
+		SetupDoc: `1. In Azure: an app registration with a client secret, and an Azure
+   Bot for it with the Microsoft Teams channel.
 
-2. Download the app package there and upload it in the Teams admin
-   centre (or Teams → Apps → Upload a custom app), then add it to the
-   teams whose channels agents should use.
+2. Target systems → Microsoft Teams → "Set up bot" (org admin): app ID,
+   tenant ID, client secret. covey checks them with Microsoft and then
+   shows the messaging endpoint and redirect URIs to enter in Azure.
 
-3. Grant it in the agent's ACCESS.md:
+3. Download the app package there and upload it into Teams.
+
+4. Grant it in the agent's ACCESS.md:
    - system: teamsapp scope: read,write
 
-4. In Teams: write to the covey app directly, or @mention it in a channel
-   and start with the colleague's name ("@covey Vera, …").`,
+5. In Teams: write to the bot directly, or @mention it in a channel and
+   start with the colleague's name ("@covey Vera, …").`,
 	})
 }
 

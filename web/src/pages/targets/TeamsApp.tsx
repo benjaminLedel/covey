@@ -1,50 +1,86 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, post, put, type Agent, type Principal } from "../../api";
+import { api, del, put, type Agent, type Principal } from "../../api";
 
-// The installation's own Teams app (#710): one app for every organisation,
-// so connecting Teams is a sign-in and an upload, not an Azure registration
-// per agent.
+// An organisation's own Teams bot (#710, #715): entered here, sealed on the
+// server, effective at once. One bot serves every agent of the organisation.
+
+type Bot = {
+  id: string;
+  name: string;
+  app_id: string;
+  tenant_id: string;
+  sso_connection: string;
+  deleg_app_id?: string;
+};
 
 type TeamsAppStatus = {
   available: boolean;
-  app_id?: string;
-  can_link?: boolean;
-  tenants?: { tenant_id: string; linked_by: string }[];
-  teams?: { tenant_id: string; team_id: string; name: string }[];
+  site_configured?: boolean;
+  bot?: Bot;
+  endpoint?: string;
+  redirect_uris?: string[];
+  sso_resource?: string;
+  teams?: { team_id: string; name: string }[];
   channel_agents?: Record<string, string>;
 };
 
-type ChannelRef = { team: string; channel: string; channel_id: string; tenant_id: string };
+type ChannelRef = { team: string; channel: string; channel_id: string };
 
-const outcomes = ["linked", "taken", "not_admin", "error"] as const;
+const empty = { name: "", app_id: "", tenant_id: "", secret: "", sso_connection: "", deleg_app_id: "", deleg_secret: "" };
 
 export function TeamsAppPanel({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ["teamsapp"], queryFn: () => api<TeamsAppStatus>("/teamsapp") });
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(empty);
   const [showChannels, setShowChannels] = useState(false);
   const isAdmin = me.Role === "org_admin";
 
-  const params = new URLSearchParams(window.location.search);
-  const outcome = params.get("teams");
-  const detail = params.get("detail");
-
-  const link = useMutation({
-    mutationFn: () => post<{ url: string }>("/teamsapp/link"),
-    onSuccess: (r) => {
-      window.location.href = r.url;
+  const save = useMutation({
+    mutationFn: () => put<Bot>("/teamsapp/bot", form),
+    onSuccess: () => {
+      setEditing(false);
+      setForm(empty);
+      qc.invalidateQueries({ queryKey: ["teamsapp"] });
+      qc.invalidateQueries({ queryKey: ["teamsuser"] });
     },
   });
-  const unlink = useMutation({
-    mutationFn: (tenant: string) => del(`/teamsapp/tenants/${encodeURIComponent(tenant)}`),
+  const remove = useMutation({
+    mutationFn: () => del("/teamsapp/bot"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["teamsapp"] }),
   });
 
   const s = status.data;
   if (!s?.available) return null;
-  const tenants = s.tenants ?? [];
+  const bot = s.bot;
+
+  const startEdit = () => {
+    setForm({
+      ...empty,
+      name: bot?.name ?? "",
+      app_id: bot?.app_id ?? "",
+      tenant_id: bot?.tenant_id ?? "",
+      sso_connection: bot?.sso_connection ?? "",
+      deleg_app_id: bot?.deleg_app_id ?? "",
+    });
+    setEditing(true);
+  };
+  const field = (key: keyof typeof empty, label: string, opts: { secret?: boolean; hint?: string } = {}) => (
+    <label className="block text-xs mb-2">
+      <span className="block mb-1">{label}</span>
+      <input
+        className="w-full"
+        type={opts.secret ? "password" : "text"}
+        autoComplete="off"
+        value={form[key]}
+        placeholder={opts.hint}
+        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+      />
+    </label>
+  );
 
   return (
     <section className="card mb-4" aria-labelledby="teamsapp-title" style={{ padding: 16 }}>
@@ -55,65 +91,103 @@ export function TeamsAppPanel({ me }: { me: Principal }) {
         {t("teamsApp.desc")}
       </p>
 
-      {outcome && (outcomes as readonly string[]).includes(outcome) && (
-        <p className={`text-sm mb-3${outcome === "linked" ? "" : " err"}`} role="status">
-          {t(`teamsApp.outcome.${outcome}`)}
-          {outcome === "error" && detail ? ` ${detail}` : ""}
-        </p>
+      {!editing && !bot && (
+        <p className="text-sm mb-3">{isAdmin ? t("teamsApp.noBot") : t("teamsApp.noBotAsk")}</p>
       )}
 
-      {tenants.length === 0 ? (
-        <p className="text-sm mb-3">{t("teamsApp.notLinked")}</p>
-      ) : (
-        <ul className="text-sm mb-3">
-          {tenants.map((tn) => (
-            <li key={tn.tenant_id} className="flex items-center gap-2">
-              <span>
-                {t("teamsApp.linkedTenant", { tenant: tn.tenant_id })}
-                {tn.linked_by && <span className="muted"> · {t("teamsApp.linkedBy", { who: tn.linked_by })}</span>}
-              </span>
+      {!editing && bot && (
+        <div className="text-sm mb-3">
+          <p>{t("teamsApp.botLine", { name: bot.name, app: bot.app_id, tenant: bot.tenant_id })}</p>
+          {bot.deleg_app_id && <p className="muted text-xs">{t("teamsApp.delegLine", { app: bot.deleg_app_id })}</p>}
+          {s.endpoint && (
+            <dl className="text-xs mt-2" style={{ maxWidth: 640 }}>
+              <dt className="muted">{t("teamsApp.endpoint")}</dt>
+              <dd>
+                <code>{s.endpoint}</code>
+              </dd>
+              <dt className="muted mt-1">{t("teamsApp.redirects")}</dt>
+              {(s.redirect_uris ?? []).map((u) => (
+                <dd key={u}>
+                  <code>{u}</code>
+                </dd>
+              ))}
+              <dt className="muted mt-1">{t("teamsApp.ssoResource")}</dt>
+              <dd>
+                <code>{s.sso_resource}</code>
+              </dd>
+            </dl>
+          )}
+          {!s.site_configured && <p className="err text-xs mt-2">{t("teamsApp.noSiteURL")}</p>}
+        </div>
+      )}
+
+      {editing && (
+        <form
+          className="mb-3"
+          style={{ maxWidth: 480 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate();
+          }}
+        >
+          {field("name", t("teamsApp.fName"), { hint: "covey" })}
+          {field("app_id", t("teamsApp.fAppID"))}
+          {field("tenant_id", t("teamsApp.fTenant"))}
+          {field("secret", t("teamsApp.fSecret"), { secret: true, hint: bot ? t("teamsApp.keepSecret") : undefined })}
+          <details className="mb-2">
+            <summary className="text-xs">{t("teamsApp.advanced")}</summary>
+            <div className="mt-2">
+              {field("sso_connection", t("teamsApp.fSSO"), { hint: "covey" })}
+              <p className="muted text-xs mb-2">{t("teamsApp.delegHint")}</p>
+              {field("deleg_app_id", t("teamsApp.fDelegApp"))}
+              {field("deleg_secret", t("teamsApp.fDelegSecret"), {
+                secret: true,
+                hint: bot?.deleg_app_id ? t("teamsApp.keepSecret") : undefined,
+              })}
+            </div>
+          </details>
+          <div className="flex gap-2">
+            <button className="btn sm" type="submit" disabled={save.isPending}>
+              {save.isPending ? t("teamsApp.checking") : t("teamsApp.save")}
+            </button>
+            <button className="btn sm ghost" type="button" onClick={() => setEditing(false)}>
+              {t("teamsApp.cancel")}
+            </button>
+          </div>
+          {save.error && <p className="err text-xs mt-2">{(save.error as Error).message}</p>}
+        </form>
+      )}
+
+      {!editing && (
+        <div className="flex gap-2 flex-wrap">
+          {isAdmin && (
+            <button className="btn sm" onClick={startEdit}>
+              {bot ? t("teamsApp.edit") : t("teamsApp.setUp")}
+            </button>
+          )}
+          {bot && (
+            <>
+              <a className="btn sm ghost" href="/api/v1/teamsapp/package" download>
+                {t("teamsApp.package")}
+              </a>
+              <button className="btn sm ghost" onClick={() => setShowChannels((v) => !v)}>
+                {showChannels ? t("teamsApp.hideChannels") : t("teamsApp.showChannels")}
+              </button>
               {isAdmin && (
-                <button
-                  className="btn sm ghost"
-                  disabled={unlink.isPending}
-                  onClick={() => unlink.mutate(tn.tenant_id)}
-                >
-                  {t("teamsApp.unlink")}
+                <button className="btn sm ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>
+                  {t("teamsApp.remove")}
                 </button>
               )}
-            </li>
-          ))}
-        </ul>
+            </>
+          )}
+        </div>
       )}
-
-      <div className="flex gap-2 flex-wrap">
-        {isAdmin && (
-          <button
-            className="btn sm"
-            disabled={link.isPending || !s.can_link}
-            title={s.can_link ? undefined : t("teamsApp.noSiteURL")}
-            onClick={() => link.mutate()}
-          >
-            {tenants.length === 0 ? t("teamsApp.connect") : t("teamsApp.connectAnother")}
-          </button>
-        )}
-        <a className="btn sm ghost" href="/api/v1/teamsapp/package" download>
-          {t("teamsApp.package")}
-        </a>
-        {tenants.length > 0 && (
-          <button className="btn sm ghost" onClick={() => setShowChannels((v) => !v)}>
-            {showChannels ? t("teamsApp.hideChannels") : t("teamsApp.showChannels")}
-          </button>
-        )}
-      </div>
-      {link.error && <p className="err text-xs mt-2">{(link.error as Error).message}</p>}
-      {!isAdmin && tenants.length === 0 && <p className="muted text-xs mt-2">{t("teamsApp.adminOnly")}</p>}
 
       <p className="muted text-xs mt-3" style={{ maxWidth: 640 }}>
         {t("teamsApp.howTo")}
       </p>
 
-      {showChannels && <Channels defaults={s.channel_agents ?? {}} />}
+      {showChannels && bot && <Channels defaults={s.channel_agents ?? {}} />}
     </section>
   );
 }
@@ -124,8 +198,7 @@ function Channels({ defaults }: { defaults: Record<string, string> }) {
   const channels = useQuery({ queryKey: ["teamsapp-channels"], queryFn: () => api<ChannelRef[]>("/teamsapp/channels") });
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
   const set = useMutation({
-    mutationFn: (v: { tenant_id: string; channel_id: string; agent_id: string | null }) =>
-      put("/teamsapp/channel-agent", v),
+    mutationFn: (v: { channel_id: string; agent_id: string | null }) => put("/teamsapp/channel-agent", v),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["teamsapp"] }),
   });
 
@@ -153,9 +226,7 @@ function Channels({ defaults }: { defaults: Record<string, string> }) {
                 aria-label={t("teamsApp.defaultAgentFor", { channel: c.channel })}
                 value={defaults[c.channel_id] ?? ""}
                 disabled={set.isPending}
-                onChange={(e) =>
-                  set.mutate({ tenant_id: c.tenant_id, channel_id: c.channel_id, agent_id: e.target.value || null })
-                }
+                onChange={(e) => set.mutate({ channel_id: c.channel_id, agent_id: e.target.value || null })}
               >
                 <option value="">{t("teamsApp.nobody")}</option>
                 {(agents.data ?? []).map((a) => (

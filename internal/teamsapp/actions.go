@@ -17,15 +17,14 @@ type ChannelRef struct {
 	Team      string `json:"team"`
 	Channel   string `json:"channel"`
 	ChannelID string `json:"channel_id"`
-	TenantID  string `json:"tenant_id"`
 	teamID    string
 	service   string
 }
 
-// Execute runs one of an agent's teamsapp actions. ACCESS, scope and guard
-// rails have been checked by the caller; what is checked here is the one
-// thing only this package can: that the conversation or channel is the
-// agent's organisation's. The connector host always comes from the records,
+// Execute runs one of an agent's teamsapp actions through its organisation's
+// bot. ACCESS, scope and guard rails have been checked by the caller; what is
+// checked here is the one thing only this package can: that the
+// conversation or channel is that bot's. The connector host always comes from the records,
 // never from params — an agent that passes a service_url is ignored.
 func (s *Service) Execute(ctx context.Context, agent agents.Agent, _ uuid.UUID, action string, params json.RawMessage) (any, error) {
 	if s == nil {
@@ -42,13 +41,17 @@ func (s *Service) Execute(ctx context.Context, agent agents.Agent, _ uuid.UUID, 
 			return nil, fmt.Errorf("teamsapp %s: %w", action, err)
 		}
 	}
+	b, err := s.BotOfOrg(ctx, agent.OrgID)
+	if err != nil {
+		return nil, err
+	}
 	switch action {
 	case "list_channels":
-		return s.channels(ctx, agent)
+		return s.channels(ctx, b)
 	case "reply":
-		return s.reply(ctx, agent, in.ConversationID, in.ReplyTo, in.Text)
+		return s.reply(ctx, b, agent, in.ConversationID, in.ReplyTo, in.Text)
 	case "post":
-		return s.post(ctx, agent, in.Channel, in.Text)
+		return s.post(ctx, b, agent, in.Channel, in.Text)
 	}
 	return nil, fmt.Errorf("teamsapp: unknown action %q (reply, list_channels, post)", action)
 }
@@ -63,18 +66,18 @@ func sender(a agents.Agent) string {
 // reply answers into a conversation of the organisation. A personal or
 // group chat is the colleague's it is bound to; a channel thread is open to
 // any colleague of the organisation, as the channel is.
-func (s *Service) reply(ctx context.Context, agent agents.Agent, convID, replyTo, text string) (any, error) {
+func (s *Service) reply(ctx context.Context, b Bot, agent agents.Agent, convID, replyTo, text string) (any, error) {
 	if strings.TrimSpace(convID) == "" || strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("teamsapp reply: conversation_id and text are required")
 	}
-	conv, err := s.Store.Conversation(ctx, agent.OrgID, convID)
+	conv, err := s.Store.Conversation(ctx, b.ID, convID)
 	if err != nil {
 		return nil, fmt.Errorf("teamsapp reply: %w — reply only in a conversation you were addressed in", err)
 	}
 	if conv.Kind != "channel" && (conv.AgentID == nil || *conv.AgentID != agent.ID) {
 		return nil, fmt.Errorf("teamsapp reply: this chat belongs to another colleague")
 	}
-	c, err := s.connector()
+	c, err := s.connector(b)
 	if err != nil {
 		return nil, err
 	}
@@ -85,21 +88,22 @@ func (s *Service) reply(ctx context.Context, agent agents.Agent, convID, replyTo
 	return map[string]string{"activity_id": res.ID, "conversation_id": conv.ConversationID}, nil
 }
 
-func (s *Service) channels(ctx context.Context, agent agents.Agent) ([]ChannelRef, error) {
-	return s.Channels(ctx, agent.OrgID)
-}
-
-// Channels lists the channels of every team the bot is installed in for the
-// organisation's tenants, fresh from Teams.
+// Channels lists the channels of every team the organisation's bot is
+// installed in, fresh from Teams.
 func (s *Service) Channels(ctx context.Context, orgID uuid.UUID) ([]ChannelRef, error) {
-	if s == nil {
-		return nil, errNoApp
-	}
-	teamsList, err := s.Store.Teams(ctx, orgID)
+	b, err := s.BotOfOrg(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
-	c, err := s.connector()
+	return s.channels(ctx, b)
+}
+
+func (s *Service) channels(ctx context.Context, b Bot) ([]ChannelRef, error) {
+	teamsList, err := s.Store.Teams(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	c, err := s.connector(b)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +116,7 @@ func (s *Service) Channels(ctx context.Context, orgID uuid.UUID) ([]ChannelRef, 
 		}
 		for _, ch := range chans {
 			out = append(out, ChannelRef{Team: t.Name, Channel: ch.Name, ChannelID: ch.ID,
-				TenantID: t.TenantID, teamID: t.TeamID, service: t.ServiceURL})
+				teamID: t.TeamID, service: t.ServiceURL})
 		}
 	}
 	return out, nil
@@ -120,12 +124,12 @@ func (s *Service) Channels(ctx context.Context, orgID uuid.UUID) ([]ChannelRef, 
 
 // post starts a thread in a channel of the organisation and binds it to the
 // agent, so a reply in the thread comes back to it.
-func (s *Service) post(ctx context.Context, agent agents.Agent, channel, text string) (any, error) {
+func (s *Service) post(ctx context.Context, b Bot, agent agents.Agent, channel, text string) (any, error) {
 	channel = strings.TrimSpace(channel)
 	if channel == "" || strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("teamsapp post: channel and text are required")
 	}
-	list, err := s.channels(ctx, agent)
+	list, err := s.channels(ctx, b)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +137,7 @@ func (s *Service) post(ctx context.Context, agent agents.Agent, channel, text st
 	if err != nil {
 		return nil, err
 	}
-	c, err := s.connector()
+	c, err := s.connector(b)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +146,7 @@ func (s *Service) post(ctx context.Context, agent agents.Agent, channel, text st
 		return nil, err
 	}
 	id := agent.ID
-	if err := s.Store.Bind(ctx, Conversation{TenantID: ch.TenantID, ConversationID: res.ID, Kind: "channel",
+	if err := s.Store.Bind(ctx, Conversation{BotID: b.ID, ConversationID: res.ID, Kind: "channel",
 		TeamID: ch.teamID, ChannelID: ch.ChannelID, AgentID: &id, ServiceURL: ch.service}); err != nil {
 		s.Log.Warn("teamsapp: posted thread not recorded", "conversation", res.ID, "err", err)
 	}

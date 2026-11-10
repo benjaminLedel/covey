@@ -116,6 +116,25 @@ func (a App) checkState(state, cookieNonce string) (statePayload, error) {
 	return p, nil
 }
 
+// PeekSubject reads the subject of a state WITHOUT checking it — for a flow
+// whose key depends on the subject (the bot named in it). Finish checks the
+// signature afterwards; nothing read here may be trusted before that.
+func PeekSubject(state string) (string, error) {
+	enc, _, ok := strings.Cut(state, ".")
+	if !ok {
+		return "", ErrState
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(enc)
+	if err != nil {
+		return "", ErrState
+	}
+	var p statePayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return "", ErrState
+	}
+	return p.Subject, nil
+}
+
 // Tokens is the token endpoint's answer.
 type Tokens struct {
 	AccessToken  string `json:"access_token"`
@@ -184,6 +203,13 @@ func (a App) OnBehalfOf(ctx context.Context, tenant, assertion, scope string) (T
 		"assertion":           {assertion},
 		"scope":               {scope},
 	})
+}
+
+// ClientCredentials asks for an app-only token in tenant: it answers whether
+// the app exists there and its secret is right. The token itself is dropped.
+func (a App) ClientCredentials(ctx context.Context, tenant, scope string) error {
+	_, err := a.tokenAt(ctx, tenant, url.Values{"grant_type": {"client_credentials"}, "scope": {scope}})
+	return err
 }
 
 // Refresh trades a refresh token for a fresh access token (and, usually, a

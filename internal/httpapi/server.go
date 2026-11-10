@@ -605,8 +605,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/teamsuser/delegate", s.rbac(manage, s.handleTeamsUserDelegate))
 	mux.Handle("DELETE /api/v1/teamsuser/delegations/{agent}", s.rbac(manage, s.handleTeamsUserRevoke))
 	mux.Handle("GET /api/v1/teamsapp", s.rbac(anyRole, s.handleTeamsAppStatus))
-	mux.Handle("POST /api/v1/teamsapp/link", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppLink))
-	mux.Handle("DELETE /api/v1/teamsapp/tenants/{tenant}", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppUnlink))
+	mux.Handle("PUT /api/v1/teamsapp/bot", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppSaveBot))
+	mux.Handle("DELETE /api/v1/teamsapp/bot", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppDeleteBot))
 	mux.Handle("GET /api/v1/teamsapp/channels", s.rbac(manage, s.handleTeamsAppChannels))
 	mux.Handle("PUT /api/v1/teamsapp/channel-agent", s.rbac(manage, s.handleTeamsAppChannelAgent))
 	mux.Handle("GET /api/v1/teamsapp/package", s.rbac(manage, s.handleTeamsAppPackage))
@@ -927,11 +927,9 @@ func (s *Server) Handler() http.Handler {
 	// rejected: a webhook that fails on the signature is the most common
 	// question when hooking up a target system.
 	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
-	// The installation's Teams app (#710): one endpoint for every
-	// organisation, routed by the Microsoft tenant; and the redirect back
-	// from the tenant link's sign-in.
-	mux.HandleFunc("POST /api/webhooks/teamsapp", s.logIncoming(s.handleTeamsAppWebhook))
-	mux.HandleFunc("GET /api/teamsapp/callback", s.handleTeamsAppCallback)
+	// An organisation's Teams bot (#710, #715): one messaging endpoint per
+	// bot.
+	mux.HandleFunc("POST /api/webhooks/teamsapp/{bot}", s.logIncoming(s.handleTeamsAppWebhook))
 	mux.HandleFunc("GET /api/teamsuser/callback", s.handleTeamsUserCallback)
 	mux.HandleFunc("GET /api/teamsapp/signin", s.handleTeamsAppPersonSignIn)
 	mux.HandleFunc("GET /api/teamsapp/person-callback", s.handleTeamsAppPersonCallback)
