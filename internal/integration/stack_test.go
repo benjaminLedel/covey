@@ -241,6 +241,9 @@ type stackOpts struct {
 	// staleAfter shortens the patience with a busy status nothing backs. Five
 	// minutes is right in production and is not a test.
 	staleAfter time.Duration
+	// platform builds the control-plane target systems (#710) once the
+	// stores exist, before the orchestrator does.
+	platform func(*stack) map[string]orchestrator.PlatformSystem
 }
 
 // tmpl is the migrated database every test database is copied from.
@@ -387,8 +390,13 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		readyTimeout = opts.readyTimeout
 	}
 
+	var platform map[string]orchestrator.PlatformSystem
+	if opts.platform != nil {
+		platform = opts.platform(s)
+	}
 	s.orch = orchestrator.New(orchestrator.Options{
-		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
+		Platform: platform,
+		Pool:     pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Chat: chat.New(pool), Org: org.NewStore(pool),
 		Targets:        s.targets,

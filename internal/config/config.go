@@ -193,6 +193,14 @@ type Config struct {
 	// "zammad,teams") — for local demo doubles that cannot sign. Without it a
 	// webhook with no secret configured is refused (#690).
 	UnsignedWebhooks map[string]bool
+	// TeamsApp is the installation's own Microsoft Teams app (#710): one bot
+	// registration, multi-tenant, serving every organisation here
+	// (COVEY_TEAMSAPP_APP_ID / COVEY_TEAMSAPP_APP_PASSWORD, optionally
+	// COVEY_TEAMSAPP_TOKEN_URL). Empty ID = no Teams app on this installation.
+	// The password stays in the control plane; no sandbox ever sees it.
+	TeamsAppID       string
+	TeamsAppPassword string
+	TeamsAppTokenURL string
 	// TickInterval is the dispatch loop's periodic "anything to do?" impulse.
 	TickInterval time.Duration
 
@@ -404,6 +412,9 @@ func FromEnv() (Config, error) {
 		S3PathStyle:          getenvBool("COVEY_S3_PATH_STYLE", true),
 		WebhookSecrets:       webhookSecretsFromEnv(),
 		UnsignedWebhooks:     unsignedWebhooksFromEnv(),
+		TeamsAppID:           strings.TrimSpace(os.Getenv("COVEY_TEAMSAPP_APP_ID")),
+		TeamsAppPassword:     os.Getenv("COVEY_TEAMSAPP_APP_PASSWORD"),
+		TeamsAppTokenURL:     strings.TrimSpace(os.Getenv("COVEY_TEAMSAPP_TOKEN_URL")),
 		TickInterval:         getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:              getenv("COVEY_DREAM_AT", "03:00"),
 		SessionTTL:           getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),

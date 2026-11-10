@@ -10,6 +10,11 @@ in [`../spec/15-teams-integration.md`](../../../spec/15-teams-integration.md); t
 document says **what concretely has to be done** — and where the limits for
 production use lie.
 
+> **One bot per agent is not the only way.** If agents should simply be
+> reachable in Teams and post into channels, without an Azure registration
+> each, use the installation's shared app: [Microsoft Teams (covey
+> app)](teams-app.md). This page is for agents with a bot of their own.
+
 > Short version: the adapter is already Bot Framework compatible (a
 > JWT-verified messaging endpoint, OAuth2 `client_credentials` against the bot
 > connector, `/v3/conversations` paths). These are essentially **configuration

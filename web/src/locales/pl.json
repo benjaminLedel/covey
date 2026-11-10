@@ -3632,5 +3632,33 @@
     "delete": "Usuń",
     "deleteTitle": "Usunąć „{{name}}”?",
     "deleteText": "Przepływ zniknie wraz ze wszystkimi wersjami, sprawami i ich historią. Tego nie da się cofnąć."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Jedna aplikacja covey dla całej organizacji: połącz Microsoft 365 raz, wgraj aplikację do Teams, a każdy współpracownik z dostępem do Teams będzie tam osiągalny i będzie mógł publikować na kanałach. Bez rejestracji Azure dla każdego agenta.",
+    "notLinked": "Jeszcze niepołączone z żadną organizacją Microsoft 365.",
+    "linkedTenant": "Połączono: dzierżawa Microsoft {{tenant}}",
+    "linkedBy": "przez {{who}}",
+    "unlink": "Rozłącz",
+    "connect": "Połącz Microsoft 365",
+    "connectAnother": "Połącz kolejną dzierżawę",
+    "noSiteURL": "Ta instalacja nie ma skonfigurowanego adresu strony, więc Microsoft nie może do niej wrócić.",
+    "package": "Pobierz pakiet aplikacji",
+    "showChannels": "Kanały",
+    "hideChannels": "Ukryj kanały",
+    "adminOnly": "Microsoft 365 łączy administrator organizacji.",
+    "howTo": "W Teams napisz bezpośrednio do aplikacji covey albo oznacz ją przez @ na kanale i zacznij od imienia współpracownika („@covey Vera, …”). Agenci potrzebują `- system: teamsapp scope: read,write` w swoim ACCESS.md.",
+    "loading": "Wczytywanie kanałów …",
+    "noChannels": "Brak kanałów. Dodaj aplikację do zespołu w Teams i raz ją tam oznacz.",
+    "channel": "Kanał",
+    "defaultAgent": "Trafia do, gdy nikt nie jest wymieniony",
+    "defaultAgentFor": "Współpracownik dla {{channel}}",
+    "nobody": "Nikt — zapytać, o kogo chodzi",
+    "outcome": {
+      "linked": "Microsoft 365 jest połączony.",
+      "taken": "Ta dzierżawa Microsoft jest już połączona z inną organizacją w tej instalacji.",
+      "not_admin": "Połączyć ją może tylko administrator Teams lub administrator globalny dzierżawy Microsoft.",
+      "error": "Połączenie nie powiodło się:"
+    }
   }
 }

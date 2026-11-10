@@ -3632,5 +3632,33 @@
     "delete": "Verwijderen",
     "deleteTitle": "“{{name}}” verwijderen?",
     "deleteText": "De workflow verdwijnt met alle versies, zaken en hun geschiedenis. Dit kan niet ongedaan worden gemaakt."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Eén covey-app voor de hele organisatie: koppel Microsoft 365 één keer, upload de app in Teams, en elke collega met Teams-toegang is daar bereikbaar en kan in kanalen posten. Geen Azure-registratie per agent.",
+    "notLinked": "Nog niet gekoppeld aan een Microsoft 365-organisatie.",
+    "linkedTenant": "Gekoppeld: Microsoft-tenant {{tenant}}",
+    "linkedBy": "door {{who}}",
+    "unlink": "Ontkoppelen",
+    "connect": "Microsoft 365 koppelen",
+    "connectAnother": "Nog een tenant koppelen",
+    "noSiteURL": "Voor deze installatie is geen siteadres ingesteld, dus Microsoft kan er niet naar terugkeren.",
+    "package": "App-pakket downloaden",
+    "showChannels": "Kanalen",
+    "hideChannels": "Kanalen verbergen",
+    "adminOnly": "Een organisatiebeheerder koppelt Microsoft 365.",
+    "howTo": "Schrijf in Teams rechtstreeks naar de covey-app, of @vermeld hem in een kanaal en begin met de naam van de collega (\"@covey Vera, …\"). Agents hebben `- system: teamsapp scope: read,write` nodig in hun ACCESS.md.",
+    "loading": "Kanalen laden …",
+    "noChannels": "Nog geen kanalen. Voeg de app in Teams toe aan een team en vermeld hem daar één keer.",
+    "channel": "Kanaal",
+    "defaultAgent": "Gaat naar, als niemand genoemd wordt",
+    "defaultAgentFor": "Collega voor {{channel}}",
+    "nobody": "Niemand — vragen wie bedoeld is",
+    "outcome": {
+      "linked": "Microsoft 365 is gekoppeld.",
+      "taken": "Deze Microsoft-tenant is al gekoppeld aan een andere organisatie op deze installatie.",
+      "not_admin": "Alleen een Teams- of globale beheerder van de Microsoft-tenant kan hem koppelen.",
+      "error": "Koppelen mislukt:"
+    }
   }
 }

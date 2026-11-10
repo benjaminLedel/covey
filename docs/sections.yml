@@ -55,6 +55,7 @@ sections:
       - nextcloud
       - sharepoint
       - teams
+      - teams-app
       - vulndb
       - zammad
       - zendesk

@@ -64,6 +64,8 @@ import (
 	"covey/internal/templates"
 	"covey/internal/voice"
 	"covey/internal/waitlist"
+	"covey/internal/teamsapp"
+	"covey/internal/teamsapp/teamsys"
 	"covey/internal/workflow"
 	"covey/internal/workflowhost"
 	orgworkplaces "covey/internal/workplaces"
@@ -1370,8 +1372,26 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// store and decides nothing about them itself.
 	runtimeStore := runtimes.New(pool, secretStore)
 
+	// The installation's own Teams app (#710). The system only exists where
+	// the app is configured, so an organisation never finds a connector in
+	// its store that cannot work here.
+	teamsApp := teamsapp.New(pool, registry, teamsapp.Config{
+		AppID: cfg.TeamsAppID, AppPassword: cfg.TeamsAppPassword, TokenURL: cfg.TeamsAppTokenURL,
+	}, log)
+	platform := map[string]orchestrator.PlatformSystem{}
+	if teamsApp != nil {
+		teamsys.Register()
+		teamsApp.Enabled = func(ctx context.Context, orgID uuid.UUID) bool {
+			_, err := targets.System(ctx, orgID, teamsys.Name)
+			return err == nil
+		}
+		platform[teamsys.Name] = teamsApp
+		log.Info("teams app active", "app_id", cfg.TeamsAppID)
+	}
+
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"
 	orch := orchestrator.New(orchestrator.Options{
+		Platform: platform,
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Chat: chat.New(pool), Org: org.NewStore(pool),
@@ -1505,6 +1525,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Orch:      orch, WebFS: dist, Log: log,
 		WebhookSecrets:   cfg.WebhookSecrets,
 		UnsignedWebhooks: cfg.UnsignedWebhooks,
+		TeamsApp:         teamsApp,
 		SessionTTL:       cfg.SessionTTL,
 		SiteURL:          cfg.SiteURL,
 		CookieSecure:     cfg.CookieSecure,

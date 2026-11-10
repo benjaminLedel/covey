@@ -3632,5 +3632,33 @@
     "delete": "Supprimer",
     "deleteTitle": "Supprimer « {{name}} » ?",
     "deleteText": "Le flux disparaît avec toutes ses versions, ses dossiers et leur historique. Impossible de revenir en arrière."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Une seule app covey pour toute l'organisation : connectez Microsoft 365 une fois, importez l'app dans Teams, et chaque collègue ayant accès à Teams peut y être contacté et publier dans les canaux. Aucun enregistrement Azure par agent.",
+    "notLinked": "Pas encore connecté à une organisation Microsoft 365.",
+    "linkedTenant": "Connecté : tenant Microsoft {{tenant}}",
+    "linkedBy": "par {{who}}",
+    "unlink": "Déconnecter",
+    "connect": "Connecter Microsoft 365",
+    "connectAnother": "Connecter un autre tenant",
+    "noSiteURL": "Aucune adresse de site n'est configurée pour cette installation ; Microsoft ne peut pas y revenir.",
+    "package": "Télécharger le paquet de l'app",
+    "showChannels": "Canaux",
+    "hideChannels": "Masquer les canaux",
+    "adminOnly": "Un administrateur de l'organisation connecte Microsoft 365.",
+    "howTo": "Dans Teams, écrivez directement à l'app covey, ou mentionnez-la avec @ dans un canal en commençant par le nom du collègue (« @covey Vera, … »). Les agents ont besoin de `- system: teamsapp scope: read,write` dans leur ACCESS.md.",
+    "loading": "Chargement des canaux …",
+    "noChannels": "Aucun canal pour l'instant. Ajoutez l'app à une équipe dans Teams, puis mentionnez-la une fois.",
+    "channel": "Canal",
+    "defaultAgent": "Va à, si personne n'est nommé",
+    "defaultAgentFor": "Collègue pour {{channel}}",
+    "nobody": "Personne — demander qui est visé",
+    "outcome": {
+      "linked": "Microsoft 365 est connecté.",
+      "taken": "Ce tenant Microsoft est déjà connecté à une autre organisation sur cette installation.",
+      "not_admin": "Seul un administrateur Teams ou global du tenant Microsoft peut le connecter.",
+      "error": "Échec de la connexion :"
+    }
   }
 }
