@@ -74,17 +74,19 @@ func (s *Service) OfferLink(ctx context.Context, a teams.Activity, link string) 
 
 const personLinkTTL = time.Hour
 
-func (s *Service) personKey() []byte {
-	k := sha256.Sum256([]byte("covey teamsapp person link\x00" + s.cfg.AppPassword))
-	return k[:]
+// personMAC signs a sign-in link with the app's client secret as the HMAC
+// key.
+func (s *Service) personMAC(raw []byte) string {
+	m := hmac.New(sha256.New, []byte(s.cfg.AppPassword))
+	m.Write([]byte("covey teamsapp person link\x00"))
+	m.Write(raw)
+	return hex.EncodeToString(m.Sum(nil))
 }
 
 // PersonLinkToken signs (tenant, person) for the browser sign-in link.
 func (s *Service) PersonLinkToken(tenant, oid string) string {
 	payload := tenant + "|" + oid + "|" + strconv.FormatInt(time.Now().Add(personLinkTTL).Unix(), 10)
-	mac := hmac.New(sha256.New, s.personKey())
-	mac.Write([]byte(payload))
-	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + hex.EncodeToString(mac.Sum(nil))
+	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + s.personMAC([]byte(payload))
 }
 
 // ErrPersonLink: the sign-in link is forged or expired.
@@ -100,9 +102,7 @@ func (s *Service) CheckPersonLink(tok string) (tenant, oid string, err error) {
 	if err != nil {
 		return "", "", ErrPersonLink
 	}
-	mac := hmac.New(sha256.New, s.personKey())
-	mac.Write(raw)
-	if !hmac.Equal([]byte(sig), []byte(hex.EncodeToString(mac.Sum(nil)))) {
+	if !hmac.Equal([]byte(sig), []byte(s.personMAC(raw))) {
 		return "", "", ErrPersonLink
 	}
 	parts := strings.Split(string(raw), "|")

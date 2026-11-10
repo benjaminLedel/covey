@@ -204,15 +204,14 @@ func (s *Server) handleTeamsAppPersonSignIn(w http.ResponseWriter, r *http.Reque
 		mapErr(w, err)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: teamsuser.Cookie + "_person", Value: nonce, Path: "/api/teamsapp/person-callback",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: int(msauth.TTL.Seconds())})
+	s.flowCookie(w, teamsuser.Cookie+"_person", nonce, "/api/teamsapp/person-callback", int(msauth.TTL.Seconds()))
 	http.Redirect(w, r, signIn, http.StatusSeeOther)
 }
 
 // handleTeamsAppPersonCallback — GET /api/teamsapp/person-callback.
 func (s *Server) handleTeamsAppPersonCallback(w http.ResponseWriter, r *http.Request) {
 	page := func(status int, text string) {
-		http.SetCookie(w, &http.Cookie{Name: teamsuser.Cookie + "_person", Value: "", Path: "/api/teamsapp/person-callback", MaxAge: -1})
+		s.flowCookie(w, teamsuser.Cookie+"_person", "", "/api/teamsapp/person-callback", -1)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>" +
@@ -310,8 +309,7 @@ func (s *Server) handleTeamsAppLink(w http.ResponseWriter, r *http.Request) {
 	// Lax, not Strict like the session: the callback is a top-level
 	// navigation coming back from Microsoft, and a Strict cookie would not
 	// travel with it.
-	http.SetCookie(w, &http.Cookie{Name: teamsapp.LinkCookie, Value: nonce, Path: "/api/teamsapp/callback",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: int((15 * time.Minute).Seconds())})
+	s.flowCookie(w, teamsapp.LinkCookie, nonce, "/api/teamsapp/callback", int((15 * time.Minute).Seconds()))
 	writeJSON(w, http.StatusOK, map[string]string{"url": signIn})
 }
 
@@ -320,7 +318,7 @@ func (s *Server) handleTeamsAppLink(w http.ResponseWriter, r *http.Request) {
 // way, carrying the outcome.
 func (s *Server) handleTeamsAppCallback(w http.ResponseWriter, r *http.Request) {
 	back := func(outcome, detail string) {
-		http.SetCookie(w, &http.Cookie{Name: teamsapp.LinkCookie, Value: "", Path: "/api/teamsapp/callback", MaxAge: -1})
+		s.flowCookie(w, teamsapp.LinkCookie, "", "/api/teamsapp/callback", -1)
 		q := url.Values{"teams": {outcome}}
 		if detail != "" {
 			q.Set("detail", detail)

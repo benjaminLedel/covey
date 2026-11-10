@@ -70,15 +70,14 @@ func (s *Server) handleTeamsUserDelegate(w http.ResponseWriter, r *http.Request)
 		mapErr(w, err)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: teamsuser.Cookie, Value: nonce, Path: "/api/teamsuser/callback",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: int(msauth.TTL.Seconds())})
+	s.flowCookie(w, teamsuser.Cookie, nonce, "/api/teamsuser/callback", int(msauth.TTL.Seconds()))
 	writeJSON(w, http.StatusOK, map[string]string{"url": signIn})
 }
 
 // handleTeamsUserCallback — GET /api/teamsuser/callback.
 func (s *Server) handleTeamsUserCallback(w http.ResponseWriter, r *http.Request) {
 	back := func(outcome, detail string) {
-		http.SetCookie(w, &http.Cookie{Name: teamsuser.Cookie, Value: "", Path: "/api/teamsuser/callback", MaxAge: -1})
+		s.flowCookie(w, teamsuser.Cookie, "", "/api/teamsuser/callback", -1)
 		q := url.Values{"teamsuser": {outcome}}
 		if detail != "" {
 			q.Set("detail", detail)
@@ -146,4 +145,14 @@ func (s *Server) handleTeamsUserRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// flowCookie sets (or, with maxAge -1, clears) the cookie that binds a
+// Microsoft sign-in to the browser that started it. Always HttpOnly, Secure
+// as the session cookie is, and Lax rather than Strict: the callback is a
+// top-level navigation back from Microsoft, which a Strict cookie would not
+// travel with.
+func (s *Server) flowCookie(w http.ResponseWriter, name, value, path string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: path,
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge})
 }

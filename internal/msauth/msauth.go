@@ -52,9 +52,14 @@ func (a App) base() string {
 	return "https://login.microsoftonline.com"
 }
 
-func (a App) key() []byte {
-	k := sha256.Sum256([]byte("covey msauth state\x00" + a.Purpose + "\x00" + a.Secret))
-	return k[:]
+// mac signs a state with the app's client secret as the HMAC key; the
+// purpose goes into the message, so a state minted for one flow never
+// verifies at another.
+func (a App) mac(raw []byte) string {
+	m := hmac.New(sha256.New, []byte(a.Secret))
+	m.Write([]byte("covey msauth state\x00" + a.Purpose + "\x00"))
+	m.Write(raw)
+	return hex.EncodeToString(m.Sum(nil))
 }
 
 type statePayload struct {
@@ -73,9 +78,7 @@ func (a App) Start(subject, redirectURI, scope string) (signIn, nonce string, er
 	}
 	nonce = base64.RawURLEncoding.EncodeToString(b)
 	raw, _ := json.Marshal(statePayload{Subject: subject, Expires: time.Now().Add(TTL).Unix(), Nonce: nonce})
-	mac := hmac.New(sha256.New, a.key())
-	mac.Write(raw)
-	state := base64.RawURLEncoding.EncodeToString(raw) + "." + hex.EncodeToString(mac.Sum(nil))
+	state := base64.RawURLEncoding.EncodeToString(raw) + "." + a.mac(raw)
 	q := url.Values{
 		"client_id":     {a.ClientID},
 		"response_type": {"code"},
@@ -100,9 +103,7 @@ func (a App) checkState(state, cookieNonce string) (statePayload, error) {
 	if err != nil {
 		return statePayload{}, ErrState
 	}
-	mac := hmac.New(sha256.New, a.key())
-	mac.Write(raw)
-	if !hmac.Equal([]byte(sig), []byte(hex.EncodeToString(mac.Sum(nil)))) {
+	if !hmac.Equal([]byte(sig), []byte(a.mac(raw))) {
 		return statePayload{}, ErrState
 	}
 	var p statePayload
