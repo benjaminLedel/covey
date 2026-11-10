@@ -12,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"covey/internal/msauth"
 	"covey/internal/orchestrator"
-	"covey/internal/secrets/sealbox"
 	"covey/internal/teamsuser"
 	"covey/internal/teamsuser/usersys"
 
@@ -30,6 +28,7 @@ import (
 // fakeEntra answers the on-behalf-of grant and Graph for two people.
 type fakeEntra struct {
 	srv   *httptest.Server
+	app   string // the delegation app's client ID
 	mu    sync.Mutex
 	posts []string // "auth body"
 	// whoami maps an access token to the object id Graph reports.
@@ -44,7 +43,7 @@ func newFakeEntra(t *testing.T) *fakeEntra {
 		if strings.HasSuffix(r.URL.Path, "/oauth2/v2.0/token") {
 			_ = r.ParseForm()
 			person := strings.TrimPrefix(r.Form.Get("assertion"), "sso-")
-			if r.Form.Get("requested_token_use") != "on_behalf_of" || person == "" || r.Form.Get("client_id") != "app" {
+			if r.Form.Get("requested_token_use") != "on_behalf_of" || person == "" || r.Form.Get("client_id") != f.app {
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte(`{"error_description":"consent required"}`))
 				return
@@ -87,17 +86,14 @@ func (f *fakeEntra) count() int {
 
 func TestTeamsAgentWorksAsTheWriter(t *testing.T) {
 	usersys.Register()
-	key, _ := sealbox.GenerateMasterKey()
-	box, _ := sealbox.New(key)
 	entra := newFakeEntra(t)
 	var people *teamsuser.Service
-	ts := newTeamsAppStackWith(t, func(s *stack, m map[string]orchestrator.PlatformSystem) {
-		people = teamsuser.New(s.pool, box, teamsuser.Config{
-			GraphBase: entra.srv.URL + "/v1.0",
-			SSO:       &msauth.App{ClientID: "app", Secret: "pw", LoginBase: entra.srv.URL, Purpose: "teamsapp-person"},
-		}, nil)
+	ts := newTeamsAppStackWith(t, func(ts *teamsAppStack, s *stack, m map[string]orchestrator.PlatformSystem) {
+		people = teamsuser.New(s.pool, ts.box, ts.svc, nil)
+		people.GraphBase = entra.srv.URL + "/v1.0"
 		m[usersys.Name] = people
 	})
+	ts.svc.LoginBase = entra.srv.URL
 	ts.svc.People = people
 	ts.svc.ActsAsPerson = func(ctx context.Context, a agents.Agent) bool {
 		ok, _ := ts.registry.HasAccess(ctx, a.ID, usersys.Name, "")
@@ -106,6 +102,7 @@ func TestTeamsAgentWorksAsTheWriter(t *testing.T) {
 	ts.srv.TeamsUser = people
 	ctx := context.Background()
 	org := ts.org(ts.orgID, "tenant-a")
+	entra.app = ts.bots[org].AppID
 	if err := ts.targets.SetEnabled(ctx, org, usersys.Name, true); err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +127,9 @@ func TestTeamsAgentWorksAsTheWriter(t *testing.T) {
 			"conversation": map[string]any{"id": "19:group", "tenantId": "tenant-a"},
 			"value":        map[string]any{"id": "x", "connectionName": "covey", "token": token}}
 		body, _ := json.Marshal(a)
-		req, _ := http.NewRequest(http.MethodPost, ts.http.URL+"/api/webhooks/teamsapp", bytes.NewReader(body))
-		req.Header.Set("Authorization", "Bearer valid")
+		b := ts.bots[org]
+		req, _ := http.NewRequest(http.MethodPost, ts.http.URL+"/api/webhooks/teamsapp/"+b.ID.String(), bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer valid-"+b.AppID)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -144,7 +142,7 @@ func TestTeamsAgentWorksAsTheWriter(t *testing.T) {
 	}
 
 	// Ada writes, has not signed in: no work yet, a sign-in card instead.
-	if _, out := ts.deliver(msg("a1", "oid-ada", action("for Ada")), "Bearer valid"); !strings.Contains(out, "sign_in_requested") {
+	if _, out := ts.deliver(org, msg("a1", "oid-ada", action("for Ada")), "valid"); !strings.Contains(out, "sign_in_requested") {
 		t.Fatalf("expected a sign-in request, got %s", out)
 	}
 	if n := len(tasksOf(t, ts.stack, vera.ID)); n != 0 {
@@ -166,7 +164,7 @@ func TestTeamsAgentWorksAsTheWriter(t *testing.T) {
 	waitFor(t, "Ada's message sent with Ada's token", 20*time.Second, func() bool { return entra.sent("ada-access", "for Ada") })
 
 	// Bo writes next, signs in, and his message runs as Bo.
-	if _, out := ts.deliver(msg("b1", "oid-bo", action("for Bo")), "Bearer valid"); !strings.Contains(out, "sign_in_requested") {
+	if _, out := ts.deliver(org, msg("b1", "oid-bo", action("for Bo")), "valid"); !strings.Contains(out, "sign_in_requested") {
 		t.Fatalf("Bo: %s", out)
 	}
 	if code := exchange("oid-bo", "sso-bo"); code != http.StatusOK {
@@ -178,7 +176,7 @@ func TestTeamsAgentWorksAsTheWriter(t *testing.T) {
 	}
 
 	// Ada again, already signed in: straight to work, as Ada.
-	if _, out := ts.deliver(msg("a2", "oid-ada", action("again Ada")), "Bearer valid"); !strings.Contains(out, "created") && !strings.Contains(out, "correlated") {
+	if _, out := ts.deliver(org, msg("a2", "oid-ada", action("again Ada")), "valid"); !strings.Contains(out, "created") && !strings.Contains(out, "correlated") {
 		t.Fatalf("Ada again: %s", out)
 	}
 	waitFor(t, "Ada's second message", 20*time.Second, func() bool { return entra.sent("ada-access", "again Ada") })

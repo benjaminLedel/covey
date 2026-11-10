@@ -18,7 +18,6 @@ import (
 
 	"covey/internal/msauth"
 	"covey/internal/orchestrator"
-	"covey/internal/secrets/sealbox"
 	"covey/internal/teamsuser"
 	"covey/internal/teamsuser/usersys"
 )
@@ -29,6 +28,7 @@ import (
 
 type fakeMicrosoft struct {
 	srv      *httptest.Server
+	aud      string // the app ID ID tokens are issued for
 	mu       sync.Mutex
 	nonce    string
 	refresh  string // the refresh token currently valid
@@ -60,7 +60,7 @@ func newFakeMicrosoft(t *testing.T) *fakeMicrosoft {
 			}
 			f.issued++
 			f.refresh = "refresh-" + string(rune('0'+f.issued))
-			claims, _ := json.Marshal(map[string]any{"aud": "user-app", "tid": "tenant-a", "nonce": f.nonce,
+			claims, _ := json.Marshal(map[string]any{"aud": f.aud, "tid": "tenant-a", "nonce": f.nonce,
 				"preferred_username": "ada@example.org"})
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "access-" + string(rune('0'+f.issued)), "refresh_token": f.refresh, "expires_in": 3600,
@@ -95,18 +95,18 @@ func (f *fakeMicrosoft) graphCalls(prefix string) []string {
 	return out
 }
 
-func newUserService(t *testing.T, s *stack, ms *fakeMicrosoft, box *sealbox.Box) *teamsuser.Service {
-	svc := teamsuser.New(s.pool, box, teamsuser.Config{AppID: "user-app", AppPassword: "pw",
-		LoginBase: ms.srv.URL, GraphBase: ms.srv.URL + "/v1.0"}, nil)
+func newUserService(t *testing.T, ts *teamsAppStack, ms *fakeMicrosoft) *teamsuser.Service {
+	svc := teamsuser.New(ts.pool, ts.box, ts.svc, nil)
 	if svc == nil {
 		t.Fatal("service not built")
 	}
+	svc.GraphBase = ms.srv.URL + "/v1.0"
 	return svc
 }
 
 func delegate(t *testing.T, svc *teamsuser.Service, ms *fakeMicrosoft, org, agent, human uuid.UUID) {
 	t.Helper()
-	u, nonce, err := svc.Start(org, agent, human, "https://covey.example.org/api/teamsuser/callback")
+	u, nonce, err := svc.Start(context.Background(), org, agent, human, "https://covey.example.org/api/teamsuser/callback")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,15 +124,17 @@ func delegate(t *testing.T, svc *teamsuser.Service, ms *fakeMicrosoft, org, agen
 
 func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 	usersys.Register()
-	key, _ := sealbox.GenerateMasterKey()
-	box, _ := sealbox.New(key)
 	ms := newFakeMicrosoft(t)
 	var svc *teamsuser.Service
-	ts := newTeamsAppStackWith(t, func(s *stack, m map[string]orchestrator.PlatformSystem) {
-		svc = newUserService(t, s, ms, box)
+	ts := newTeamsAppStackWith(t, func(ts *teamsAppStack, s *stack, m map[string]orchestrator.PlatformSystem) {
+		svc = teamsuser.New(s.pool, ts.box, ts.svc, nil)
+		svc.GraphBase = ms.srv.URL + "/v1.0"
 		m[usersys.Name] = svc
 	})
+	ts.svc.LoginBase = ms.srv.URL
 	ctx := context.Background()
+	ts.org(ts.orgID, "tenant-a")
+	ms.aud = ts.bots[ts.orgID].AppID
 	if err := ts.targets.SetEnabled(ctx, ts.orgID, usersys.Name, true); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +144,7 @@ func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 	ts.ohneLaeufe(paula.ID)
 
 	// A sign-in finished in another browser binds nothing.
-	u, nonce, _ := svc.Start(ts.orgID, vera.ID, ts.adminID, "cb")
+	u, nonce, _ := svc.Start(ctx, ts.orgID, vera.ID, ts.adminID, "cb")
 	pu, _ := url.Parse(u)
 	ms.nonce = nonce
 	if _, _, err := svc.Finish(ctx, pu.Query().Get("state"), "other-browser", "the-code", "cb"); !errors.Is(err, msauth.ErrState) {
@@ -189,7 +191,7 @@ func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 	// A fresh process refreshes, and stores the rotated refresh token: two
 	// restarts in a row both still work.
 	for i := 0; i < 2; i++ {
-		fresh := newUserService(t, ts.stack, ms, box)
+		fresh := newUserService(t, ts, ms)
 		if _, err := fresh.Execute(ctx, vera, uuid.Nil, "list_chats", nil); err != nil {
 			t.Fatalf("after restart %d: %v", i+1, err)
 		}

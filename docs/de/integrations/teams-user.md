@@ -4,37 +4,23 @@ title: Microsoft Teams als Person
 description: Eine Person lässt einen Agenten per delegiertem Zugriff in ihrem eigenen Teams arbeiten – er liest ihre Chats und Kanäle und schreibt in ihrem Namen, markiert als vom Agenten gesendet. Proof of Concept.
 ---
 
-Ein Runbook für den Konnektor `teamsuser` (Proof of Concept). Während die
-[covey-App](teams-app.md) ein Bot ist, dem man schreibt, lässt dieser
-Konnektor **eine Person einem Agenten ihr eigenes Teams überlassen**: Der
+Ein Runbook für den Konnektor `teamsuser`. Mit dem [Organisations-Bot](teams-app.md)
+arbeitet ein Agent, der ihn hat, als **die Person, die ihm schreibt**
+(Abschnitt 4 dort). Diese Seite beschreibt den zweiten Weg: **Eine Person
+überlässt einem Agenten ihr eigenes Teams** für Läufe, die keine
+Teams-Nachricht ausgelöst hat (Herzschlag, geplante Zusammenfassung): Der
 Agent liest die Chats und Kanäle, in denen diese Person ist, und antwortet
 oder postet in ihrem Namen. Er sieht genau, was die Person sieht, nicht mehr.
 Entwurf: [`spec/15`](../../../spec/15-teams-integration.md), Abschnitt „Teams
 as a person".
 
-## 1. Einmal pro Installation: die App-Registrierung
+## 1. Voraussetzung: der Bot der Organisation
 
-Eine eigene Registrierung, nicht die des Teams-Bots.
-
-1. **Entra ID → App-Registrierungen → Neue Registrierung**,
-   mehrinstanzenfähig. Umleitungs-URI (Web):
-   `https://<ihr covey>/api/teamsuser/callback`.
-2. **API-Berechtigungen → Microsoft Graph → Delegiert:** `offline_access`,
-   `User.Read`, `Chat.ReadWrite`, `ChatMessage.Send`, `Team.ReadBasic.All`,
-   `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMessage.Send`.
-   `ChannelMessage.Read.All` braucht in jedem Tenant die Zustimmung einer
-   Administration.
-3. **Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel.**
-4. Auf der Control Plane:
-
-   ```sh
-   COVEY_TEAMSUSER_APP_ID=<Anwendungs-ID (Client)>
-   COVEY_TEAMSUSER_APP_PASSWORD=<geheimer Clientschlüssel>
-   COVEY_SITE_URL=https://<ihr covey>
-   ```
-
-   Die Tokens werden mit dem Master-Key versiegelt; ohne ihn wird der
-   Konnektor nicht angeboten.
+Delegierter Zugriff läuft über den [Teams-Bot](teams-app.md) Ihrer
+Organisation – seine App-Registrierung oder die daneben eingetragene
+Delegations-App. Die delegierten Graph-Rechte und die Umleitungs-URI werden
+dort eingerichtet, wie in Abschnitt 4 jener Seite beschrieben. Auf dem Server
+wird nichts konfiguriert.
 
 ## 2. Pro Person: verbinden
 

@@ -1,7 +1,15 @@
-// Package teamsuser lets a person hand an agent their own Teams (#712, proof
-// of concept): delegated Microsoft Graph access, granted by the person
-// signing in, stored sealed per agent, used only in the control plane and
-// only for the agent it was granted to.
+// Package teamsuser lets an agent act in Teams with a person's own access
+// (#712, #713): delegated Microsoft Graph access through the organisation's
+// bot registration (#715) — or the app registration it configured for
+// delegation. Tokens are sealed with the master key, used only in the
+// control plane, and only for the work they were granted for.
+//
+// Two ways a token comes to be used:
+//
+//   - The person who wrote: a task a Teams message started runs with the
+//     writer's token (people.go), obtained by single sign-on in the chat.
+//   - A per-agent delegation: a person connects their Teams to one agent
+//     from covey's interface, for runs no Teams message started.
 package teamsuser
 
 import (
@@ -20,6 +28,7 @@ import (
 
 	"covey/internal/msauth"
 	"covey/internal/secrets/sealbox"
+	"covey/internal/teamsapp"
 )
 
 // Scope is what a person grants: their chats, the teams and channels they
@@ -30,41 +39,25 @@ const Scope = "openid profile offline_access User.Read Chat.ReadWrite ChatMessag
 // Cookie carries the nonce of a delegation in progress.
 const Cookie = "covey_teamsuser_grant"
 
-var (
-	// ErrNoDelegation: nobody has connected their Teams to this agent.
-	ErrNoDelegation = errors.New("teamsuser: nobody has connected their Teams to this agent")
-	errNoApp        = errors.New("teamsuser: no app configured on this installation")
-)
+// ErrNoDelegation: nobody has connected their Teams to this agent.
+var ErrNoDelegation = errors.New("teamsuser: nobody has connected their Teams to this agent")
 
-// Config is the app registration for delegated access — a registration of
-// its own, beside the installation's Teams bot.
-type Config struct {
-	AppID       string
-	AppPassword string
-	LoginBase   string
-	// GraphBase is Microsoft Graph; empty: https://graph.microsoft.com/v1.0.
-	GraphBase string
-	// SSO is the installation's Teams app, through which the person writing
-	// to the bot signs in (#713). nil: only per-agent delegations.
-	SSO *msauth.App
-}
-
-// Service holds the delegations.
+// Service holds the tokens.
 type Service struct {
 	Pool *pgxpool.Pool
 	Box  *sealbox.Box
+	// Bots resolves an organisation's bot and its delegation app.
+	Bots *teamsapp.Service
 	Log  *slog.Logger
 	HTTP *http.Client
+	// GraphBase is Microsoft Graph; empty: https://graph.microsoft.com/v1.0.
+	GraphBase string
 
-	cfg Config
-	mu  sync.Mutex
-	// access caches a person's short-lived access token per organisation and
-	// agent — the organisation in the key as well, so a cache hit never
-	// answers a question the database would have refused.
+	mu sync.Mutex
+	// access caches a per-agent delegation's access token by organisation
+	// and agent; people a writer's by "bot|oid".
 	access map[[2]uuid.UUID]cached
-	// people caches a person's access token by "tenant|oid".
 	people map[string]cached
-	sso    *msauth.App
 }
 
 type cached struct {
@@ -72,37 +65,35 @@ type cached struct {
 	until time.Time
 }
 
-// New builds the service, or nil when the installation has no app for it or
-// no master key to seal tokens with.
-func New(pool *pgxpool.Pool, box *sealbox.Box, cfg Config, log *slog.Logger) *Service {
-	own := strings.TrimSpace(cfg.AppID) != "" && strings.TrimSpace(cfg.AppPassword) != ""
-	if (!own && cfg.SSO == nil) || box == nil {
+// New builds the service; nil without the bots it delegates through.
+func New(pool *pgxpool.Pool, box *sealbox.Box, bots *teamsapp.Service, log *slog.Logger) *Service {
+	if box == nil || bots == nil {
 		return nil
-	}
-	if !own {
-		cfg.AppID, cfg.AppPassword = "", ""
 	}
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{Pool: pool, Box: box, Log: log, cfg: cfg,
-		HTTP: &http.Client{Timeout: 20 * time.Second}, access: map[[2]uuid.UUID]cached{},
-		people: map[string]cached{}, sso: cfg.SSO}
-}
-
-// OwnApp: the per-agent delegation (#712) has an app registration.
-func (s *Service) OwnApp() bool { return s != nil && s.cfg.AppID != "" }
-
-func (s *Service) auth() msauth.App {
-	return msauth.App{ClientID: s.cfg.AppID, Secret: s.cfg.AppPassword, LoginBase: s.cfg.LoginBase, Purpose: "teamsuser-grant"}
+	return &Service{Pool: pool, Box: box, Bots: bots, Log: log,
+		HTTP:   &http.Client{Timeout: 20 * time.Second},
+		access: map[[2]uuid.UUID]cached{}, people: map[string]cached{}}
 }
 
 func (s *Service) graph() string {
-	if g := strings.TrimRight(strings.TrimSpace(s.cfg.GraphBase), "/"); g != "" {
+	if g := strings.TrimRight(strings.TrimSpace(s.GraphBase), "/"); g != "" {
 		return g
 	}
 	return "https://graph.microsoft.com/v1.0"
 }
+
+func until(tok msauth.Tokens) time.Time {
+	ttl := tok.ExpiresIn
+	if ttl < 120 {
+		ttl = 3600
+	}
+	return time.Now().Add(time.Duration(ttl-60) * time.Second)
+}
+
+// --- Per-agent delegation (#712) ---
 
 // Delegation is one person's grant to one agent.
 type Delegation struct {
@@ -112,30 +103,46 @@ type Delegation struct {
 	Since   time.Time  `json:"since"`
 }
 
-// subject is what the signed state carries: which organisation, agent and
-// person the sign-in is for.
 func subject(org, agent, human uuid.UUID) string {
 	return org.String() + "|" + agent.String() + "|" + human.String()
 }
 
-// Start begins a delegation of the signed-in person's Teams to an agent.
-// The caller has checked that the agent belongs to the organisation and that
-// the person may manage it.
-func (s *Service) Start(org, agent, human uuid.UUID, redirectURI string) (signIn, nonce string, err error) {
-	if s == nil || s.cfg.AppID == "" {
-		return "", "", errNoApp
-	}
-	return s.auth().Start(subject(org, agent, human), redirectURI, Scope)
+func grantApp(ref teamsapp.DelegationRef) msauth.App {
+	app := ref.App
+	app.Purpose = "teamsuser-grant:" + ref.BotID.String()
+	return app
 }
 
-// Finish completes it: the code becomes a refresh token, sealed under the
-// agent's id and stored. A second delegation to the same agent replaces the
-// first — one person per agent in the proof of concept.
-func (s *Service) Finish(ctx context.Context, state, cookieNonce, code, redirectURI string) (uuid.UUID, string, error) {
-	if s == nil || s.cfg.AppID == "" {
-		return uuid.Nil, "", errNoApp
+// Start begins a delegation of the signed-in person's Teams to an agent,
+// through the organisation's delegation app. The caller has checked that the
+// agent belongs to the organisation and the person may manage it.
+func (s *Service) Start(ctx context.Context, org, agent, human uuid.UUID, redirectURI string) (signIn, nonce string, err error) {
+	ref, err := s.Bots.DelegationFor(ctx, org)
+	if err != nil {
+		return "", "", err
 	}
-	sub, tok, claims, err := s.auth().Finish(ctx, state, cookieNonce, code, redirectURI, Scope)
+	return grantApp(ref).Start(subject(org, agent, human), redirectURI, Scope)
+}
+
+// Finish completes it: the refresh token is sealed under the agent's id and
+// stored. A second delegation to the same agent replaces the first.
+func (s *Service) Finish(ctx context.Context, state, cookieNonce, code, redirectURI string) (uuid.UUID, string, error) {
+	// The organisation's app is the state's key, and the organisation is
+	// named inside it: read it unchecked, then let that app verify.
+	peek, err := msauth.PeekSubject(state)
+	if err != nil {
+		return uuid.Nil, "", err
+	}
+	orgPart, _, _ := strings.Cut(peek, "|")
+	org, err := uuid.Parse(orgPart)
+	if err != nil {
+		return uuid.Nil, "", msauth.ErrState
+	}
+	ref, err := s.Bots.DelegationFor(ctx, org)
+	if err != nil {
+		return uuid.Nil, "", msauth.ErrState
+	}
+	sub, tok, claims, err := grantApp(ref).Finish(ctx, state, cookieNonce, code, redirectURI, Scope)
 	if err != nil {
 		return uuid.Nil, "", err
 	}
@@ -143,10 +150,10 @@ func (s *Service) Finish(ctx context.Context, state, cookieNonce, code, redirect
 	if len(parts) != 3 {
 		return uuid.Nil, "", msauth.ErrState
 	}
-	org, e1 := uuid.Parse(parts[0])
+	sOrg, e1 := uuid.Parse(parts[0])
 	agent, e2 := uuid.Parse(parts[1])
 	human, e3 := uuid.Parse(parts[2])
-	if e1 != nil || e2 != nil || e3 != nil {
+	if e1 != nil || e2 != nil || e3 != nil || sOrg != org {
 		return uuid.Nil, "", msauth.ErrState
 	}
 	if tok.RefreshToken == "" {
@@ -156,8 +163,6 @@ func (s *Service) Finish(ctx context.Context, state, cookieNonce, code, redirect
 	if err != nil {
 		return agent, "", err
 	}
-	// The agent must still be the organisation's: the state was signed when
-	// the sign-in started, the agent could have moved or gone since.
 	tag, err := s.Pool.Exec(ctx, `INSERT INTO teamsuser_delegations
 		  (agent_id, org_id, human_id, ms_user, tenant_id, nonce, ciphertext)
 		SELECT $1, $2, $3, $4, $5, $6, $7 WHERE EXISTS (SELECT 1 FROM agents WHERE id = $1 AND org_id = $2)
@@ -173,7 +178,9 @@ func (s *Service) Finish(ctx context.Context, state, cookieNonce, code, redirect
 	}
 	s.forget(agent)
 	if tok.AccessToken != "" {
-		s.remember(org, agent, tok)
+		s.mu.Lock()
+		s.access[[2]uuid.UUID{org, agent}] = cached{token: tok.AccessToken, until: until(tok)}
+		s.mu.Unlock()
 	}
 	return agent, claims.Who(), nil
 }
@@ -212,8 +219,7 @@ func (s *Service) Revoke(ctx context.Context, org, agent uuid.UUID) error {
 	return nil
 }
 
-// Delegator answers who an agent's delegation belongs to (for the revoke
-// check: the person themself or an org admin).
+// Delegator answers who an agent's delegation belongs to.
 func (s *Service) Delegator(ctx context.Context, org, agent uuid.UUID) (*uuid.UUID, error) {
 	var h *uuid.UUID
 	err := s.Pool.QueryRow(ctx, `SELECT human_id FROM teamsuser_delegations WHERE agent_id = $1 AND org_id = $2`, agent, org).Scan(&h)
@@ -221,16 +227,6 @@ func (s *Service) Delegator(ctx context.Context, org, agent uuid.UUID) (*uuid.UU
 		return nil, ErrNoDelegation
 	}
 	return h, err
-}
-
-func (s *Service) remember(org, agent uuid.UUID, tok msauth.Tokens) {
-	ttl := tok.ExpiresIn
-	if ttl <= 0 {
-		ttl = 3600
-	}
-	s.mu.Lock()
-	s.access[[2]uuid.UUID{org, agent}] = cached{token: tok.AccessToken, until: time.Now().Add(time.Duration(ttl-60) * time.Second)}
-	s.mu.Unlock()
 }
 
 func (s *Service) forget(agent uuid.UUID) {
@@ -243,9 +239,9 @@ func (s *Service) forget(agent uuid.UUID) {
 	s.mu.Unlock()
 }
 
-// token is the person's access token for this agent, refreshed when it ran
-// out. Microsoft rotates the refresh token on use; the new one is sealed and
-// stored, or the delegation would die at the next refresh.
+// token is a per-agent delegation's access token, refreshed through the
+// organisation's delegation app when it ran out; a rotated refresh token is
+// sealed and stored again.
 func (s *Service) token(ctx context.Context, org, agent uuid.UUID) (string, error) {
 	s.mu.Lock()
 	c, ok := s.access[[2]uuid.UUID{org, agent}]
@@ -262,11 +258,15 @@ func (s *Service) token(ctx context.Context, org, agent uuid.UUID) (string, erro
 	if err != nil {
 		return "", err
 	}
+	ref, err := s.Bots.DelegationFor(ctx, org)
+	if err != nil {
+		return "", err
+	}
 	refresh, err := s.Box.Open("teamsuser delegation", aad(agent), nonce, ct)
 	if err != nil {
 		return "", err
 	}
-	tok, err := s.auth().Refresh(ctx, refresh, Scope)
+	tok, err := ref.App.Refresh(ctx, refresh, Scope)
 	if err != nil {
 		return "", fmt.Errorf("teamsuser: the delegation no longer works — the person has to connect their Teams again (%w)", err)
 	}
@@ -276,6 +276,8 @@ func (s *Service) token(ctx context.Context, org, agent uuid.UUID) (string, erro
 				WHERE agent_id = $1`, agent, n, c2)
 		}
 	}
-	s.remember(org, agent, tok)
+	s.mu.Lock()
+	s.access[[2]uuid.UUID{org, agent}] = cached{token: tok.AccessToken, until: until(tok)}
+	s.mu.Unlock()
 	return tok.AccessToken, nil
 }

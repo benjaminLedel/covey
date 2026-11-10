@@ -28,15 +28,20 @@ func Register() {
 		Scopes:        []string{"read", "write"},
 		System:        System{},
 		NoCredentials: true,
-		SetupDoc: `1. Target systems → Teams as a person: choose the agent and
-   "Connect my Teams". Sign in with your own Microsoft account.
+		SetupDoc: `1. Needs the organisation's Teams bot (Microsoft Teams, organisation
+   bot) with delegated Graph permissions on its app registration.
 
 2. Grant it in the agent's ACCESS.md:
    - system: teamsuser scope: read,write
+   The agent then works as the person who writes to the bot; whoever
+   writes first is asked to sign in once.
 
-3. Messages the agent sends appear under your name in Teams, with a line
+3. For runs no Teams message started: Target systems → Teams as a
+   person → choose the agent, "Connect my Teams".
+
+4. Messages the agent sends appear under the person's name, with a line
    naming the agent. A guard rail on teamsuser:send_chat and
-   teamsuser:post_channel can require your approval for each one.`,
+   teamsuser:post_channel can require approval for each one.`,
 	})
 }
 

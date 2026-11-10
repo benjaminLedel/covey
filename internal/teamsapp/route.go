@@ -19,6 +19,7 @@ import (
 // to hand it, or text the bot answers itself, or nothing.
 type Inbound struct {
 	OrgID uuid.UUID
+	Bot   Bot
 	Agent *agents.Agent
 	Event target.WebhookEvent
 	// Answer is set when no agent takes the message: the bot says why.
@@ -26,37 +27,34 @@ type Inbound struct {
 	// SignIn: the agent works as the writer, who has not signed in yet. The
 	// message is kept; the bot asks for single sign-on.
 	SignIn bool
-	// Tenant and Person name the writer (aadObjectId), for the task record.
-	Tenant, Person string
+	// Person names the writer (aadObjectId), for the task record.
+	Person string
 }
 
-// Route takes a verified activity to an organisation and one of its agents.
+// Route takes a verified delivery to the bot's organisation and one of its
+// agents.
 //
 // The order is what a person writing in Teams would expect: a name at the
 // start of the message wins (that is how one switches colleagues), then the
-// colleague the conversation is already with, then the channel's default,
-// then — if the organisation has exactly one — that one. Only agents whose
-// ACCESS.md grants teamsapp are candidates; an organisation that has not
-// switched the system on reaches nobody.
-func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessage) (Inbound, error) {
+// colleague the conversation is already bound to, then the channel's
+// default, then — if the organisation has exactly one — that one. Only
+// agents whose ACCESS.md grants teamsapp are candidates; a message from
+// another tenant than the bot's reaches nobody.
+func (s *Service) Route(ctx context.Context, b Bot, a teams.Activity, raw json.RawMessage) (Inbound, error) {
+	in := Inbound{OrgID: b.OrgID, Bot: b}
 	tenant := a.TenantID()
-	if tenant == "" {
-		return Inbound{}, nil
-	}
-	org, err := s.Store.OrgOfTenant(ctx, tenant)
-	if err != nil {
-		if err == ErrNotLinked && isMessage(a) {
-			return Inbound{Answer: "This Microsoft 365 organisation is not connected to covey yet. " +
-				"An administrator connects it under Settings → Microsoft Teams in covey."}, nil
+	if !strings.EqualFold(tenant, b.TenantID) {
+		if isMessage(a) {
+			in.Answer = "This bot serves another Microsoft 365 organisation."
 		}
-		return Inbound{}, nilIfNotLinked(err)
+		return in, nil
 	}
-	in := Inbound{OrgID: org}
+	org := b.OrgID
 
 	// The install event: remember the team so its channels can be listed and
 	// posted to. Nothing to route.
 	if team := a.ChannelData.Team; team != nil && team.ID != "" {
-		if err := s.Store.RememberTeam(ctx, Team{TenantID: tenant, TeamID: team.ID, Name: team.Name, ServiceURL: a.ServiceURL}); err != nil {
+		if err := s.Store.RememberTeam(ctx, Team{BotID: b.ID, TeamID: team.ID, Name: team.Name, ServiceURL: a.ServiceURL}); err != nil {
 			return in, err
 		}
 	}
@@ -82,7 +80,7 @@ func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessa
 	if agent != nil {
 		text = rest
 	}
-	existing, convErr := s.Store.conversationIn(ctx, tenant, a.Conversation.ID)
+	existing, convErr := s.Store.Conversation(ctx, b.ID, a.Conversation.ID)
 	if agent == nil && convErr == nil && existing.AgentID != nil {
 		agent = byID(candidates, *existing.AgentID)
 	}
@@ -91,7 +89,7 @@ func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessa
 		channelID = ch.ID
 	}
 	if agent == nil && channelID != "" {
-		if id, ok := s.Store.ChannelAgent(ctx, tenant, channelID); ok {
+		if id, ok := s.Store.ChannelAgent(ctx, b.ID, channelID); ok {
 			agent = byID(candidates, id)
 		}
 	}
@@ -104,7 +102,7 @@ func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessa
 	}
 
 	conv := Conversation{
-		TenantID: tenant, ConversationID: a.Conversation.ID, Kind: kindOf(a),
+		BotID: b.ID, ConversationID: a.Conversation.ID, Kind: kindOf(a),
 		ChannelID: channelID, AgentID: &agent.ID, ServiceURL: a.ServiceURL,
 	}
 	if team := a.ChannelData.Team; team != nil {
@@ -113,14 +111,14 @@ func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessa
 	if err := s.Store.Bind(ctx, conv); err != nil {
 		return in, err
 	}
-	in.Tenant, in.Person = tenant, a.From.AADObjectID
-	if s.People != nil && s.People.SSOEnabled() && s.ActsAsPerson != nil && s.ActsAsPerson(ctx, *agent) {
+	in.Person = a.From.AADObjectID
+	if s.People != nil && s.ActsAsPerson != nil && s.ActsAsPerson(ctx, *agent) {
 		if in.Person == "" {
 			in.Answer = "This colleague works with your own Teams access, and Teams did not say who you are. Write from a Teams account of your organisation."
 			return in, nil
 		}
-		if !s.People.HasPerson(ctx, tenant, in.Person) {
-			if err := s.People.KeepPending(ctx, tenant, in.Person, raw); err != nil {
+		if !s.People.HasPerson(ctx, b.ID, in.Person) {
+			if err := s.People.KeepPending(ctx, b.ID, in.Person, raw); err != nil {
 				return in, err
 			}
 			in.SignIn = true
@@ -130,13 +128,6 @@ func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessa
 	in.Agent = agent
 	in.Event = event(a, text)
 	return in, nil
-}
-
-func nilIfNotLinked(err error) error {
-	if err == ErrNotLinked {
-		return nil
-	}
-	return err
 }
 
 // isMessage: a person's message with something in it — the only kind of

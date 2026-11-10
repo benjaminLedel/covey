@@ -24,7 +24,7 @@ import (
 // person's own permissions in Teams.
 func (s *Service) Execute(ctx context.Context, agent agents.Agent, taskID uuid.UUID, action string, params json.RawMessage) (any, error) {
 	if s == nil {
-		return nil, errNoApp
+		return nil, ErrNoDelegation
 	}
 	var in struct {
 		ChatID    string `json:"chat_id"`

@@ -25,8 +25,8 @@ import (
 // names the person who wrote, and it ends only for that same Microsoft user.
 
 // AskSignIn sends the sign-in card into the conversation.
-func (s *Service) AskSignIn(ctx context.Context, a teams.Activity, siteURL, link string) error {
-	c, err := s.connector()
+func (s *Service) AskSignIn(ctx context.Context, b Bot, a teams.Activity, siteURL, link string) error {
+	c, err := s.connector(b)
 	if err != nil {
 		return err
 	}
@@ -36,10 +36,10 @@ func (s *Service) AskSignIn(ctx context.Context, a teams.Activity, siteURL, link
 			"contentType": "application/vnd.microsoft.card.oauth",
 			"content": map[string]any{
 				"text":           "This colleague works with your own Teams access. Sign in once, then your message is handled.",
-				"connectionName": s.SSOConnection(),
+				"connectionName": b.SSOConnectionName(),
 				"tokenExchangeResource": map[string]any{
 					"id":  uuid.NewString(),
-					"uri": s.SSOResource(siteURL),
+					"uri": b.SSOResource(siteURL),
 				},
 				"buttons": []map[string]any{{"type": "signin", "title": "Sign in", "value": link}},
 			},
@@ -51,8 +51,8 @@ func (s *Service) AskSignIn(ctx context.Context, a teams.Activity, siteURL, link
 
 // OfferLink posts the browser sign-in as a plain card, for when the
 // exchange failed.
-func (s *Service) OfferLink(ctx context.Context, a teams.Activity, link string) error {
-	c, err := s.connector()
+func (s *Service) OfferLink(ctx context.Context, b Bot, a teams.Activity, link string) error {
+	c, err := s.connector(b)
 	if err != nil {
 		return err
 	}
@@ -74,44 +74,49 @@ func (s *Service) OfferLink(ctx context.Context, a teams.Activity, link string) 
 
 const personLinkTTL = time.Hour
 
-// personMAC signs a sign-in link with the app's client secret as the HMAC
+// personMAC signs a sign-in link with the bot's client secret as the HMAC
 // key.
-func (s *Service) personMAC(raw []byte) string {
-	m := hmac.New(sha256.New, []byte(s.cfg.AppPassword))
+func personMAC(b Bot, raw []byte) string {
+	m := hmac.New(sha256.New, []byte(b.secret))
 	m.Write([]byte("covey teamsapp person link\x00"))
 	m.Write(raw)
 	return hex.EncodeToString(m.Sum(nil))
 }
 
-// PersonLinkToken signs (tenant, person) for the browser sign-in link.
-func (s *Service) PersonLinkToken(tenant, oid string) string {
-	payload := tenant + "|" + oid + "|" + strconv.FormatInt(time.Now().Add(personLinkTTL).Unix(), 10)
-	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + s.personMAC([]byte(payload))
+// PersonLinkToken signs (bot, person) for the browser sign-in link.
+func PersonLinkToken(b Bot, oid string) string {
+	payload := b.ID.String() + "|" + oid + "|" + strconv.FormatInt(time.Now().Add(personLinkTTL).Unix(), 10)
+	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + personMAC(b, []byte(payload))
 }
 
 // ErrPersonLink: the sign-in link is forged or expired.
 var ErrPersonLink = errors.New("teamsapp: this sign-in link is invalid or expired — write to the bot again for a new one")
 
-// CheckPersonLink returns the tenant and person a link was made for.
-func (s *Service) CheckPersonLink(tok string) (tenant, oid string, err error) {
+// CheckPersonLink returns the bot and person a link was made for.
+func (s *Service) CheckPersonLink(ctx context.Context, tok string) (Bot, string, error) {
 	enc, sig, ok := strings.Cut(tok, ".")
 	if !ok {
-		return "", "", ErrPersonLink
+		return Bot{}, "", ErrPersonLink
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(enc)
 	if err != nil {
-		return "", "", ErrPersonLink
-	}
-	if !hmac.Equal([]byte(sig), []byte(s.personMAC(raw))) {
-		return "", "", ErrPersonLink
+		return Bot{}, "", ErrPersonLink
 	}
 	parts := strings.Split(string(raw), "|")
 	if len(parts) != 3 {
-		return "", "", ErrPersonLink
+		return Bot{}, "", ErrPersonLink
+	}
+	id, err := uuid.Parse(parts[0])
+	if err != nil {
+		return Bot{}, "", ErrPersonLink
+	}
+	b, err := s.BotByID(ctx, id)
+	if err != nil || !hmac.Equal([]byte(sig), []byte(personMAC(b, raw))) {
+		return Bot{}, "", ErrPersonLink
 	}
 	exp, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil || time.Now().Unix() > exp {
-		return "", "", ErrPersonLink
+		return Bot{}, "", ErrPersonLink
 	}
-	return parts[0], parts[1], nil
+	return b, parts[1], nil
 }

@@ -36,7 +36,8 @@ func (s *Server) handleTeamsUserStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, ok := s.teamsUserCallback(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"available": s.TeamsUser.OwnApp(), "sso": s.TeamsUser.SSOEnabled(), "can_delegate": ok, "delegations": list, "me": principalFrom(r).ID})
+	_, botErr := s.TeamsApp.BotOfOrg(r.Context(), principalFrom(r).OrgID)
+	writeJSON(w, http.StatusOK, map[string]any{"available": botErr == nil, "can_delegate": ok, "delegations": list, "me": principalFrom(r).ID})
 }
 
 // handleTeamsUserDelegate — POST /api/v1/teamsuser/delegate {agent_id}: the
@@ -65,7 +66,7 @@ func (s *Server) handleTeamsUserDelegate(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusServiceUnavailable, "no site address configured (COVEY_SITE_URL) — Microsoft can only return to a registered address")
 		return
 	}
-	signIn, nonce, err := s.TeamsUser.Start(p.OrgID, a.ID, p.ID, callback)
+	signIn, nonce, err := s.TeamsUser.Start(r.Context(), p.OrgID, a.ID, p.ID, callback)
 	if err != nil {
 		mapErr(w, err)
 		return
