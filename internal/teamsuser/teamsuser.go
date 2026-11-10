@@ -44,6 +44,9 @@ type Config struct {
 	LoginBase   string
 	// GraphBase is Microsoft Graph; empty: https://graph.microsoft.com/v1.0.
 	GraphBase string
+	// SSO is the installation's Teams app, through which the person writing
+	// to the bot signs in (#713). nil: only per-agent delegations.
+	SSO *msauth.App
 }
 
 // Service holds the delegations.
@@ -59,6 +62,9 @@ type Service struct {
 	// agent — the organisation in the key as well, so a cache hit never
 	// answers a question the database would have refused.
 	access map[[2]uuid.UUID]cached
+	// people caches a person's access token by "tenant|oid".
+	people map[string]cached
+	sso    *msauth.App
 }
 
 type cached struct {
@@ -69,15 +75,23 @@ type cached struct {
 // New builds the service, or nil when the installation has no app for it or
 // no master key to seal tokens with.
 func New(pool *pgxpool.Pool, box *sealbox.Box, cfg Config, log *slog.Logger) *Service {
-	if strings.TrimSpace(cfg.AppID) == "" || strings.TrimSpace(cfg.AppPassword) == "" || box == nil {
+	own := strings.TrimSpace(cfg.AppID) != "" && strings.TrimSpace(cfg.AppPassword) != ""
+	if (!own && cfg.SSO == nil) || box == nil {
 		return nil
+	}
+	if !own {
+		cfg.AppID, cfg.AppPassword = "", ""
 	}
 	if log == nil {
 		log = slog.Default()
 	}
 	return &Service{Pool: pool, Box: box, Log: log, cfg: cfg,
-		HTTP: &http.Client{Timeout: 20 * time.Second}, access: map[[2]uuid.UUID]cached{}}
+		HTTP: &http.Client{Timeout: 20 * time.Second}, access: map[[2]uuid.UUID]cached{},
+		people: map[string]cached{}, sso: cfg.SSO}
 }
+
+// OwnApp: the per-agent delegation (#712) has an app registration.
+func (s *Service) OwnApp() bool { return s != nil && s.cfg.AppID != "" }
 
 func (s *Service) auth() msauth.App {
 	return msauth.App{ClientID: s.cfg.AppID, Secret: s.cfg.AppPassword, LoginBase: s.cfg.LoginBase, Purpose: "teamsuser-grant"}
@@ -108,7 +122,7 @@ func subject(org, agent, human uuid.UUID) string {
 // The caller has checked that the agent belongs to the organisation and that
 // the person may manage it.
 func (s *Service) Start(org, agent, human uuid.UUID, redirectURI string) (signIn, nonce string, err error) {
-	if s == nil {
+	if s == nil || s.cfg.AppID == "" {
 		return "", "", errNoApp
 	}
 	return s.auth().Start(subject(org, agent, human), redirectURI, Scope)
@@ -118,7 +132,7 @@ func (s *Service) Start(org, agent, human uuid.UUID, redirectURI string) (signIn
 // agent's id and stored. A second delegation to the same agent replaces the
 // first — one person per agent in the proof of concept.
 func (s *Service) Finish(ctx context.Context, state, cookieNonce, code, redirectURI string) (uuid.UUID, string, error) {
-	if s == nil {
+	if s == nil || s.cfg.AppID == "" {
 		return uuid.Nil, "", errNoApp
 	}
 	sub, tok, claims, err := s.auth().Finish(ctx, state, cookieNonce, code, redirectURI, Scope)

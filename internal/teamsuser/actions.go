@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"covey/internal/agents"
 )
 
@@ -20,7 +22,7 @@ import (
 // rails were checked by the caller. Every ID the agent passes is a Graph
 // path segment under the fixed Graph host; what it reaches is decided by the
 // person's own permissions in Teams.
-func (s *Service) Execute(ctx context.Context, agent agents.Agent, action string, params json.RawMessage) (any, error) {
+func (s *Service) Execute(ctx context.Context, agent agents.Agent, taskID uuid.UUID, action string, params json.RawMessage) (any, error) {
 	if s == nil {
 		return nil, errNoApp
 	}
@@ -40,7 +42,7 @@ func (s *Service) Execute(ctx context.Context, agent agents.Agent, action string
 	if in.Limit <= 0 || in.Limit > 50 {
 		in.Limit = 20
 	}
-	tok, err := s.token(ctx, agent.OrgID, agent.ID)
+	tok, err := s.tokenFor(ctx, agent.OrgID, agent.ID, taskID)
 	if err != nil {
 		return nil, err
 	}

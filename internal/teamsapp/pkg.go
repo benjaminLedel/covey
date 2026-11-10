@@ -21,7 +21,7 @@ var outlineSource []byte
 // PackageVersion is the manifest version of the app package. Teams refuses
 // to update an uploaded app whose version did not grow, so it moves with
 // every change to the manifest below.
-const PackageVersion = "1.0.0"
+const PackageVersion = "1.1.0"
 
 // Package builds the Teams app package for this installation: manifest.json
 // with the app ID and the installation's address, and the two icons.

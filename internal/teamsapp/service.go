@@ -13,8 +13,10 @@ package teamsapp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -36,6 +38,9 @@ type Config struct {
 	// LoginBase is the Microsoft identity platform the tenant link signs in
 	// against. Empty: https://login.microsoftonline.com.
 	LoginBase string
+	// SSOConnection names the bot's OAuth connection for single sign-on;
+	// empty: "covey".
+	SSOConnection string
 }
 
 // Service is the shared bot.
@@ -49,6 +54,12 @@ type Service struct {
 	// check against the app ID. A test replaces it.
 	Verify func(authHeader, serviceURL string) error
 	Log    *slog.Logger
+	// People signs in the person writing (#713): nil, or not SSOEnabled,
+	// and agents never act as the writer.
+	People People
+	// ActsAsPerson answers whether an agent works with the writer's
+	// identity (it holds teamsuser in ACCESS.md).
+	ActsAsPerson func(ctx context.Context, agent agents.Agent) bool
 
 	cfg    Config
 	mu     sync.Mutex
@@ -99,3 +110,34 @@ func (s *Service) Say(ctx context.Context, a teams.Activity, text string) error 
 }
 
 var errNoApp = errors.New("teamsapp: no app configured on this installation")
+
+// People is the half of "the agent works as the person who wrote" that
+// holds tokens (internal/teamsuser).
+type People interface {
+	SSOEnabled() bool
+	HasPerson(ctx context.Context, tenant, oid string) bool
+	Exchange(ctx context.Context, tenant, oid, ssoToken string) error
+	KeepPending(ctx context.Context, tenant, oid string, activity json.RawMessage) error
+	TakePending(ctx context.Context, tenant, oid string) (json.RawMessage, bool)
+	SetTaskPerson(ctx context.Context, taskID uuid.UUID, tenant, oid string) error
+}
+
+// SSOConnection is the name of the OAuth connection on the Azure bot that
+// Teams' single sign-on refers to (COVEY_TEAMSAPP_SSO_CONNECTION).
+func (s *Service) SSOConnection() string {
+	if c := strings.TrimSpace(s.cfg.SSOConnection); c != "" {
+		return c
+	}
+	return "covey"
+}
+
+// SSOResource is the application ID URI Teams issues the bot's single
+// sign-on token for: api://<host>/botid-<app id>. The same string goes into
+// the app package's webApplicationInfo and the app registration.
+func (s *Service) SSOResource(siteURL string) string {
+	host := siteURL
+	if u, err := url.Parse(siteURL); err == nil && u.Host != "" {
+		host = u.Host
+	}
+	return "api://" + host + "/botid-" + s.cfg.AppID
+}

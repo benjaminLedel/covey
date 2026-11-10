@@ -40,7 +40,7 @@ func (o *Orchestrator) platformAction(ctx context.Context, agent agents.Agent, t
 	if reason := o.enforceRails(ctx, agent, taskID, subject, req.ApprovalID); reason != "" {
 		return fail(reason)
 	}
-	out, err := impl.Execute(ctx, agent, req.Action, req.Params)
+	out, err := impl.Execute(ctx, agent, taskID, req.Action, req.Params)
 	if err != nil {
 		return fail(err.Error())
 	}

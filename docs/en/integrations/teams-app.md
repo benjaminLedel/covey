@@ -80,7 +80,38 @@ Whoever runs the installation does this once; organisations on it do not.
 A channel appears once the app has been added to its team and mentioned
 there once (or reinstalled) — that is when Teams tells covey about the team.
 
-## 4. What keeps organisations apart
+## 4. Agents that work as the person writing
+
+An agent that holds `teamsuser` in its ACCESS.md works with **the writer's
+own Teams access**: Ada's message runs as Ada, Bo's next one as Bo. The first
+time somebody writes, the bot asks them to sign in (silently through Teams'
+single sign-on where it is set up) and handles their message afterwards.
+Every message sent in their name ends with "— sent by <agent> (covey)".
+
+Once per installation, on the app registration of section 1:
+
+1. **Expose an API:** Application ID URI
+   `api://<your covey host>/botid-<application id>`, a scope
+   `access_as_user`, and as authorized client applications Teams'
+   `1fec8e78-bce4-4aaf-ab1b-5451cc387264` (desktop, mobile) and
+   `5e3ce6c0-2b1f-4285-8d4b-75ee78787346` (web).
+2. **API permissions → Microsoft Graph → Delegated:** `offline_access`,
+   `User.Read`, `Chat.ReadWrite`, `ChatMessage.Send`, `Team.ReadBasic.All`,
+   `Channel.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMessage.Send` —
+   and *Grant admin consent* per tenant, so people are not asked one by one.
+3. **Redirect URI** in addition: `https://<your covey>/api/teamsapp/person-callback`
+   (the browser fallback).
+4. **Azure Bot → Configuration → OAuth connection settings:** a connection
+   named `covey` (or `COVEY_TEAMSAPP_SSO_CONNECTION`), provider *Azure Active
+   Directory v2*, this app's ID and secret, token exchange URL = the
+   Application ID URI from step 1.
+5. Download the app package again and update it in Teams: it now carries
+   the single sign-on entry (`webApplicationInfo`, version 1.1.0).
+
+A run that no Teams message started — a heartbeat — never gets a person's
+access.
+
+## 5. What keeps organisations apart
 
 - A message is routed by the sender's **tenant** to the organisation that
   linked it; an unlinked tenant reaches nobody.
@@ -93,7 +124,7 @@ there once (or reinstalled) — that is when Teams tells covey about the team.
 - A personal chat belongs to the colleague it is bound to; colleagues of the
   same organisation share channel threads, as they share the channel.
 
-## 5. Common stumbling blocks
+## 6. Common stumbling blocks
 
 | Symptom | Cause |
 |---|---|
@@ -104,3 +135,4 @@ there once (or reinstalled) — that is when Teams tells covey about the team.
 | The bot answers "not connected to covey yet" | The tenant has not been linked (section 2.1). |
 | `list_channels` is empty | The app is not in a team yet, or has not been mentioned there since it was added. |
 | Delivery refused (401) in the request log | The messaging endpoint's bot is not the app in `COVEY_TEAMSAPP_APP_ID`. |
+| The bot always sends the browser sign-in | Single sign-on is not set up (section 4, steps 1 and 4) or admin consent is missing. |

@@ -27,7 +27,7 @@ type ChannelRef struct {
 // thing only this package can: that the conversation or channel is the
 // agent's organisation's. The connector host always comes from the records,
 // never from params — an agent that passes a service_url is ignored.
-func (s *Service) Execute(ctx context.Context, agent agents.Agent, action string, params json.RawMessage) (any, error) {
+func (s *Service) Execute(ctx context.Context, agent agents.Agent, _ uuid.UUID, action string, params json.RawMessage) (any, error) {
 	if s == nil {
 		return nil, errNoApp
 	}

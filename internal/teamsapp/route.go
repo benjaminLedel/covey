@@ -3,6 +3,7 @@ package teamsapp
 import (
 	"context"
 	"covey/internal/teamsapp/teamsys"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode"
@@ -22,6 +23,11 @@ type Inbound struct {
 	Event target.WebhookEvent
 	// Answer is set when no agent takes the message: the bot says why.
 	Answer string
+	// SignIn: the agent works as the writer, who has not signed in yet. The
+	// message is kept; the bot asks for single sign-on.
+	SignIn bool
+	// Tenant and Person name the writer (aadObjectId), for the task record.
+	Tenant, Person string
 }
 
 // Route takes a verified activity to an organisation and one of its agents.
@@ -32,7 +38,7 @@ type Inbound struct {
 // then — if the organisation has exactly one — that one. Only agents whose
 // ACCESS.md grants teamsapp are candidates; an organisation that has not
 // switched the system on reaches nobody.
-func (s *Service) Route(ctx context.Context, a teams.Activity) (Inbound, error) {
+func (s *Service) Route(ctx context.Context, a teams.Activity, raw json.RawMessage) (Inbound, error) {
 	tenant := a.TenantID()
 	if tenant == "" {
 		return Inbound{}, nil
@@ -106,6 +112,20 @@ func (s *Service) Route(ctx context.Context, a teams.Activity) (Inbound, error) 
 	}
 	if err := s.Store.Bind(ctx, conv); err != nil {
 		return in, err
+	}
+	in.Tenant, in.Person = tenant, a.From.AADObjectID
+	if s.People != nil && s.People.SSOEnabled() && s.ActsAsPerson != nil && s.ActsAsPerson(ctx, *agent) {
+		if in.Person == "" {
+			in.Answer = "This colleague works with your own Teams access, and Teams did not say who you are. Write from a Teams account of your organisation."
+			return in, nil
+		}
+		if !s.People.HasPerson(ctx, tenant, in.Person) {
+			if err := s.People.KeepPending(ctx, tenant, in.Person, raw); err != nil {
+				return in, err
+			}
+			in.SignIn = true
+			return in, nil
+		}
 	}
 	in.Agent = agent
 	in.Event = event(a, text)

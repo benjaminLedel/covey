@@ -282,24 +282,24 @@ func TestTeamsAppActionsStayInOrg(t *testing.T) {
 	ts.deliver(ts.message("a2", "tenant-a", "19:team-a;messageid=5", "Paula, hi", team), "Bearer valid")
 
 	// Org B's agent cannot reply into org A's chat, nor post in its channel.
-	if _, err := ts.svc.Execute(ctx, bert, "reply", json.RawMessage(`{"conversation_id":"19:chat-vera","text":"x"}`)); !errors.Is(err, teamsapp.ErrUnknownConversation) {
+	if _, err := ts.svc.Execute(ctx, bert, uuid.Nil, "reply", json.RawMessage(`{"conversation_id":"19:chat-vera","text":"x"}`)); !errors.Is(err, teamsapp.ErrUnknownConversation) {
 		t.Fatalf("org B replied into org A's chat: %v", err)
 	}
-	if _, err := ts.svc.Execute(ctx, bert, "post", json.RawMessage(`{"channel":"Sales/Leads","text":"x"}`)); err == nil {
+	if _, err := ts.svc.Execute(ctx, bert, uuid.Nil, "post", json.RawMessage(`{"channel":"Sales/Leads","text":"x"}`)); err == nil {
 		t.Fatal("org B posted into org A's channel")
 	}
-	if _, err := ts.svc.Execute(ctx, bert, "post", json.RawMessage(`{"channel":"19:leads-19:team-a","text":"x"}`)); err == nil {
+	if _, err := ts.svc.Execute(ctx, bert, uuid.Nil, "post", json.RawMessage(`{"channel":"19:leads-19:team-a","text":"x"}`)); err == nil {
 		t.Fatal("org B posted into org A's channel by ID")
 	}
 	// A colleague in the same org cannot take over Vera's personal chat.
-	if _, err := ts.svc.Execute(ctx, paula, "reply", json.RawMessage(`{"conversation_id":"19:chat-vera","text":"x"}`)); err == nil {
+	if _, err := ts.svc.Execute(ctx, paula, uuid.Nil, "reply", json.RawMessage(`{"conversation_id":"19:chat-vera","text":"x"}`)); err == nil {
 		t.Fatal("another colleague wrote into Vera's personal chat")
 	}
 
 	// Vera's reply goes to the recorded connector, not to the host she names.
 	collector := newFakeConnector(t)
 	params := fmt.Sprintf(`{"conversation_id":"19:chat-vera","reply_to_activity_id":"a1","service_url":%q,"text":"Done."}`, collector.srv.URL)
-	if _, err := ts.svc.Execute(ctx, vera, "reply", json.RawMessage(params)); err != nil {
+	if _, err := ts.svc.Execute(ctx, vera, uuid.Nil, "reply", json.RawMessage(params)); err != nil {
 		t.Fatal(err)
 	}
 	if len(collector.callsTo("/v3/")) != 0 {
@@ -310,7 +310,7 @@ func TestTeamsAppActionsStayInOrg(t *testing.T) {
 	}
 
 	// Posting: listed channels are org A's, a new thread is bound to the poster.
-	out, err := ts.svc.Execute(ctx, vera, "post", json.RawMessage(`{"channel":"Leads","text":"Daily digest"}`))
+	out, err := ts.svc.Execute(ctx, vera, uuid.Nil, "post", json.RawMessage(`{"channel":"Leads","text":"Daily digest"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

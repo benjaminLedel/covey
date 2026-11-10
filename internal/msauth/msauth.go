@@ -172,6 +172,19 @@ func (a App) Finish(ctx context.Context, state, cookieNonce, code, redirectURI, 
 	return p.Subject, tok, c, nil
 }
 
+// OnBehalfOf trades a token issued to this app for the signed-in person (the
+// one Teams hands a bot through single sign-on) for a delegated token with
+// scope. The tenant is the person's: the on-behalf-of grant is not served by
+// the multi-tenant endpoint.
+func (a App) OnBehalfOf(ctx context.Context, tenant, assertion, scope string) (Tokens, error) {
+	return a.tokenAt(ctx, tenant, url.Values{
+		"grant_type":          {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
+		"requested_token_use": {"on_behalf_of"},
+		"assertion":           {assertion},
+		"scope":               {scope},
+	})
+}
+
 // Refresh trades a refresh token for a fresh access token (and, usually, a
 // rotated refresh token the caller has to store).
 func (a App) Refresh(ctx context.Context, refreshToken, scope string) (Tokens, error) {
@@ -183,10 +196,17 @@ func (a App) Refresh(ctx context.Context, refreshToken, scope string) (Tokens, e
 }
 
 func (a App) token(ctx context.Context, form url.Values) (Tokens, error) {
+	return a.tokenAt(ctx, "organizations", form)
+}
+
+func (a App) tokenAt(ctx context.Context, tenant string, form url.Values) (Tokens, error) {
+	if strings.TrimSpace(tenant) == "" || strings.ContainsAny(tenant, "/?#") {
+		return Tokens{}, errors.New("no usable tenant for the token request")
+	}
 	form.Set("client_id", a.ClientID)
 	form.Set("client_secret", a.Secret)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		a.base()+"/organizations/oauth2/v2.0/token", strings.NewReader(form.Encode()))
+		a.base()+"/"+url.PathEscape(tenant)+"/oauth2/v2.0/token", strings.NewReader(form.Encode()))
 	if err != nil {
 		return Tokens{}, err
 	}

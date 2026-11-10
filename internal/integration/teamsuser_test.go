@@ -159,14 +159,14 @@ func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 	}
 
 	// Vera reads and writes with Ada's token; what she sends names her.
-	out, err := svc.Execute(ctx, vera, "read_chat", json.RawMessage(`{"chat_id":"19:chat"}`))
+	out, err := svc.Execute(ctx, vera, uuid.Nil, "read_chat", json.RawMessage(`{"chat_id":"19:chat"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if msgs, _ := out.([]map[string]string); len(msgs) != 1 || msgs[0]["text"] != "Numbers & dates?" || msgs[0]["from"] != "Bo" {
 		t.Fatalf("messages not read as text: %#v", out)
 	}
-	if _, err := svc.Execute(ctx, vera, "send_chat", json.RawMessage(`{"chat_id":"19:chat","text":"Here <b>they</b> are"}`)); err != nil {
+	if _, err := svc.Execute(ctx, vera, uuid.Nil, "send_chat", json.RawMessage(`{"chat_id":"19:chat","text":"Here <b>they</b> are"}`)); err != nil {
 		t.Fatal(err)
 	}
 	sent := ms.graphCalls("POST /v1.0/chats/19:chat/messages")
@@ -177,12 +177,12 @@ func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 
 	// Paula, same organisation, gets nothing of Ada's; nor does an agent of
 	// another organisation that names Vera's chat.
-	if _, err := svc.Execute(ctx, paula, "read_chat", json.RawMessage(`{"chat_id":"19:chat"}`)); !errors.Is(err, teamsuser.ErrNoDelegation) {
+	if _, err := svc.Execute(ctx, paula, uuid.Nil, "read_chat", json.RawMessage(`{"chat_id":"19:chat"}`)); !errors.Is(err, teamsuser.ErrNoDelegation) {
 		t.Fatalf("another agent used the delegation: %v", err)
 	}
 	stranger := vera
 	stranger.OrgID = uuid.New()
-	if _, err := svc.Execute(ctx, stranger, "list_chats", nil); !errors.Is(err, teamsuser.ErrNoDelegation) {
+	if _, err := svc.Execute(ctx, stranger, uuid.Nil, "list_chats", nil); !errors.Is(err, teamsuser.ErrNoDelegation) {
 		t.Fatalf("the delegation answered outside its organisation: %v", err)
 	}
 
@@ -190,7 +190,7 @@ func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 	// restarts in a row both still work.
 	for i := 0; i < 2; i++ {
 		fresh := newUserService(t, ts.stack, ms, box)
-		if _, err := fresh.Execute(ctx, vera, "list_chats", nil); err != nil {
+		if _, err := fresh.Execute(ctx, vera, uuid.Nil, "list_chats", nil); err != nil {
 			t.Fatalf("after restart %d: %v", i+1, err)
 		}
 	}
@@ -217,7 +217,7 @@ func TestTeamsUserDelegationStaysWithItsAgent(t *testing.T) {
 	if err := svc.Revoke(ctx, ts.orgID, vera.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Execute(ctx, vera, "list_chats", nil); !errors.Is(err, teamsuser.ErrNoDelegation) {
+	if _, err := svc.Execute(ctx, vera, uuid.Nil, "list_chats", nil); !errors.Is(err, teamsuser.ErrNoDelegation) {
 		t.Fatalf("still acting after revoke: %v", err)
 	}
 }

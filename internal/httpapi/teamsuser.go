@@ -36,7 +36,7 @@ func (s *Server) handleTeamsUserStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, ok := s.teamsUserCallback(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"available": true, "can_delegate": ok, "delegations": list, "me": principalFrom(r).ID})
+	writeJSON(w, http.StatusOK, map[string]any{"available": s.TeamsUser.OwnApp(), "sso": s.TeamsUser.SSOEnabled(), "can_delegate": ok, "delegations": list, "me": principalFrom(r).ID})
 }
 
 // handleTeamsUserDelegate — POST /api/v1/teamsuser/delegate {agent_id}: the

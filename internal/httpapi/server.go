@@ -933,6 +933,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/webhooks/teamsapp", s.logIncoming(s.handleTeamsAppWebhook))
 	mux.HandleFunc("GET /api/teamsapp/callback", s.handleTeamsAppCallback)
 	mux.HandleFunc("GET /api/teamsuser/callback", s.handleTeamsUserCallback)
+	mux.HandleFunc("GET /api/teamsapp/signin", s.handleTeamsAppPersonSignIn)
+	mux.HandleFunc("GET /api/teamsapp/person-callback", s.handleTeamsAppPersonCallback)
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	// A workflow's own doors (#566): the same webhook parsing and the same
 	// token trigger, delivered to the workflow instead of an agent.

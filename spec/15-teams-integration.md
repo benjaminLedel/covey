@@ -174,6 +174,14 @@ Both bots speak as a bot and see only conversations the bot is part of. The thir
 
 Not in the proof of concept: delegation for other Microsoft 365 services, several people per agent, files.
 
+### The person who wrote (#713)
+
+Bound to an agent, a delegation answers everybody with one person's view. In a chat with the installation's app the right identity is the **writer of the message**: Ada's message runs with Ada's access, Bo's next one with Bo's.
+
+- **Sign-in in the chat.** When a message reaches an agent that holds `teamsuser` and covey has no token for the writer (`from.aadObjectId` in the activity's tenant), no work is created: the message is kept and the bot sends an OAuth card naming the app's single sign-on resource (`api://<host>/botid-<app id>`, also the package's `webApplicationInfo`). Teams answers with `signin/tokenExchange`; covey trades that token through the on-behalf-of grant of the installation's app, checks with Graph's `/me` that it is the writer, seals the refresh token per Microsoft user and hands the kept message to the agent. A failed exchange is answered 412 and the bot offers a browser sign-in link instead; that link names the writer and ends only for the same Microsoft user (`tid` and `oid` of the ID token).
+- **Whose task.** Every task a Teams message creates or wakes records the writer before it is dispatched; a later message by somebody else in the same conversation moves it to them. A `teamsuser` action of such a task uses that person's token and no other — a missing one is an error, never a fallback to the agent's own delegation. A task no Teams message started (a heartbeat) uses only the agent's delegation, if any.
+- The tokens go with the tenant link: unlinking the tenant forgets them.
+
 ## Scope of this integration
 
 - **One bot / one agent**, app ID + app password through the built-in `SecretStore` — or the installation's shared app above.
