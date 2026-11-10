@@ -50,6 +50,7 @@ import (
 	"covey/internal/reqlog"
 	"covey/internal/speech"
 
+	"covey/internal/msauth"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
@@ -60,6 +61,10 @@ import (
 	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/teamsapp"
+	"covey/internal/teamsapp/teamsys"
+	"covey/internal/teamsuser"
+	"covey/internal/teamsuser/usersys"
 	"covey/internal/telemetry"
 	"covey/internal/templates"
 	"covey/internal/voice"
@@ -1370,9 +1375,48 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// store and decides nothing about them itself.
 	runtimeStore := runtimes.New(pool, secretStore)
 
+	// The installation's own Teams app (#710). The system only exists where
+	// the app is configured, so an organisation never finds a connector in
+	// its store that cannot work here.
+	teamsApp := teamsapp.New(pool, registry, teamsapp.Config{
+		AppID: cfg.TeamsAppID, AppPassword: cfg.TeamsAppPassword, TokenURL: cfg.TeamsAppTokenURL,
+		SSOConnection: cfg.TeamsAppSSOConnection,
+	}, log)
+	platform := map[string]orchestrator.PlatformSystem{}
+	if teamsApp != nil {
+		teamsys.Register()
+		teamsApp.Enabled = func(ctx context.Context, orgID uuid.UUID) bool {
+			_, err := targets.System(ctx, orgID, teamsys.Name)
+			return err == nil
+		}
+		platform[teamsys.Name] = teamsApp
+		log.Info("teams app active", "app_id", cfg.TeamsAppID)
+	}
+	// Teams as a person: a per-agent delegation (#712), and — through the
+	// Teams app's single sign-on — the person who wrote the message (#713).
+	// Tokens are sealed with the master key.
+	userCfg := teamsuser.Config{AppID: cfg.TeamsUserAppID, AppPassword: cfg.TeamsUserAppPassword}
+	if teamsApp != nil {
+		userCfg.SSO = &msauth.App{ClientID: cfg.TeamsAppID, Secret: cfg.TeamsAppPassword, Purpose: "teamsapp-person"}
+	}
+	teamsUser := teamsuser.New(pool, box, userCfg, log)
+	if teamsUser != nil {
+		usersys.Register()
+		platform[usersys.Name] = teamsUser
+		if teamsApp != nil {
+			teamsApp.People = teamsUser
+			teamsApp.ActsAsPerson = func(ctx context.Context, a agents.Agent) bool {
+				ok, err := registry.HasAccess(ctx, a.ID, usersys.Name, "")
+				return err == nil && ok
+			}
+		}
+		log.Info("teams as a person active", "own_app", cfg.TeamsUserAppID != "", "single_sign_on", teamsApp != nil)
+	}
+
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"
 	orch := orchestrator.New(orchestrator.Options{
-		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		Platform: platform,
+		Pool:     pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Chat: chat.New(pool), Org: org.NewStore(pool),
 		Runtimes:   runtimeStore,
@@ -1505,6 +1549,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Orch:      orch, WebFS: dist, Log: log,
 		WebhookSecrets:   cfg.WebhookSecrets,
 		UnsignedWebhooks: cfg.UnsignedWebhooks,
+		TeamsApp:         teamsApp,
+		TeamsUser:        teamsUser,
 		SessionTTL:       cfg.SessionTTL,
 		SiteURL:          cfg.SiteURL,
 		CookieSecure:     cfg.CookieSecure,

@@ -3632,5 +3632,45 @@
     "delete": "删除",
     "deleteTitle": "删除“{{name}}”？",
     "deleteText": "该流程将连同所有版本、案例及其历史一起删除，且无法撤销。"
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "整个组织共用一个 covey 应用：只需连接一次 Microsoft 365，把应用上传到 Teams，每位拥有 Teams 访问权限的同事都能在那里被联系并在频道中发帖。无需为每个智能体注册 Azure。",
+    "notLinked": "尚未连接任何 Microsoft 365 组织。",
+    "linkedTenant": "已连接：Microsoft 租户 {{tenant}}",
+    "linkedBy": "由 {{who}}",
+    "unlink": "断开",
+    "connect": "连接 Microsoft 365",
+    "connectAnother": "连接另一个租户",
+    "noSiteURL": "此安装未配置站点地址，Microsoft 无法跳转回来。",
+    "package": "下载应用包",
+    "showChannels": "频道",
+    "hideChannels": "隐藏频道",
+    "adminOnly": "Microsoft 365 由组织管理员连接。",
+    "howTo": "在 Teams 中直接给 covey 应用发消息，或在频道中 @提及它并以同事的名字开头（“@covey Vera，…”）。智能体的 ACCESS.md 中需要 `- system: teamsapp scope: read,write`。",
+    "loading": "正在加载频道 …",
+    "noChannels": "还没有频道。在 Teams 中把应用添加到团队，并在那里提及它一次。",
+    "channel": "频道",
+    "defaultAgent": "无人被点名时交给",
+    "defaultAgentFor": "{{channel}} 的同事",
+    "nobody": "无人 — 询问指的是谁",
+    "outcome": {
+      "linked": "Microsoft 365 已连接。",
+      "taken": "此 Microsoft 租户已连接到本安装上的另一个组织。",
+      "not_admin": "只有 Microsoft 租户的 Teams 管理员或全局管理员才能连接。",
+      "error": "连接失败："
+    }
+  },
+  "teamsUser": {
+    "title": "以本人身份使用 Microsoft Teams",
+    "desc": "让智能体在你自己的 Teams 中工作：它读取你所在的聊天和频道，并以你的名义回复或发帖，每条消息都会标注为由智能体发送。它看到的正是你能看到的内容。",
+    "delegated": "你的 Teams 已连接到该智能体。",
+    "failed": "连接失败：",
+    "actsAs": "{{agent}} 在 Teams 中以 {{who}} 的身份操作",
+    "revoke": "断开",
+    "agent": "智能体",
+    "chooseAgent": "选择智能体 …",
+    "connect": "连接我的 Teams",
+    "note": "智能体的 ACCESS.md 中还需要 `- system: teamsuser scope: read,write`。为 teamsuser:send_chat 设置护栏规则，可以要求每条消息都经你批准。"
   }
 }

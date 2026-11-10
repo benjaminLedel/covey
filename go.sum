@@ -1,5 +1,5 @@
-github.com/benjaminLedel/covey-plugin-pack v0.32.2 h1:2hHKAneZOzIfzc9F1h92ghb67udQe9lqOpFixTxuNbE=
-github.com/benjaminLedel/covey-plugin-pack v0.32.2/go.mod h1:p2Eqqh2kBiC8jEdoNlNZ0KhiOJ2ZJYLQUdJVtIXqmME=
+github.com/benjaminLedel/covey-plugin-pack v0.33.0 h1:w9mf5ZQhBygpDSqkTq5jHn2N+SHmbeGclVB49nK0Z2s=
+github.com/benjaminLedel/covey-plugin-pack v0.33.0/go.mod h1:p2Eqqh2kBiC8jEdoNlNZ0KhiOJ2ZJYLQUdJVtIXqmME=
 github.com/benjaminLedel/covey-plugin-sdk v0.6.0 h1:rjkc6ZbZt0JySwmKpXOrIM6n+iuLbgoSmZxCZ79gWyo=
 github.com/benjaminLedel/covey-plugin-sdk v0.6.0/go.mod h1:Jchr0Mi5pKJ57o+TnTRcIUXFpS8Ij6ALcdqsN1FbbX4=
 github.com/chromedp/cdproto v0.159.1 h1:k0ACb4pnDcuz30dgr1kdou0t0U+VW/4HDQm17mOdXxo=

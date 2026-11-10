@@ -123,6 +123,12 @@ func (p *actionProxy) run(ctx context.Context, system, action string, params jso
 		}
 	}
 
+	// A system whose credential is the installation's runs in the control
+	// plane (#710): the daemon carries the call over and never holds it.
+	if p.runsInControlPlane(ctx, system) {
+		return p.platformAction(ctx, system, action, subject, dec.ApprovalID, params)
+	}
+
 	// Artifact sink: a plugin (e.g. browser screenshot) can pass an image
 	// through for the recording without putting it into the runtime result.
 	var artifact *target.Artifact
@@ -799,4 +805,35 @@ func reportFields(params json.RawMessage) (map[string]string, string) {
 		}
 	}
 	return out, ""
+}
+
+// controlPlaneSystem is a target system whose actions the control plane runs
+// (internal/teamsapp). Asked structurally, so the daemon needs no list.
+type controlPlaneSystem interface {
+	RunsInControlPlane() bool
+}
+
+func (p *actionProxy) runsInControlPlane(ctx context.Context, system string) bool {
+	sys, ok := p.resolveSystem(ctx, system)
+	if !ok {
+		return false
+	}
+	cp, ok := sys.(controlPlaneSystem)
+	return ok && cp.RunsInControlPlane()
+}
+
+func (p *actionProxy) platformAction(ctx context.Context, system, action, subject, approvalID string, params json.RawMessage) any {
+	resp, err := p.client.platformAction(ctx, RequestPlatformAction{
+		TaskID: p.taskID, System: system, Action: action, Params: params, ApprovalID: approvalID,
+	})
+	result := map[string]any{"status": "ok", "data": resp.Data}
+	switch {
+	case err != nil:
+		result = map[string]any{"status": "error", "error": err.Error()}
+	case !resp.OK:
+		result = map[string]any{"status": "error", "error": resp.Error}
+	}
+	audit, _ := json.Marshal(map[string]any{"action": subject, "params": params, "ok": err == nil && resp.OK})
+	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+	return result
 }

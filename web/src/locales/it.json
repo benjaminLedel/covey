@@ -3632,5 +3632,45 @@
     "delete": "Elimina",
     "deleteTitle": "Eliminare «{{name}}»?",
     "deleteText": "Il flusso scompare con tutte le versioni, i casi e la loro cronologia. Non si può annullare."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Un'unica app covey per tutta l'organizzazione: collega Microsoft 365 una volta, carica l'app in Teams e ogni collega con accesso a Teams potrà ricevere messaggi lì e pubblicare nei canali. Nessuna registrazione Azure per agente.",
+    "notLinked": "Non ancora collegato a un'organizzazione Microsoft 365.",
+    "linkedTenant": "Collegato: tenant Microsoft {{tenant}}",
+    "linkedBy": "da {{who}}",
+    "unlink": "Scollega",
+    "connect": "Collega Microsoft 365",
+    "connectAnother": "Collega un altro tenant",
+    "noSiteURL": "Per questa installazione non è configurato alcun indirizzo del sito, quindi Microsoft non può tornarvi.",
+    "package": "Scarica il pacchetto dell'app",
+    "showChannels": "Canali",
+    "hideChannels": "Nascondi canali",
+    "adminOnly": "Microsoft 365 viene collegato da un amministratore dell'organizzazione.",
+    "howTo": "In Teams scrivi direttamente all'app covey, oppure menzionala con @ in un canale iniziando con il nome del collega («@covey Vera, …»). Gli agenti hanno bisogno di `- system: teamsapp scope: read,write` nel loro ACCESS.md.",
+    "loading": "Caricamento canali …",
+    "noChannels": "Ancora nessun canale. Aggiungi l'app a un team in Teams e menzionala lì una volta.",
+    "channel": "Canale",
+    "defaultAgent": "Va a, se nessuno viene nominato",
+    "defaultAgentFor": "Collega per {{channel}}",
+    "nobody": "Nessuno: chiedere a chi ci si riferisce",
+    "outcome": {
+      "linked": "Microsoft 365 è collegato.",
+      "taken": "Questo tenant Microsoft è già collegato a un'altra organizzazione su questa installazione.",
+      "not_admin": "Solo un amministratore di Teams o globale del tenant Microsoft può collegarlo.",
+      "error": "Collegamento non riuscito:"
+    }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams come persona",
+    "desc": "Lascia che un agente lavori nel tuo Teams: legge le chat e i canali di cui fai parte e risponde o pubblica a tuo nome, ogni messaggio contrassegnato come inviato dall'agente. Vede esattamente ciò che vedi tu.",
+    "delegated": "Il tuo Teams è collegato all'agente.",
+    "failed": "Collegamento non riuscito:",
+    "actsAs": "{{agent}} agisce in Teams come {{who}}",
+    "revoke": "Scollega",
+    "agent": "Agente",
+    "chooseAgent": "Scegli un agente …",
+    "connect": "Collega il mio Teams",
+    "note": "L'agente ha bisogno anche di `- system: teamsuser scope: read,write` nel suo ACCESS.md. Una regola su teamsuser:send_chat può richiedere la tua approvazione per ogni messaggio."
   }
 }

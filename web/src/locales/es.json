@@ -3632,5 +3632,45 @@
     "delete": "Eliminar",
     "deleteTitle": "¿Eliminar «{{name}}»?",
     "deleteText": "El flujo desaparece con todas sus versiones, casos y su historial. No se puede deshacer."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Una app de covey para toda la organización: conecta Microsoft 365 una vez, sube la app a Teams y cualquier colega con acceso a Teams podrá recibir mensajes allí y publicar en canales. Sin registro de Azure por agente.",
+    "notLinked": "Aún no está conectado a ninguna organización de Microsoft 365.",
+    "linkedTenant": "Conectado: tenant de Microsoft {{tenant}}",
+    "linkedBy": "por {{who}}",
+    "unlink": "Desconectar",
+    "connect": "Conectar Microsoft 365",
+    "connectAnother": "Conectar otro tenant",
+    "noSiteURL": "Esta instalación no tiene dirección web configurada, así que Microsoft no puede volver a ella.",
+    "package": "Descargar paquete de la app",
+    "showChannels": "Canales",
+    "hideChannels": "Ocultar canales",
+    "adminOnly": "Un administrador de la organización conecta Microsoft 365.",
+    "howTo": "En Teams, escribe a la app covey directamente o menciónala con @ en un canal empezando por el nombre del colega («@covey Vera, …»). Los agentes necesitan `- system: teamsapp scope: read,write` en su ACCESS.md.",
+    "loading": "Cargando canales …",
+    "noChannels": "Aún no hay canales. Añade la app a un equipo en Teams y menciónala allí una vez.",
+    "channel": "Canal",
+    "defaultAgent": "Va a, si no se nombra a nadie",
+    "defaultAgentFor": "Colega para {{channel}}",
+    "nobody": "Nadie: preguntar a quién se refiere",
+    "outcome": {
+      "linked": "Microsoft 365 está conectado.",
+      "taken": "Este tenant de Microsoft ya está conectado a otra organización en esta instalación.",
+      "not_admin": "Solo un administrador de Teams o global del tenant de Microsoft puede conectarlo.",
+      "error": "Error al conectar:"
+    }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams como persona",
+    "desc": "Deja que un agente trabaje en tu propio Teams: lee los chats y canales en los que estás y responde o publica en tu nombre, cada mensaje marcado como enviado por el agente. Ve exactamente lo que ves tú.",
+    "delegated": "Tu Teams está conectado al agente.",
+    "failed": "Error al conectar:",
+    "actsAs": "{{agent}} actúa en Teams como {{who}}",
+    "revoke": "Desconectar",
+    "agent": "Agente",
+    "chooseAgent": "Elige un agente …",
+    "connect": "Conectar mi Teams",
+    "note": "El agente también necesita `- system: teamsuser scope: read,write` en su ACCESS.md. Una regla sobre teamsuser:send_chat puede exigir tu aprobación para cada mensaje."
   }
 }

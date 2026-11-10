@@ -139,7 +139,18 @@ type Options struct {
 	// answers that it is not available on this instance.
 	Chat *chat.Store
 	Org  *org.Store
-	Log  *slog.Logger
+	// Platform are the target systems whose actions run here instead of in
+	// the sandbox, by name (#710: teamsapp). Empty = none on this instance.
+	Platform map[string]PlatformSystem
+	Log      *slog.Logger
+}
+
+// PlatformSystem executes an agent's action in the control plane. The
+// orchestrator has checked ACCESS, scope and guard rails before the call.
+// taskID is the run the action belongs to (uuid.Nil when none): a system
+// acting for a person needs to know whose work it is (#713).
+type PlatformSystem interface {
+	Execute(ctx context.Context, agent agents.Agent, taskID uuid.UUID, action string, params json.RawMessage) (any, error)
 }
 
 // Upstream is the one thing the orchestrator asks of the channel to the
@@ -2745,6 +2756,13 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.toolRequest(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectTool, resp)
 
+	case daemon.TypeRequestPlatformAction:
+		req, err := daemon.DecodePayload[daemon.RequestPlatformAction](msg)
+		if err != nil {
+			return false, nil
+		}
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectPlatformAction, o.platformAction(ctx, agent, taskID, req))
+
 	case daemon.TypeRequestHiring:
 		req, err := daemon.DecodePayload[daemon.RequestHiring](msg)
 		if err != nil {
@@ -3993,34 +4011,55 @@ func (o *Orchestrator) nebenlaeufig(f func()) {
 // the correlation key are computed by the plugin from the target system's own
 // ids, which repeat across organisations.
 func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, source string, ev target.WebhookEvent) (string, error) {
+	outcome, _, err := o.HandleWebhookTask(ctx, agent, source, ev, nil)
+	return outcome, err
+}
+
+// HandleWebhookTask is HandleWebhook that also names the task the event
+// created or woke (uuid.Nil otherwise). onTask runs with that task BEFORE
+// the task is handed to the dispatcher — for a caller recording something
+// the run must find, such as whose message it is working on (#713). If it
+// fails, the task is not dispatched and the error returned.
+func (o *Orchestrator) HandleWebhookTask(ctx context.Context, agent agents.Agent, source string, ev target.WebhookEvent,
+	onTask func(context.Context, uuid.UUID) error) (string, uuid.UUID, error) {
 	tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
 		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, agent.OrgID.String()+":"+ev.DedupKey, source)
 	if err != nil {
-		return "", err
+		return "", uuid.Nil, err
 	}
 	if tag.RowsAffected() == 0 {
-		return "duplicate", nil // retry from the target system — already processed
+		return "duplicate", uuid.Nil, nil // retry from the target system — already processed
 	}
 	if !ev.Wake {
-		return "ignored", nil // e.g. the echo of the agent's own reply
+		return "ignored", uuid.Nil, nil // e.g. the echo of the agent's own reply
 	}
 	if task, err := o.Backlog.CorrelateWake(ctx, agent.OrgID, ev.CorrelationKey, ev.ResumeInput); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &task.ID, observability.KindLifecycle,
 			map[string]string{"status": "wake_on_correlation", "correlation_key": ev.CorrelationKey})
+		if onTask != nil {
+			if err := onTask(ctx, task.ID); err != nil {
+				return "", task.ID, err
+			}
+		}
 		o.publishTask(task.ID, agent)
-		return "correlated", nil
+		return "correlated", task.ID, nil
 	} else if !errors.Is(err, backlog.ErrNotFound) {
-		return "", err
+		return "", uuid.Nil, err
 	}
 	if ev.CorrelateOnly {
-		return "ignored", nil // if nobody waits for the event, no work is created
+		return "ignored", uuid.Nil, nil // if nobody waits for the event, no work is created
 	}
 	task, err := o.Backlog.Create(ctx, agent.OrgID, agent.ID, ev.Title, ev.TaskBody, "webhook:"+source, 3)
 	if err != nil {
-		return "", err
+		return "", uuid.Nil, err
+	}
+	if onTask != nil {
+		if err := onTask(ctx, task.ID); err != nil {
+			return "", task.ID, err
+		}
 	}
 	o.publishTask(task.ID, agent)
-	return "created", nil
+	return "created", task.ID, nil
 }
 
 // HandleAgentTrigger processes an agent's generic, token-authenticated webhook

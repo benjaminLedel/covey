@@ -6,6 +6,8 @@ import { ConfirmDialog, Modal } from "../components/Modal";
 import { TargetIcon, hasBrandMark } from "../components/TargetIcon";
 import { TargetSetupWizard } from "./targets/SetupWizard";
 import { CatalogTab } from "./targets/Catalog";
+import { TeamsAppPanel } from "./targets/TeamsApp";
+import { TeamsUserPanel } from "./targets/TeamsUser";
 
 const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
@@ -154,6 +156,9 @@ export default function Targets({ me }: { me: Principal }) {
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
         {t("targets.desc")}
       </p>
+
+      <TeamsAppPanel me={me} />
+      <TeamsUserPanel me={me} />
 
       <nav className="subnav" role="tablist" aria-label={t("targets.title")}>
         {(["available", "active", "store"] as Tab[]).map((tb) => (

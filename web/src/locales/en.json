@@ -3632,5 +3632,45 @@
     "delete": "Delete",
     "deleteTitle": "Delete “{{name}}”?",
     "deleteText": "The workflow goes, with all its versions, runs and their history. This cannot be undone."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "One covey app for your whole organisation: connect your Microsoft 365 once, upload the app into Teams, and every colleague whose access includes Teams can be written to there and post in channels. No Azure registration per agent.",
+    "notLinked": "Not connected to a Microsoft 365 organisation yet.",
+    "linkedTenant": "Connected: Microsoft tenant {{tenant}}",
+    "linkedBy": "by {{who}}",
+    "unlink": "Disconnect",
+    "connect": "Connect Microsoft 365",
+    "connectAnother": "Connect another tenant",
+    "noSiteURL": "This installation has no site address configured, so Microsoft cannot return to it.",
+    "package": "Download app package",
+    "showChannels": "Channels",
+    "hideChannels": "Hide channels",
+    "adminOnly": "An organisation admin connects Microsoft 365.",
+    "howTo": "In Teams, write to the covey app directly, or @mention it in a channel and start with the colleague's name (\"@covey Vera, …\"). Agents need `- system: teamsapp scope: read,write` in their ACCESS.md.",
+    "loading": "Loading channels …",
+    "noChannels": "No channels yet. Add the app to a team in Teams, then mention it there once.",
+    "channel": "Channel",
+    "defaultAgent": "Goes to, when nobody is named",
+    "defaultAgentFor": "Colleague for {{channel}}",
+    "nobody": "Nobody — ask who is meant",
+    "outcome": {
+      "linked": "Microsoft 365 is connected.",
+      "taken": "This Microsoft tenant is already connected to another organisation on this installation.",
+      "not_admin": "Only a Teams or Global Administrator of the Microsoft tenant can connect it.",
+      "error": "Connecting failed:"
+    }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams as a person",
+    "desc": "Let an agent work in your own Teams: it reads the chats and channels you are in and answers or posts in your name, each message marked as sent by the agent. It sees exactly what you see.",
+    "delegated": "Your Teams is connected to the agent.",
+    "failed": "Connecting failed:",
+    "actsAs": "{{agent}} acts in Teams as {{who}}",
+    "revoke": "Disconnect",
+    "agent": "Agent",
+    "chooseAgent": "Choose an agent …",
+    "connect": "Connect my Teams",
+    "note": "The agent also needs `- system: teamsuser scope: read,write` in its ACCESS.md. A guard rail on teamsuser:send_chat can require your approval for every message."
   }
 }

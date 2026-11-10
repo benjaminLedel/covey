@@ -3632,5 +3632,45 @@
     "delete": "Löschen",
     "deleteTitle": "„{{name}}“ löschen?",
     "deleteText": "Der Ablauf verschwindet mit allen Versionen, Vorgängen und ihrem Verlauf. Das lässt sich nicht rückgängig machen."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Eine covey-App für die ganze Organisation: Microsoft 365 einmal verbinden, die App in Teams hochladen, und jede Kollegin und jeder Kollege mit Teams-Zugriff ist dort ansprechbar und kann in Kanäle schreiben. Keine Azure-Registrierung pro Agent.",
+    "notLinked": "Noch mit keiner Microsoft-365-Organisation verbunden.",
+    "linkedTenant": "Verbunden: Microsoft-Tenant {{tenant}}",
+    "linkedBy": "von {{who}}",
+    "unlink": "Trennen",
+    "connect": "Microsoft 365 verbinden",
+    "connectAnother": "Weiteren Tenant verbinden",
+    "noSiteURL": "Für diese Installation ist keine Website-Adresse eingestellt, Microsoft kann nicht zurückleiten.",
+    "package": "App-Paket herunterladen",
+    "showChannels": "Kanäle",
+    "hideChannels": "Kanäle ausblenden",
+    "adminOnly": "Microsoft 365 verbindet eine Org-Administration.",
+    "howTo": "In Teams der covey-App direkt schreiben oder sie im Kanal @erwähnen und mit dem Namen beginnen („@covey Vera, …“). Agenten brauchen `- system: teamsapp scope: read,write` in ihrer ACCESS.md.",
+    "loading": "Kanäle werden geladen …",
+    "noChannels": "Noch keine Kanäle. Die App in Teams einem Team hinzufügen und dort einmal erwähnen.",
+    "channel": "Kanal",
+    "defaultAgent": "Geht an, wenn niemand genannt wird",
+    "defaultAgentFor": "Kollege für {{channel}}",
+    "nobody": "Niemand – nachfragen, wer gemeint ist",
+    "outcome": {
+      "linked": "Microsoft 365 ist verbunden.",
+      "taken": "Dieser Microsoft-Tenant ist bereits mit einer anderen Organisation auf dieser Installation verbunden.",
+      "not_admin": "Verbinden kann nur eine Teams- oder globale Administration des Microsoft-Tenants.",
+      "error": "Verbinden fehlgeschlagen:"
+    }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams als Person",
+    "desc": "Einen Agenten im eigenen Teams arbeiten lassen: Er liest die Chats und Kanäle, in denen Sie sind, und antwortet oder postet in Ihrem Namen – jede Nachricht als vom Agenten gesendet markiert. Er sieht genau, was Sie sehen.",
+    "delegated": "Ihr Teams ist mit dem Agenten verbunden.",
+    "failed": "Verbinden fehlgeschlagen:",
+    "actsAs": "{{agent}} handelt in Teams als {{who}}",
+    "revoke": "Trennen",
+    "agent": "Agent",
+    "chooseAgent": "Agent wählen …",
+    "connect": "Mein Teams verbinden",
+    "note": "Der Agent braucht zusätzlich `- system: teamsuser scope: read,write` in seiner ACCESS.md. Eine Guard-Rail auf teamsuser:send_chat kann für jede Nachricht Ihre Freigabe verlangen."
   }
 }

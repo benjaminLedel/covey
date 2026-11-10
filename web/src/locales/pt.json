@@ -3632,5 +3632,45 @@
     "delete": "Excluir",
     "deleteTitle": "Excluir “{{name}}”?",
     "deleteText": "O fluxo desaparece com todas as versões, casos e o histórico deles. Não é possível desfazer."
+  },
+  "teamsApp": {
+    "title": "Microsoft Teams",
+    "desc": "Uma app covey para toda a organização: ligue o Microsoft 365 uma vez, carregue a app no Teams e cada colega com acesso ao Teams pode receber mensagens lá e publicar em canais. Sem registo Azure por agente.",
+    "notLinked": "Ainda não está ligado a nenhuma organização Microsoft 365.",
+    "linkedTenant": "Ligado: tenant Microsoft {{tenant}}",
+    "linkedBy": "por {{who}}",
+    "unlink": "Desligar",
+    "connect": "Ligar Microsoft 365",
+    "connectAnother": "Ligar outro tenant",
+    "noSiteURL": "Esta instalação não tem endereço do site configurado, por isso a Microsoft não consegue voltar a ela.",
+    "package": "Descarregar pacote da app",
+    "showChannels": "Canais",
+    "hideChannels": "Ocultar canais",
+    "adminOnly": "Um administrador da organização liga o Microsoft 365.",
+    "howTo": "No Teams, escreva diretamente à app covey ou mencione-a com @ num canal começando pelo nome do colega («@covey Vera, …»). Os agentes precisam de `- system: teamsapp scope: read,write` no seu ACCESS.md.",
+    "loading": "A carregar canais …",
+    "noChannels": "Ainda sem canais. Adicione a app a uma equipa no Teams e mencione-a lá uma vez.",
+    "channel": "Canal",
+    "defaultAgent": "Vai para, se ninguém for nomeado",
+    "defaultAgentFor": "Colega para {{channel}}",
+    "nobody": "Ninguém — perguntar a quem se refere",
+    "outcome": {
+      "linked": "O Microsoft 365 está ligado.",
+      "taken": "Este tenant Microsoft já está ligado a outra organização nesta instalação.",
+      "not_admin": "Só um administrador do Teams ou global do tenant Microsoft o pode ligar.",
+      "error": "Falha ao ligar:"
+    }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams como pessoa",
+    "desc": "Deixe um agente trabalhar no seu próprio Teams: lê os chats e canais em que está e responde ou publica em seu nome, cada mensagem marcada como enviada pelo agente. Vê exatamente o que você vê.",
+    "delegated": "O seu Teams está ligado ao agente.",
+    "failed": "Falha ao ligar:",
+    "actsAs": "{{agent}} atua no Teams como {{who}}",
+    "revoke": "Desligar",
+    "agent": "Agente",
+    "chooseAgent": "Escolha um agente …",
+    "connect": "Ligar o meu Teams",
+    "note": "O agente também precisa de `- system: teamsuser scope: read,write` no seu ACCESS.md. Uma regra em teamsuser:send_chat pode exigir a sua aprovação para cada mensagem."
   }
 }
