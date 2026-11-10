@@ -6,6 +6,7 @@ package httpapi
 import (
 	"context"
 	"covey/internal/teamsapp"
+	"covey/internal/teamsuser"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -208,7 +209,9 @@ type Server struct {
 	// operator's explicit choice (COVEY_UNSIGNED_WEBHOOKS). See webhookSecret.
 	UnsignedWebhooks map[string]bool
 	// TeamsApp is the installation's own Teams app (#710); nil = none.
-	TeamsApp   *teamsapp.Service
+	TeamsApp *teamsapp.Service
+	// TeamsUser is "Teams as a person" (#712); nil = not offered.
+	TeamsUser  *teamsuser.Service
 	SessionTTL time.Duration
 	// SiteURL is this instance's externally reachable address: canonical and
 	// sitemap.xml of the website, the webhook and trigger URLs to copy, the
@@ -598,6 +601,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/org/chat-config-proposals", s.rbac(manage, s.handleSetChatConfigProposals))
 	// Whom a member writes to directly (#440): any agent, or those of their
 	// own departments.
+	mux.Handle("GET /api/v1/teamsuser", s.rbac(anyRole, s.handleTeamsUserStatus))
+	mux.Handle("POST /api/v1/teamsuser/delegate", s.rbac(manage, s.handleTeamsUserDelegate))
+	mux.Handle("DELETE /api/v1/teamsuser/delegations/{agent}", s.rbac(manage, s.handleTeamsUserRevoke))
 	mux.Handle("GET /api/v1/teamsapp", s.rbac(anyRole, s.handleTeamsAppStatus))
 	mux.Handle("POST /api/v1/teamsapp/link", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppLink))
 	mux.Handle("DELETE /api/v1/teamsapp/tenants/{tenant}", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppUnlink))
@@ -926,6 +932,7 @@ func (s *Server) Handler() http.Handler {
 	// from the tenant link's sign-in.
 	mux.HandleFunc("POST /api/webhooks/teamsapp", s.logIncoming(s.handleTeamsAppWebhook))
 	mux.HandleFunc("GET /api/teamsapp/callback", s.handleTeamsAppCallback)
+	mux.HandleFunc("GET /api/teamsuser/callback", s.handleTeamsUserCallback)
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	// A workflow's own doors (#566): the same webhook parsing and the same
 	// token trigger, delivered to the workflow instead of an agent.

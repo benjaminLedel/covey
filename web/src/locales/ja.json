@@ -3660,5 +3660,17 @@
       "not_admin": "接続できるのは Microsoft テナントの Teams 管理者またはグローバル管理者だけです。",
       "error": "接続に失敗しました："
     }
+  },
+  "teamsUser": {
+    "title": "本人としての Microsoft Teams",
+    "desc": "エージェントにあなた自身の Teams で作業させます。あなたが参加しているチャットやチャネルを読み、あなたの名前で返信・投稿します。各メッセージにはエージェントが送信したことが記されます。エージェントが見られるのは、あなたが見られる範囲だけです。",
+    "delegated": "あなたの Teams がエージェントに接続されました。",
+    "failed": "接続に失敗しました：",
+    "actsAs": "{{agent}} は Teams で {{who}} として動作します",
+    "revoke": "切断",
+    "agent": "エージェント",
+    "chooseAgent": "エージェントを選択 …",
+    "connect": "自分の Teams を接続",
+    "note": "エージェントの ACCESS.md にも `- system: teamsuser scope: read,write` が必要です。teamsuser:send_chat にガードレールを設定すると、メッセージごとにあなたの承認を求められます。"
   }
 }

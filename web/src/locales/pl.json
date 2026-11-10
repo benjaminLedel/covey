@@ -3660,5 +3660,17 @@
       "not_admin": "Połączyć ją może tylko administrator Teams lub administrator globalny dzierżawy Microsoft.",
       "error": "Połączenie nie powiodło się:"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams jako osoba",
+    "desc": "Pozwól agentowi pracować w Twoim Teams: czyta czaty i kanały, w których jesteś, i odpowiada lub publikuje w Twoim imieniu, a każda wiadomość jest oznaczona jako wysłana przez agenta. Widzi dokładnie to, co Ty.",
+    "delegated": "Twój Teams jest połączony z agentem.",
+    "failed": "Połączenie nie powiodło się:",
+    "actsAs": "{{agent}} działa w Teams jako {{who}}",
+    "revoke": "Rozłącz",
+    "agent": "Agent",
+    "chooseAgent": "Wybierz agenta …",
+    "connect": "Połącz mój Teams",
+    "note": "Agent potrzebuje też `- system: teamsuser scope: read,write` w swoim ACCESS.md. Reguła dla teamsuser:send_chat może wymagać Twojej zgody na każdą wiadomość."
   }
 }

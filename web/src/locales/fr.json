@@ -3660,5 +3660,17 @@
       "not_admin": "Seul un administrateur Teams ou global du tenant Microsoft peut le connecter.",
       "error": "Échec de la connexion :"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams en tant que personne",
+    "desc": "Laissez un agent travailler dans votre propre Teams : il lit les conversations et canaux dont vous faites partie et répond ou publie en votre nom, chaque message étant marqué comme envoyé par l'agent. Il voit exactement ce que vous voyez.",
+    "delegated": "Votre Teams est connecté à l'agent.",
+    "failed": "Échec de la connexion :",
+    "actsAs": "{{agent}} agit dans Teams en tant que {{who}}",
+    "revoke": "Déconnecter",
+    "agent": "Agent",
+    "chooseAgent": "Choisir un agent …",
+    "connect": "Connecter mon Teams",
+    "note": "L'agent a aussi besoin de `- system: teamsuser scope: read,write` dans son ACCESS.md. Une règle sur teamsuser:send_chat peut exiger votre approbation pour chaque message."
   }
 }

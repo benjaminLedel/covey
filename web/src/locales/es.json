@@ -3660,5 +3660,17 @@
       "not_admin": "Solo un administrador de Teams o global del tenant de Microsoft puede conectarlo.",
       "error": "Error al conectar:"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams como persona",
+    "desc": "Deja que un agente trabaje en tu propio Teams: lee los chats y canales en los que estás y responde o publica en tu nombre, cada mensaje marcado como enviado por el agente. Ve exactamente lo que ves tú.",
+    "delegated": "Tu Teams está conectado al agente.",
+    "failed": "Error al conectar:",
+    "actsAs": "{{agent}} actúa en Teams como {{who}}",
+    "revoke": "Desconectar",
+    "agent": "Agente",
+    "chooseAgent": "Elige un agente …",
+    "connect": "Conectar mi Teams",
+    "note": "El agente también necesita `- system: teamsuser scope: read,write` en su ACCESS.md. Una regla sobre teamsuser:send_chat puede exigir tu aprobación para cada mensaje."
   }
 }

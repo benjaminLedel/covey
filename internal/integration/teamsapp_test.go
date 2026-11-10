@@ -84,13 +84,19 @@ type teamsAppStack struct {
 	*stack
 	svc  *teamsapp.Service
 	conn *fakeConnector
+	// extra adds further control-plane systems before the orchestrator starts.
+	extra func(*stack, map[string]orchestrator.PlatformSystem)
 }
 
 func newTeamsAppStack(t *testing.T) *teamsAppStack {
+	return newTeamsAppStackWith(t, nil)
+}
+
+func newTeamsAppStackWith(t *testing.T, extra func(*stack, map[string]orchestrator.PlatformSystem)) *teamsAppStack {
 	t.Helper()
 	teamsys.Register()
 	conn := newFakeConnector(t)
-	ts := &teamsAppStack{conn: conn}
+	ts := &teamsAppStack{conn: conn, extra: extra}
 	ts.stack = newStackWith(t, stackOpts{platform: func(s *stack) map[string]orchestrator.PlatformSystem {
 		ts.svc = teamsapp.New(s.pool, s.registry, teamsapp.Config{
 			AppID: "app", AppPassword: "pw", TokenURL: conn.srv.URL + "/token",
@@ -107,7 +113,11 @@ func newTeamsAppStack(t *testing.T) *teamsAppStack {
 			}
 			return nil
 		}
-		return map[string]orchestrator.PlatformSystem{teamsys.Name: ts.svc}
+		m := map[string]orchestrator.PlatformSystem{teamsys.Name: ts.svc}
+		if ts.extra != nil {
+			ts.extra(s, m)
+		}
+		return m
 	}})
 	ts.srv.TeamsApp = ts.svc
 	return ts

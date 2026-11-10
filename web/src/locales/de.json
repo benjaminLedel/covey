@@ -3660,5 +3660,17 @@
       "not_admin": "Verbinden kann nur eine Teams- oder globale Administration des Microsoft-Tenants.",
       "error": "Verbinden fehlgeschlagen:"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams als Person",
+    "desc": "Einen Agenten im eigenen Teams arbeiten lassen: Er liest die Chats und Kanäle, in denen Sie sind, und antwortet oder postet in Ihrem Namen – jede Nachricht als vom Agenten gesendet markiert. Er sieht genau, was Sie sehen.",
+    "delegated": "Ihr Teams ist mit dem Agenten verbunden.",
+    "failed": "Verbinden fehlgeschlagen:",
+    "actsAs": "{{agent}} handelt in Teams als {{who}}",
+    "revoke": "Trennen",
+    "agent": "Agent",
+    "chooseAgent": "Agent wählen …",
+    "connect": "Mein Teams verbinden",
+    "note": "Der Agent braucht zusätzlich `- system: teamsuser scope: read,write` in seiner ACCESS.md. Eine Guard-Rail auf teamsuser:send_chat kann für jede Nachricht Ihre Freigabe verlangen."
   }
 }

@@ -3660,5 +3660,17 @@
       "not_admin": "Só um administrador do Teams ou global do tenant Microsoft o pode ligar.",
       "error": "Falha ao ligar:"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams como pessoa",
+    "desc": "Deixe um agente trabalhar no seu próprio Teams: lê os chats e canais em que está e responde ou publica em seu nome, cada mensagem marcada como enviada pelo agente. Vê exatamente o que você vê.",
+    "delegated": "O seu Teams está ligado ao agente.",
+    "failed": "Falha ao ligar:",
+    "actsAs": "{{agent}} atua no Teams como {{who}}",
+    "revoke": "Desligar",
+    "agent": "Agente",
+    "chooseAgent": "Escolha um agente …",
+    "connect": "Ligar o meu Teams",
+    "note": "O agente também precisa de `- system: teamsuser scope: read,write` no seu ACCESS.md. Uma regra em teamsuser:send_chat pode exigir a sua aprovação para cada mensagem."
   }
 }

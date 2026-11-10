@@ -3660,5 +3660,17 @@
       "not_admin": "Alleen een Teams- of globale beheerder van de Microsoft-tenant kan hem koppelen.",
       "error": "Koppelen mislukt:"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams als persoon",
+    "desc": "Laat een agent in je eigen Teams werken: hij leest de chats en kanalen waarin je zit en antwoordt of post namens jou, elk bericht gemarkeerd als verstuurd door de agent. Hij ziet precies wat jij ziet.",
+    "delegated": "Je Teams is gekoppeld aan de agent.",
+    "failed": "Koppelen mislukt:",
+    "actsAs": "{{agent}} handelt in Teams als {{who}}",
+    "revoke": "Ontkoppelen",
+    "agent": "Agent",
+    "chooseAgent": "Kies een agent …",
+    "connect": "Mijn Teams koppelen",
+    "note": "De agent heeft ook `- system: teamsuser scope: read,write` nodig in zijn ACCESS.md. Een regel op teamsuser:send_chat kan voor elk bericht jouw goedkeuring vereisen."
   }
 }

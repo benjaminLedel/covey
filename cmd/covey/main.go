@@ -60,12 +60,14 @@ import (
 	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/teamsapp"
+	"covey/internal/teamsapp/teamsys"
+	"covey/internal/teamsuser"
+	"covey/internal/teamsuser/usersys"
 	"covey/internal/telemetry"
 	"covey/internal/templates"
 	"covey/internal/voice"
 	"covey/internal/waitlist"
-	"covey/internal/teamsapp"
-	"covey/internal/teamsapp/teamsys"
 	"covey/internal/workflow"
 	"covey/internal/workflowhost"
 	orgworkplaces "covey/internal/workplaces"
@@ -1388,11 +1390,20 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		platform[teamsys.Name] = teamsApp
 		log.Info("teams app active", "app_id", cfg.TeamsAppID)
 	}
+	// Teams as a person (#712): delegated access, sealed with the master key.
+	teamsUser := teamsuser.New(pool, box, teamsuser.Config{
+		AppID: cfg.TeamsUserAppID, AppPassword: cfg.TeamsUserAppPassword,
+	}, log)
+	if teamsUser != nil {
+		usersys.Register()
+		platform[usersys.Name] = teamsUser
+		log.Info("teams delegation active", "app_id", cfg.TeamsUserAppID)
+	}
 
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"
 	orch := orchestrator.New(orchestrator.Options{
 		Platform: platform,
-		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		Pool:     pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Chat: chat.New(pool), Org: org.NewStore(pool),
 		Runtimes:   runtimeStore,
@@ -1526,6 +1537,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		WebhookSecrets:   cfg.WebhookSecrets,
 		UnsignedWebhooks: cfg.UnsignedWebhooks,
 		TeamsApp:         teamsApp,
+		TeamsUser:        teamsUser,
 		SessionTTL:       cfg.SessionTTL,
 		SiteURL:          cfg.SiteURL,
 		CookieSecure:     cfg.CookieSecure,

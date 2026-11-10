@@ -3660,5 +3660,17 @@
       "not_admin": "只有 Microsoft 租户的 Teams 管理员或全局管理员才能连接。",
       "error": "连接失败："
     }
+  },
+  "teamsUser": {
+    "title": "以本人身份使用 Microsoft Teams",
+    "desc": "让智能体在你自己的 Teams 中工作：它读取你所在的聊天和频道，并以你的名义回复或发帖，每条消息都会标注为由智能体发送。它看到的正是你能看到的内容。",
+    "delegated": "你的 Teams 已连接到该智能体。",
+    "failed": "连接失败：",
+    "actsAs": "{{agent}} 在 Teams 中以 {{who}} 的身份操作",
+    "revoke": "断开",
+    "agent": "智能体",
+    "chooseAgent": "选择智能体 …",
+    "connect": "连接我的 Teams",
+    "note": "智能体的 ACCESS.md 中还需要 `- system: teamsuser scope: read,write`。为 teamsuser:send_chat 设置护栏规则，可以要求每条消息都经你批准。"
   }
 }

@@ -164,6 +164,16 @@ Teams shows the bot as the sender of every message, so each one is a card whose 
 
 **Not (yet) in `teamsapp`:** files in either direction (attachments are named in the task, not fetched), a proactive 1:1 chat with a person who never wrote to the bot, the Teams Store listing (the package is uploaded per tenant).
 
+## Teams as a person (`teamsuser`, proof of concept)
+
+Both bots speak as a bot and see only conversations the bot is part of. The third connector lets a **person hand an agent their own Teams** (#712): delegated Microsoft Graph access, with an app registration of its own beside the installation's bot (`COVEY_TEAMSUSER_APP_ID` / `COVEY_TEAMSUSER_APP_PASSWORD`).
+
+- **Grant.** A person signs in with Microsoft from covey and picks the agent (the same signed state and browser binding as the tenant link, `internal/msauth`). Scopes: `offline_access User.Read Chat.ReadWrite ChatMessage.Send Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Read.All ChannelMessage.Send`. The refresh token is sealed with the master key under the agent's id and stored per agent — one person per agent in the proof of concept. Microsoft rotates refresh tokens on use; the new one is sealed and stored at every refresh. Revoking (the person, or an org admin) deletes it.
+- **Use.** Every action runs in the control plane with that person's token, for that agent only, never brokered into a sandbox: `list_chats`, `read_chat`, `send_chat`, `list_channels`, `read_channel`, `post_channel`. What the agent reaches is exactly what the person reaches in Teams. Without a delegation, or when it no longer refreshes, the action says so; it never falls back to another identity.
+- **Authorship.** A message sent in the person's name ends with a line naming the agent ("— sent by Vera (covey)"), so readers can tell the person from their assistant. A guard rail on `teamsuser:send_chat` / `teamsuser:post_channel` makes the person approve each one.
+
+Not in the proof of concept: delegation for other Microsoft 365 services, several people per agent, files.
+
 ## Scope of this integration
 
 - **One bot / one agent**, app ID + app password through the built-in `SecretStore` — or the installation's shared app above.

@@ -3660,5 +3660,17 @@
       "not_admin": "Only a Teams or Global Administrator of the Microsoft tenant can connect it.",
       "error": "Connecting failed:"
     }
+  },
+  "teamsUser": {
+    "title": "Microsoft Teams as a person",
+    "desc": "Let an agent work in your own Teams: it reads the chats and channels you are in and answers or posts in your name, each message marked as sent by the agent. It sees exactly what you see.",
+    "delegated": "Your Teams is connected to the agent.",
+    "failed": "Connecting failed:",
+    "actsAs": "{{agent}} acts in Teams as {{who}}",
+    "revoke": "Disconnect",
+    "agent": "Agent",
+    "chooseAgent": "Choose an agent …",
+    "connect": "Connect my Teams",
+    "note": "The agent also needs `- system: teamsuser scope: read,write` in its ACCESS.md. A guard rail on teamsuser:send_chat can require your approval for every message."
   }
 }

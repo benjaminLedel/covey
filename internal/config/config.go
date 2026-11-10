@@ -201,6 +201,12 @@ type Config struct {
 	TeamsAppID       string
 	TeamsAppPassword string
 	TeamsAppTokenURL string
+	// TeamsUser is the app registration for "Teams as a person" (#712):
+	// delegated Graph access a person grants to an agent
+	// (COVEY_TEAMSUSER_APP_ID / COVEY_TEAMSUSER_APP_PASSWORD). A registration
+	// of its own beside the Teams bot. Empty = not offered.
+	TeamsUserAppID       string
+	TeamsUserAppPassword string
 	// TickInterval is the dispatch loop's periodic "anything to do?" impulse.
 	TickInterval time.Duration
 
@@ -415,6 +421,8 @@ func FromEnv() (Config, error) {
 		TeamsAppID:           strings.TrimSpace(os.Getenv("COVEY_TEAMSAPP_APP_ID")),
 		TeamsAppPassword:     os.Getenv("COVEY_TEAMSAPP_APP_PASSWORD"),
 		TeamsAppTokenURL:     strings.TrimSpace(os.Getenv("COVEY_TEAMSAPP_TOKEN_URL")),
+		TeamsUserAppID:       strings.TrimSpace(os.Getenv("COVEY_TEAMSUSER_APP_ID")),
+		TeamsUserAppPassword: os.Getenv("COVEY_TEAMSUSER_APP_PASSWORD"),
 		TickInterval:         getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:              getenv("COVEY_DREAM_AT", "03:00"),
 		SessionTTL:           getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),

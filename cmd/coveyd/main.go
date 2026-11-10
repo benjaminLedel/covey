@@ -15,6 +15,7 @@ import (
 	"covey/internal/buildinfo"
 	"covey/internal/daemon"
 	"covey/internal/teamsapp/teamsys"
+	"covey/internal/teamsuser/usersys"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -24,6 +25,7 @@ func main() {
 	// proxy recognises its actions as the control plane's to run. Nothing of
 	// it executes in the sandbox.
 	teamsys.Register()
+	usersys.Register()
 
 	// A sandbox image can go stale — `coveyd version` answers which build
 	// actually sits in the container.
