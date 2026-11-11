@@ -2451,7 +2451,10 @@
       "lastOk": "Laatst getest {{date}} — gelukt.",
       "lastFailed": "Laatst getest {{date}} — mislukt: {{error}}",
       "apnsNote": "Ook de iPhone wordt via Firebase bereikt: wie de app uitbrengt, uploadt de APNs-sleutel naar het Firebase-project (Projectinstellingen → Cloud Messaging → Apple-appconfiguratie). De test bewijst het serviceaccount, niet die sleutel."
-    }
+    },
+    "deleteAccount": "Account verwijderen",
+    "deleteAccountConfirm_one": "{{email}} definitief verwijderen, met zijn plek? Dit kan niet ongedaan worden gemaakt.",
+    "deleteAccountConfirm_other": "{{email}} definitief verwijderen, met zijn {{count}} plekken? Dit kan niet ongedaan worden gemaakt."
   },
   "catalog": {
     "loading": "De catalogus laden …",

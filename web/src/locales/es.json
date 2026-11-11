@@ -2451,7 +2451,10 @@
       "lastOk": "Última prueba {{date}}: funcionó.",
       "lastFailed": "Última prueba {{date}}: falló: {{error}}",
       "apnsNote": "El iPhone también se alcanza a través de Firebase: quien distribuye la app sube su clave APNs al proyecto Firebase (Configuración del proyecto → Cloud Messaging → Configuración de la app de Apple). La prueba verifica la cuenta de servicio, no esa clave."
-    }
+    },
+    "deleteAccount": "Eliminar cuenta",
+    "deleteAccountConfirm_one": "¿Eliminar {{email}} definitivamente, con su puesto? No se puede deshacer.",
+    "deleteAccountConfirm_other": "¿Eliminar {{email}} definitivamente, con sus {{count}} puestos? No se puede deshacer."
   },
   "catalog": {
     "loading": "Cargando el catálogo …",

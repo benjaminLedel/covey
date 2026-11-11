@@ -2451,7 +2451,10 @@
       "lastOk": "Ostatnio sprawdzono {{date}} — zadziałało.",
       "lastFailed": "Ostatnio sprawdzono {{date}} — błąd: {{error}}",
       "apnsNote": "iPhone również jest osiągany przez Firebase: kto dystrybuuje aplikację, przesyła jej klucz APNs do projektu Firebase (Ustawienia projektu → Cloud Messaging → Konfiguracja aplikacji Apple). Sprawdzenie potwierdza konto usługi, nie ten klucz."
-    }
+    },
+    "deleteAccount": "Usuń konto",
+    "deleteAccountConfirm_one": "Trwale usunąć {{email}} wraz z miejscem? Tego nie da się cofnąć.",
+    "deleteAccountConfirm_other": "Trwale usunąć {{email}} wraz z {{count}} miejscami? Tego nie da się cofnąć."
   },
   "catalog": {
     "loading": "Wczytywanie katalogu …",

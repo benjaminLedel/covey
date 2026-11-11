@@ -2451,7 +2451,10 @@
       "lastOk": "上次测试 {{date}} — 成功。",
       "lastFailed": "上次测试 {{date}} — 失败:{{error}}",
       "apnsNote": "iPhone 同样通过 Firebase 送达:发布应用的一方将其 APNs 密钥上传到 Firebase 项目(项目设置 → Cloud Messaging → Apple 应用配置)。测试验证的是服务账号,而不是该密钥。"
-    }
+    },
+    "deleteAccount": "删除账号",
+    "deleteAccountConfirm_one": "要永久删除 {{email}} 及其席位吗？此操作无法撤销。",
+    "deleteAccountConfirm_other": "要永久删除 {{email}} 及其 {{count}} 个席位吗？此操作无法撤销。"
   },
   "catalog": {
     "loading": "正在加载目录 …",

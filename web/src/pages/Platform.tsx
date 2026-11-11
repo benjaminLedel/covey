@@ -87,6 +87,16 @@ function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boole
       seatsChanged();
     },
   });
+  /* Deleting the login with every seat (#732). The server refuses one's own
+     account, the last org admin of an organisation and the last system admin;
+     the button is not offered for one's own row. */
+  const remove = useMutation({
+    mutationFn: () => del(`/platform/accounts/${account.id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["platform", "accounts"] });
+      void qc.invalidateQueries({ queryKey: ["orgs"] });
+    },
+  });
   const free = orgs.filter((o) => !account.seats.some((s) => s.org_id === o.id));
   const seatError = (seat.error ?? add.error) as Error | null;
 
@@ -116,9 +126,24 @@ function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boole
           <option value="user">{t("platform.roleUser")}</option>
           <option value="system_admin">{t("platform.roleSystemAdmin")}</option>
         </select>
+        {!isSelf && (
+          <button
+            className="btn sm danger"
+            disabled={remove.isPending}
+            onClick={() => {
+              if (window.confirm(t("platform.deleteAccountConfirm", { email: account.email, count: account.seats.length })))
+                remove.mutate();
+            }}
+          >
+            {t("platform.deleteAccount")}
+          </button>
+        )}
       </div>
       {setRole.isError && (
         <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(setRole.error as Error).message}</p>
+      )}
+      {remove.isError && (
+        <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(remove.error as Error).message}</p>
       )}
       {(account.seats.length > 0 || free.length > 0) && (
         <div className="mt-2" style={{ display: "grid", gap: 6 }}>

@@ -922,6 +922,9 @@ func (s *Server) Handler() http.Handler {
 	// of the installation and the waitlist codes (internal/httpapi/platform.go).
 	mux.Handle("GET /api/v1/platform/accounts", s.platformAdmin(s.handleListAccounts))
 	mux.Handle("PATCH /api/v1/platform/accounts/{id}", s.platformAdmin(s.handleSetAccountPlatformRole))
+	// Deleting a login with all its seats (#732): session only, like every
+	// move that cannot be taken back.
+	mux.Handle("DELETE /api/v1/platform/accounts/{id}", s.platformAdmin(s.sessionOnly(s.handleDeleteAccount)))
 	mux.Handle("GET /api/v1/platform/settings", s.platformAdmin(s.handleListSettings))
 	mux.Handle("PUT /api/v1/platform/settings/{key}", s.platformAdmin(s.handleSetSetting))
 	mux.Handle("POST /api/v1/platform/mail/test", s.platformAdmin(s.handleTestMail))
@@ -1089,7 +1092,8 @@ func mapErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
 		errors.Is(err, org.ErrAlreadyMember), errors.Is(err, org.ErrSharedLogin),
-		errors.Is(err, accounts.ErrLastSystemAdmin), errors.Is(err, org.ErrManagerCycle):
+		errors.Is(err, accounts.ErrLastSystemAdmin), errors.Is(err, org.ErrManagerCycle),
+		errors.Is(err, org.ErrLastSystemAdmin):
 		writeErr(w, http.StatusConflict, err.Error())
 	default:
 		writeErr(w, http.StatusInternalServerError, err.Error())

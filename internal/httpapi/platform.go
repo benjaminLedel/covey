@@ -77,6 +77,28 @@ func (s *Server) handleSetAccountPlatformRole(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleDeleteAccount — DELETE /api/v1/platform/accounts/{id} (#732): the
+// login and every seat it holds. Refused for one's own account, for the last
+// org admin of any of its organisations and for the last system admin.
+func (s *Server) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	p := principalFrom(r)
+	if id == p.AccountID {
+		writeErr(w, http.StatusConflict, "your own account cannot be deleted")
+		return
+	}
+	if err := s.Org.DeleteAccount(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	s.Log.Info("account deleted", "account", id, "by", p.AccountID)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // --- System settings ---
 
 // handleListSettings — GET /api/v1/platform/settings: every known switch with

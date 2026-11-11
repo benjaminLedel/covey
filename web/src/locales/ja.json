@@ -2451,7 +2451,10 @@
       "lastOk": "最終テスト {{date}} — 成功。",
       "lastFailed": "最終テスト {{date}} — 失敗: {{error}}",
       "apnsNote": "iPhone にも Firebase 経由で届きます。アプリを配布する側が、その APNs キーを Firebase プロジェクトにアップロードします(プロジェクトの設定 → Cloud Messaging → Apple アプリの構成)。テストで確かめられるのはサービスアカウントで、そのキーではありません。"
-    }
+    },
+    "deleteAccount": "アカウントを削除",
+    "deleteAccountConfirm_one": "{{email}} を席ごと完全に削除しますか?元に戻せません。",
+    "deleteAccountConfirm_other": "{{email}} を {{count}} 件の席ごと完全に削除しますか?元に戻せません。"
   },
   "catalog": {
     "loading": "カタログを読み込んでいます …",

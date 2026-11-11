@@ -2451,7 +2451,10 @@
       "lastOk": "Dernier test {{date}} — réussi.",
       "lastFailed": "Dernier test {{date}} — échec : {{error}}",
       "apnsNote": "L'iPhone est lui aussi joint via Firebase : celui qui distribue l'app téléverse sa clé APNs dans le projet Firebase (Paramètres du projet → Cloud Messaging → Configuration de l'app Apple). Le test prouve le compte de service, pas cette clé."
-    }
+    },
+    "deleteAccount": "Supprimer le compte",
+    "deleteAccountConfirm_one": "Supprimer définitivement {{email}}, avec son siège ? Impossible à annuler.",
+    "deleteAccountConfirm_other": "Supprimer définitivement {{email}}, avec ses {{count}} sièges ? Impossible à annuler."
   },
   "catalog": {
     "loading": "Chargement du catalogue …",
