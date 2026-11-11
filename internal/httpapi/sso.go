@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"covey/internal/accounts"
 	"covey/internal/identity"
 	"covey/internal/sso"
 )
@@ -325,6 +326,32 @@ func (s *Server) handleVerifyOrgSSODomain(w http.ResponseWriter, r *http.Request
 		mapErr(w, err)
 		return
 	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+// handleConfirmOrgSSODomain — POST /api/v1/org/sso/domains/{domain}/confirm
+// (#729). The DNS proof keeps an organisation from claiming a foreign domain;
+// this moves that check to the instance's system admin, who answers for the
+// whole installation anyway. Session only, like requiring single sign-on.
+func (s *Server) handleConfirmOrgSSODomain(w http.ResponseWriter, r *http.Request) {
+	if !s.ssoAvailable(w) {
+		return
+	}
+	p := principalFrom(r)
+	if p.PlatformRole != accounts.RoleSystemAdmin {
+		writeErr(w, http.StatusForbidden, "only an instance system admin confirms a domain without its DNS record")
+		return
+	}
+	d, err := s.SSO.ConfirmDomain(r.Context(), p.OrgID, r.PathValue("domain"), p.AccountID, s.currentSessionHash(r))
+	if errors.Is(err, sso.ErrNoDomain) {
+		writeErr(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	s.Log.Info("sso domain confirmed by hand", "org", p.OrgID, "domain", d.Domain, "account", p.AccountID)
 	writeJSON(w, http.StatusOK, d)
 }
 

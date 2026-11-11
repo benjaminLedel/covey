@@ -92,6 +92,9 @@ type Domain struct {
 	Domain     string     `json:"domain"`
 	Token      string     `json:"token"`
 	VerifiedAt *time.Time `json:"verified_at,omitempty"`
+	// Method is how it was confirmed: "dns", or "manual" by an instance
+	// system admin (#729).
+	Method string `json:"verified_method,omitempty"`
 	// Record is the TXT record's name, for the interface to show.
 	Record string `json:"record"`
 }
@@ -243,8 +246,8 @@ func validDomain(d string) bool {
 
 // Domains lists the organisation's claimed domains.
 func (s *Service) Domains(ctx context.Context, org uuid.UUID) ([]Domain, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT domain, token, verified_at FROM org_sso_domains
-		WHERE org_id=$1 ORDER BY domain`, org)
+	rows, err := s.Pool.Query(ctx, `SELECT domain, token, verified_at, COALESCE(verified_method, '')
+		FROM org_sso_domains WHERE org_id=$1 ORDER BY domain`, org)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +255,7 @@ func (s *Service) Domains(ctx context.Context, org uuid.UUID) ([]Domain, error) 
 	out := []Domain{}
 	for rows.Next() {
 		var d Domain
-		if err := rows.Scan(&d.Domain, &d.Token, &d.VerifiedAt); err != nil {
+		if err := rows.Scan(&d.Domain, &d.Token, &d.VerifiedAt, &d.Method); err != nil {
 			return nil, err
 		}
 		d.Record = ChallengePrefix + d.Domain
@@ -292,8 +295,9 @@ func (s *Service) AddDomain(ctx context.Context, org uuid.UUID, domain string) (
 
 func (s *Service) domain(ctx context.Context, org uuid.UUID, domain string) (Domain, error) {
 	d := Domain{Domain: domain, Record: ChallengePrefix + domain}
-	err := s.Pool.QueryRow(ctx, `SELECT token, verified_at FROM org_sso_domains WHERE domain=$1 AND org_id=$2`,
-		domain, org).Scan(&d.Token, &d.VerifiedAt)
+	err := s.Pool.QueryRow(ctx, `SELECT token, verified_at, COALESCE(verified_method, '')
+		FROM org_sso_domains WHERE domain=$1 AND org_id=$2`,
+		domain, org).Scan(&d.Token, &d.VerifiedAt, &d.Method)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Domain{}, ErrNoDomain
 	}
@@ -326,13 +330,30 @@ func (s *Service) VerifyDomain(ctx context.Context, org uuid.UUID, domain, keepS
 		}
 		return d, ErrNotVerified
 	}
+	return s.markVerified(ctx, org, domain, "dns", uuid.Nil, keepSession)
+}
+
+// ConfirmDomain confirms a claimed domain by hand, without its DNS record
+// (#729). Only an instance system admin may — the caller checks that; the
+// account is kept beside the claim. What follows is the same as for a DNS
+// proof.
+func (s *Service) ConfirmDomain(ctx context.Context, org uuid.UUID, domain string, by uuid.UUID, keepSession string) (Domain, error) {
+	domain = NormalizeDomain(domain)
+	if _, err := s.domain(ctx, org, domain); err != nil {
+		return Domain{}, err
+	}
+	return s.markVerified(ctx, org, domain, "manual", by, keepSession)
+}
+
+func (s *Service) markVerified(ctx context.Context, org uuid.UUID, domain, method string, by uuid.UUID, keepSession string) (Domain, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return Domain{}, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `UPDATE org_sso_domains SET verified_at=COALESCE(verified_at, now())
-		WHERE domain=$1 AND org_id=$2`, domain, org); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE org_sso_domains SET verified_at=COALESCE(verified_at, now()),
+			verified_method=COALESCE(verified_method, $3), verified_by=COALESCE(verified_by, $4)
+		WHERE domain=$1 AND org_id=$2`, domain, org, method, uuid.NullUUID{UUID: by, Valid: by != uuid.Nil}); err != nil {
 		return Domain{}, err
 	}
 	var required bool

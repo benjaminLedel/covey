@@ -324,7 +324,10 @@
     "signInFirst": "Melden Sie sich zuerst selbst einmal per Single Sign-on an, bevor Sie es vorschreiben.",
     "requiredConfirm": "Die Passwörter aller Konten der bestätigten Domains löschen und ihre Sitzungen beenden?",
     "rewritten_one": "{{count}} Konto meldet sich jetzt nur noch per Single Sign-on an.",
-    "rewritten_other": "{{count}} Konten melden sich jetzt nur noch per Single Sign-on an."
+    "rewritten_other": "{{count}} Konten melden sich jetzt nur noch per Single Sign-on an.",
+    "verifiedByHand": "von Hand bestätigt",
+    "confirmByHand": "Ohne DNS bestätigen",
+    "confirmByHandAsk": "{{domain}} ohne DNS-Eintrag bestätigen? Nur tun, wenn sicher ist, dass die Domain der Organisation gehört."
   },
   "noOrg": {
     "pick": "Sie haben einen Sitz in diesen Organisationen:",

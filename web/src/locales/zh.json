@@ -324,7 +324,10 @@
     "signInFirst": "在强制之前，请先自己通过单点登录登录一次。",
     "requiredConfirm": "删除已验证域名下所有账号的密码并结束其会话？",
     "rewritten_one": "{{count}} 个账号现在只能通过单点登录登录。",
-    "rewritten_other": "{{count}} 个账号现在只能通过单点登录登录。"
+    "rewritten_other": "{{count}} 个账号现在只能通过单点登录登录。",
+    "verifiedByHand": "已手动确认",
+    "confirmByHand": "无需 DNS 确认",
+    "confirmByHandAsk": "在没有 DNS 记录的情况下确认 {{domain}}？仅在确定该域名属于该组织时才这样做。"
   },
   "noOrg": {
     "pick": "您属于以下组织:",

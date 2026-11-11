@@ -623,6 +623,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/v1/org/sso/required", s.rbac(ssoAdmin, s.sessionOnly(s.handleSetOrgSSORequired)))
 	mux.Handle("POST /api/v1/org/sso/domains", s.rbac(ssoAdmin, s.handleAddOrgSSODomain))
 	mux.Handle("POST /api/v1/org/sso/domains/{domain}/verify", s.rbac(ssoAdmin, s.handleVerifyOrgSSODomain))
+	mux.Handle("POST /api/v1/org/sso/domains/{domain}/confirm", s.rbac(ssoAdmin, s.sessionOnly(s.handleConfirmOrgSSODomain)))
 	mux.Handle("DELETE /api/v1/org/sso/domains/{domain}", s.rbac(ssoAdmin, s.handleDeleteOrgSSODomain))
 	mux.Handle("PUT /api/v1/teamsapp/bot", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppSaveBot))
 	mux.Handle("DELETE /api/v1/teamsapp/bot", s.rbac([]string{identity.RoleOrgAdmin}, s.handleTeamsAppDeleteBot))

@@ -324,7 +324,10 @@
     "signInFirst": "Zanim zaczniesz tego wymagać, zaloguj się sam raz przez logowanie jednokrotne.",
     "requiredConfirm": "Usunąć hasła wszystkich kont w potwierdzonych domenach i zakończyć ich sesje?",
     "rewritten_one": "{{count}} konto loguje się teraz tylko przez logowanie jednokrotne.",
-    "rewritten_other": "{{count}} kont loguje się teraz tylko przez logowanie jednokrotne."
+    "rewritten_other": "{{count}} kont loguje się teraz tylko przez logowanie jednokrotne.",
+    "verifiedByHand": "potwierdzona ręcznie",
+    "confirmByHand": "Potwierdź bez DNS",
+    "confirmByHandAsk": "Potwierdzić {{domain}} bez rekordu DNS? Rób to tylko, jeśli wiesz, że domena należy do organizacji."
   },
   "noOrg": {
     "pick": "Masz miejsce w tych organizacjach:",

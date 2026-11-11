@@ -324,7 +324,10 @@
     "signInFirst": "Connectez-vous d'abord vous-même une fois par authentification unique avant de l'imposer.",
     "requiredConfirm": "Supprimer les mots de passe de tous les comptes des domaines vérifiés et fermer leurs sessions ?",
     "rewritten_one": "{{count}} compte se connecte désormais uniquement par authentification unique.",
-    "rewritten_other": "{{count}} comptes se connectent désormais uniquement par authentification unique."
+    "rewritten_other": "{{count}} comptes se connectent désormais uniquement par authentification unique.",
+    "verifiedByHand": "confirmé manuellement",
+    "confirmByHand": "Confirmer sans DNS",
+    "confirmByHandAsk": "Confirmer {{domain}} sans enregistrement DNS ? À faire seulement si vous savez que le domaine appartient à l'organisation."
   },
   "noOrg": {
     "pick": "Vous avez une place dans ces organisations :",

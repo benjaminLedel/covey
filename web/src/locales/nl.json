@@ -324,7 +324,10 @@
     "signInFirst": "Log eerst zelf een keer in via single sign-on voordat u het verplicht.",
     "requiredConfirm": "De wachtwoorden van alle accounts in de bevestigde domeinen verwijderen en hun sessies beëindigen?",
     "rewritten_one": "{{count}} account logt nu alleen nog in via single sign-on.",
-    "rewritten_other": "{{count}} accounts loggen nu alleen nog in via single sign-on."
+    "rewritten_other": "{{count}} accounts loggen nu alleen nog in via single sign-on.",
+    "verifiedByHand": "handmatig bevestigd",
+    "confirmByHand": "Bevestigen zonder DNS",
+    "confirmByHandAsk": "{{domain}} bevestigen zonder DNS-record? Doe dit alleen als u weet dat het domein van de organisatie is."
   },
   "noOrg": {
     "pick": "U hebt een plek in deze organisaties:",

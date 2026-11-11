@@ -324,7 +324,10 @@
     "signInFirst": "Sign in once through single sign-on yourself before requiring it.",
     "requiredConfirm": "Delete the passwords of all accounts in the verified domains and end their sessions?",
     "rewritten_one": "{{count}} account now signs in through single sign-on only.",
-    "rewritten_other": "{{count}} accounts now sign in through single sign-on only."
+    "rewritten_other": "{{count}} accounts now sign in through single sign-on only.",
+    "verifiedByHand": "verified by hand",
+    "confirmByHand": "Confirm without DNS",
+    "confirmByHandAsk": "Confirm {{domain}} without a DNS record? Only do this if you know the organisation holds the domain."
   },
   "noOrg": {
     "pick": "You have a seat in these organisations:",

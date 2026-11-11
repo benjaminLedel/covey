@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, post, put, ROLES, type Principal } from "../api";
+import { api, del, istSystemAdmin, post, put, ROLES, type Principal } from "../api";
 
 // Single sign-on for the organisation (#723): the provider, the e-mail
 // domains it speaks for (proven by a DNS record), and whether it is required.
@@ -14,7 +14,7 @@ type SSOConfig = {
   required: boolean;
 };
 
-type SSODomain = { domain: string; token: string; record: string; verified_at?: string };
+type SSODomain = { domain: string; token: string; record: string; verified_at?: string; verified_method?: string };
 
 type SSOStatus = {
   available: boolean;
@@ -59,6 +59,12 @@ export default function SSOSettings({ me }: { me: Principal }) {
   });
   const verify = useMutation({
     mutationFn: (d: string) => post<SSODomain>(`/org/sso/domains/${encodeURIComponent(d)}/verify`),
+    onSuccess: refresh,
+  });
+  /* An instance system admin may confirm a domain without its DNS record
+     (#729); the server checks the same and keeps who did it. */
+  const confirmByHand = useMutation({
+    mutationFn: (d: string) => post<SSODomain>(`/org/sso/domains/${encodeURIComponent(d)}/confirm`),
     onSuccess: refresh,
   });
   const dropDomain = useMutation({
@@ -182,7 +188,7 @@ export default function SSOSettings({ me }: { me: Principal }) {
                 <td>{d.domain}</td>
                 <td className="text-xs">
                   {d.verified_at ? (
-                    <span>{t("sso.verified")}</span>
+                    <span>{d.verified_method === "manual" ? t("sso.verifiedByHand") : t("sso.verified")}</span>
                   ) : (
                     <span>
                       {t("sso.txtHint")} <code>{d.record}</code> = <code>{d.token}</code>
@@ -195,6 +201,19 @@ export default function SSOSettings({ me }: { me: Principal }) {
                       {t("sso.verify")}
                     </button>
                   )}{" "}
+                  {!d.verified_at && istSystemAdmin(me) && (
+                    <>
+                      <button
+                        className="btn sm ghost"
+                        disabled={confirmByHand.isPending}
+                        onClick={() => {
+                          if (window.confirm(t("sso.confirmByHandAsk", { domain: d.domain }))) confirmByHand.mutate(d.domain);
+                        }}
+                      >
+                        {t("sso.confirmByHand")}
+                      </button>{" "}
+                    </>
+                  )}
                   <button
                     className="btn sm ghost"
                     disabled={dropDomain.isPending}
@@ -209,6 +228,7 @@ export default function SSOSettings({ me }: { me: Principal }) {
         </table>
       )}
       {verify.error && <p className="err text-xs mb-2">{(verify.error as Error).message}</p>}
+      {confirmByHand.error && <p className="err text-xs mb-2">{(confirmByHand.error as Error).message}</p>}
       <form
         className="flex gap-2 mb-4"
         style={{ maxWidth: 480 }}

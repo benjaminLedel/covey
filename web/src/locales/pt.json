@@ -324,7 +324,10 @@
     "signInFirst": "Entre você mesmo uma vez com login único antes de exigi-lo.",
     "requiredConfirm": "Apagar as senhas de todas as contas dos domínios verificados e encerrar as sessões delas?",
     "rewritten_one": "{{count}} conta agora entra só com login único.",
-    "rewritten_other": "{{count}} contas agora entram só com login único."
+    "rewritten_other": "{{count}} contas agora entram só com login único.",
+    "verifiedByHand": "confirmado manualmente",
+    "confirmByHand": "Confirmar sem DNS",
+    "confirmByHandAsk": "Confirmar {{domain}} sem registro DNS? Faça isso só se souber que o domínio pertence à organização."
   },
   "noOrg": {
     "pick": "Tem um lugar nestas organizações:",
