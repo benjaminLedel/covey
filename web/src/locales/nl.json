@@ -288,7 +288,11 @@
       "foreign_address": "De aanmelding van uw organisatie geldt niet voor dit e-mailadres.",
       "unknown_domain": "Voor dit e-mailadres is geen single sign-on ingesteld.",
       "provider": "De aanmeldservice van uw organisatie weigerde of was niet bereikbaar.",
-      "unavailable": "Single sign-on is op deze installatie niet beschikbaar."
+      "unavailable": "Single sign-on is op deze installatie niet beschikbaar.",
+      "token": "De aanmeldservice van uw organisatie heeft het verzoek van covey niet aanvaard. Vraag uw beheerder het clientgeheim en het doorstuuradres te controleren.",
+      "id_token": "Het antwoord van de aanmeldservice kon niet worden gecontroleerd. Vraag uw beheerder de issuer-URL en client-ID te controleren.",
+      "no_email": "De aanmelding van uw organisatie heeft geen e-mailadres meegestuurd.",
+      "unverified_email": "De aanmelding van uw organisatie heeft dit e-mailadres niet bevestigd."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} accounts loggen nu alleen nog in via single sign-on.",
     "verifiedByHand": "handmatig bevestigd",
     "confirmByHand": "Bevestigen zonder DNS",
-    "confirmByHandAsk": "{{domain}} bevestigen zonder DNS-record? Doe dit alleen als u weet dat het domein van de organisatie is."
+    "confirmByHandAsk": "{{domain}} bevestigen zonder DNS-record? Doe dit alleen als u weet dat het domein van de organisatie is.",
+    "lastError": "Laatste mislukte aanmelding ({{when}}):"
   },
   "noOrg": {
     "pick": "U hebt een plek in deze organisaties:",

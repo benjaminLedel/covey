@@ -146,6 +146,32 @@ func (s *Service) Finish(ctx context.Context, cookie, state, code, redirectURI s
 	if state == "" || state != f.State {
 		return Result{}, ErrFlow
 	}
+	res, err := s.finish(ctx, f, code, redirectURI)
+	// The organisation's admin cannot read the server log, so its last
+	// failure is kept with its configuration (#734); success clears it.
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	}
+	if _, rerr := s.Pool.Exec(ctx, `UPDATE org_sso SET last_error=$2,
+			last_error_at=CASE WHEN $2='' THEN NULL ELSE now() END WHERE org_id=$1`, f.Org, msg); rerr != nil && err == nil {
+		err = rerr
+	}
+	return res, err
+}
+
+// Fail records a failure the provider reported on its way back (an error
+// instead of a code) against the organisation the flow belongs to, so its
+// admin sees it (#734). A flow that cannot be opened records nothing.
+func (s *Service) Fail(ctx context.Context, cookie, msg string) {
+	f, err := s.openFlow(cookie)
+	if err != nil {
+		return
+	}
+	_, _ = s.Pool.Exec(ctx, `UPDATE org_sso SET last_error=$2, last_error_at=now() WHERE org_id=$1`, f.Org, msg)
+}
+
+func (s *Service) finish(ctx context.Context, f flow, code, redirectURI string) (Result, error) {
 	cfg, err := s.Get(ctx, f.Org)
 	if err != nil {
 		return Result{}, err
@@ -156,15 +182,15 @@ func (s *Service) Finish(ctx context.Context, cookie, state, code, redirectURI s
 	}
 	tok, err := oc.Exchange(s.ctx(ctx), code, oauth2.VerifierOption(f.Verifier))
 	if err != nil {
-		return Result{}, fmt.Errorf("sso: the provider did not redeem the code: %w", err)
+		return Result{}, fmt.Errorf("%w: %w", ErrToken, err)
 	}
 	rawID, _ := tok.Extra("id_token").(string)
 	if rawID == "" {
-		return Result{}, fmt.Errorf("sso: the provider's answer carries no ID token")
+		return Result{}, fmt.Errorf("%w: the provider's answer carries no ID token", ErrIDToken)
 	}
 	idt, err := p.Verifier(&oidc.Config{ClientID: cfg.ClientID}).Verify(s.ctx(ctx), rawID)
 	if err != nil {
-		return Result{}, fmt.Errorf("sso: the ID token does not verify: %w", err)
+		return Result{}, fmt.Errorf("%w: %w", ErrIDToken, err)
 	}
 	if idt.Nonce != f.Nonce {
 		return Result{}, ErrFlow
@@ -182,7 +208,7 @@ func (s *Service) Finish(ctx context.Context, cookie, state, code, redirectURI s
 	// let anybody who can type a colleague's address into their profile sign
 	// in as that colleague.
 	if c.EmailVerified != nil && !*c.EmailVerified {
-		return Result{}, fmt.Errorf("sso: the provider has not verified the address %s", email)
+		return Result{}, fmt.Errorf("%w: %s", ErrUnverified, email)
 	}
 	return s.resolve(ctx, f.Org, cfg, idt.Issuer, idt.Subject, email, strings.TrimSpace(c.Name))
 }

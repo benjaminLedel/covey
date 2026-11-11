@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ type fakeIdP struct {
 
 	mu       sync.Mutex
 	next     map[string]any // the claims the next sign-in carries
+	refuse   string         // non-empty: the token endpoint refuses the client with this description
 	codes    map[string]idpCode
 	clientID string
 }
@@ -82,6 +84,13 @@ func newFakeIdP(t *testing.T) *fakeIdP {
 		r.ParseForm()
 		w.Header().Set("Content-Type", "application/json")
 		f.mu.Lock()
+		if f.refuse != "" {
+			desc := f.refuse
+			f.mu.Unlock()
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_client", "error_description": desc})
+			return
+		}
 		c, ok := f.codes[r.PostForm.Get("code")]
 		delete(f.codes, r.PostForm.Get("code"))
 		f.mu.Unlock()
@@ -221,8 +230,8 @@ func TestOrgSingleSignOn(t *testing.T) {
 	}
 	// An address the provider says it has not verified is not believed.
 	_, end = idp.signIn(t, s, "anna@test.local", map[string]any{"sub": "x-sub", "email": "anna@test.local", "email_verified": false})
-	if e := ssoError(end); e != "failed" {
-		t.Fatalf("an unverified address: sso_error=%q, expected failed", e)
+	if e := ssoError(end); e != "unverified_email" {
+		t.Fatalf("an unverified address: sso_error=%q, expected unverified_email", e)
 	}
 	// A callback without the flow cookie is refused.
 	resp, err := (&http.Client{Jar: newJar()}).Get(s.http.URL + "/api/sso/callback?state=a&code=b")
@@ -338,5 +347,56 @@ func TestOrgSSODomainConfirmedByHand(t *testing.T) {
 	// The panel says how it was confirmed.
 	if got := admin.expect(http.MethodGet, "/api/v1/org/sso", nil, http.StatusOK); got["domains"].([]any)[0].(map[string]any)["verified_method"] != "manual" {
 		t.Fatalf("domains: %v", got["domains"])
+	}
+}
+
+// A failed sign-in names its reason to the person and keeps the provider's
+// message for the organisation's admin; a success clears it (#734).
+func TestOrgSSOFailureIsVisible(t *testing.T) {
+	s := newStack(t)
+	idp := newFakeIdP(t)
+	key, _ := sealbox.GenerateMasterKey()
+	box, _ := sealbox.New(key)
+	txt := map[string][]string{}
+	s.srv.SSO = &sso.Service{Pool: s.pool, Box: box, LookupTXT: func(_ context.Context, name string) ([]string, error) {
+		return txt[name], nil
+	}}
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPut, "/api/v1/org/sso", map[string]string{
+		"issuer": idp.srv.URL, "client_id": idp.clientID, "secret": "s3cret"}, http.StatusOK)
+	d := admin.expect(http.MethodPost, "/api/v1/org/sso/domains", map[string]string{"domain": "test.local"}, http.StatusCreated)
+	txt["_covey-challenge.test.local"] = []string{d["token"].(string)}
+	admin.expect(http.MethodPost, "/api/v1/org/sso/domains/test.local/verify", nil, http.StatusOK)
+
+	idp.mu.Lock()
+	idp.refuse = "AADSTS7000215: Invalid client secret provided."
+	idp.mu.Unlock()
+	_, end := idp.signIn(t, s, "admin@test.local", map[string]any{"sub": "a", "email": "admin@test.local"})
+	if e := ssoError(end); e != "token" {
+		t.Fatalf("a refused code: sso_error=%q, expected token", e)
+	}
+	cfg := admin.expect(http.MethodGet, "/api/v1/org/sso", nil, http.StatusOK)["config"].(map[string]any)
+	if msg, _ := cfg["last_error"].(string); !strings.Contains(msg, "AADSTS7000215") || cfg["last_error_at"] == nil {
+		t.Fatalf("the admin does not see the provider's message: %v", cfg)
+	}
+
+	_, end = idp.signIn(t, s, "admin@test.local", map[string]any{"sub": "a"})
+	if e := ssoError(end); e != "token" {
+		t.Fatalf("still refused: %q", e)
+	}
+	idp.mu.Lock()
+	idp.refuse = ""
+	idp.mu.Unlock()
+	_, end = idp.signIn(t, s, "admin@test.local", map[string]any{"sub": "a"})
+	if e := ssoError(end); e != "no_email" {
+		t.Fatalf("a token without an address: sso_error=%q, expected no_email", e)
+	}
+	_, end = idp.signIn(t, s, "admin@test.local", map[string]any{"sub": "a", "email": "admin@test.local"})
+	if e := ssoError(end); e != "" {
+		t.Fatalf("the sign-in failed: %q", e)
+	}
+	cfg = admin.expect(http.MethodGet, "/api/v1/org/sso", nil, http.StatusOK)["config"].(map[string]any)
+	if cfg["last_error"] != nil || cfg["last_error_at"] != nil {
+		t.Fatalf("a success did not clear the last failure: %v", cfg)
 	}
 }

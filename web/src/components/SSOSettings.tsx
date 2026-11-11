@@ -12,6 +12,8 @@ type SSOConfig = {
   client_id: string;
   default_role: string;
   required: boolean;
+  last_error?: string;
+  last_error_at?: string;
 };
 
 type SSODomain = { domain: string; token: string; record: string; verified_at?: string; verified_method?: string };
@@ -120,6 +122,16 @@ export default function SSOSettings({ me }: { me: Principal }) {
         <div className="text-sm mb-3">
           <p>{t("sso.configured", { issuer: cfg.issuer })}</p>
           <p className="muted text-xs">{t("sso.roleLine", { role: t(`role.${cfg.default_role}`, cfg.default_role) })}</p>
+          {/* The last failed sign-in with the provider's own words (#734) —
+              the server log is out of the admin's reach. */}
+          {cfg.last_error && (
+            <p className="err text-xs mt-2" style={{ maxWidth: 640 }}>
+              {t("sso.lastError", {
+                when: cfg.last_error_at ? new Date(cfg.last_error_at).toLocaleString() : "",
+              })}{" "}
+              <code>{cfg.last_error}</code>
+            </p>
+          )}
         </div>
       )}
       {s.redirect_uri && (

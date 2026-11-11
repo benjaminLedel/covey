@@ -121,7 +121,11 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	q := r.URL.Query()
 	if e := q.Get("error"); e != "" {
-		s.ssoFail(w, r, "provider", errors.New(e+": "+q.Get("error_description")))
+		perr := errors.New("sso: the provider answered " + e + ": " + q.Get("error_description"))
+		if c, err := r.Cookie(sso.FlowCookie); err == nil {
+			s.SSO.Fail(r.Context(), c.Value, perr.Error())
+		}
+		s.ssoFail(w, r, "provider", perr)
 		return
 	}
 	c, err := r.Cookie(sso.FlowCookie)
@@ -141,6 +145,18 @@ func (s *Server) handleSSOCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, sso.ErrForeignAddress):
 		s.ssoFail(w, r, "foreign_address", err)
+		return
+	case errors.Is(err, sso.ErrToken):
+		s.ssoFail(w, r, "token", err)
+		return
+	case errors.Is(err, sso.ErrIDToken):
+		s.ssoFail(w, r, "id_token", err)
+		return
+	case errors.Is(err, sso.ErrNoEmail):
+		s.ssoFail(w, r, "no_email", err)
+		return
+	case errors.Is(err, sso.ErrUnverified):
+		s.ssoFail(w, r, "unverified_email", err)
 		return
 	case err != nil:
 		s.ssoFail(w, r, "failed", err)

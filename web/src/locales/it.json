@@ -288,7 +288,11 @@
       "foreign_address": "L'accesso della tua organizzazione non copre questo indirizzo e-mail.",
       "unknown_domain": "Per questo indirizzo e-mail non è configurato alcun single sign-on.",
       "provider": "Il servizio di accesso della tua organizzazione ha rifiutato o non era raggiungibile.",
-      "unavailable": "Il single sign-on non è disponibile su questa installazione."
+      "unavailable": "Il single sign-on non è disponibile su questa installazione.",
+      "token": "Il servizio di accesso della tua organizzazione non ha accettato la richiesta di covey. Chiedi al tuo amministratore di controllare il segreto client e l'indirizzo di reindirizzamento.",
+      "id_token": "Non è stato possibile verificare la risposta del servizio di accesso. Chiedi al tuo amministratore di controllare l'URL dell'emittente e l'ID client.",
+      "no_email": "L'accesso della tua organizzazione non ha inviato un indirizzo e-mail.",
+      "unverified_email": "L'accesso della tua organizzazione non ha confermato questo indirizzo e-mail."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} account ora accedono solo con single sign-on.",
     "verifiedByHand": "confermato a mano",
     "confirmByHand": "Conferma senza DNS",
-    "confirmByHandAsk": "Confermare {{domain}} senza record DNS? Fallo solo se sai che il dominio appartiene all'organizzazione."
+    "confirmByHandAsk": "Confermare {{domain}} senza record DNS? Fallo solo se sai che il dominio appartiene all'organizzazione.",
+    "lastError": "Ultimo accesso non riuscito ({{when}}):"
   },
   "noOrg": {
     "pick": "Hai un posto in queste organizzazioni:",
