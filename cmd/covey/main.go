@@ -59,6 +59,7 @@ import (
 	"covey/internal/secrets/sealbox"
 	"covey/internal/settings"
 	"covey/internal/skills"
+	"covey/internal/sso"
 	targetstore "covey/internal/target/store"
 	"covey/internal/teamsapp"
 	"covey/internal/teamsapp/teamsys"
@@ -1534,17 +1535,20 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		UnsignedWebhooks: cfg.UnsignedWebhooks,
 		TeamsApp:         teamsApp,
 		TeamsUser:        teamsUser,
-		SessionTTL:       cfg.SessionTTL,
-		SiteURL:          cfg.SiteURL,
-		CookieSecure:     cfg.CookieSecure,
-		HSTS:             cfg.HSTS,
-		TrustedProxies:   cfg.TrustedProxies,
-		EgressStore:      egressStore,
-		EgressEnforced:   egressEnforced,
-		EgressDefaults:   egressBaseAllow(cfg),
-		Config:           &cfg,
-		Runners:          runnerStore,
-		RunnerPool:       runnerPool,
+		// Single sign-on per organisation (#723): configured by each
+		// organisation in the interface; nothing to set on the server.
+		SSO:            &sso.Service{Pool: pool, Box: box},
+		SessionTTL:     cfg.SessionTTL,
+		SiteURL:        cfg.SiteURL,
+		CookieSecure:   cfg.CookieSecure,
+		HSTS:           cfg.HSTS,
+		TrustedProxies: cfg.TrustedProxies,
+		EgressStore:    egressStore,
+		EgressEnforced: egressEnforced,
+		EgressDefaults: egressBaseAllow(cfg),
+		Config:         &cfg,
+		Runners:        runnerStore,
+		RunnerPool:     runnerPool,
 		// Where a host fetches its new binary when somebody presses "update"
 		// (empty = the public releases, as install.sh does).
 		RunnerDownloadBase: cfg.RunnerDownloadBase,

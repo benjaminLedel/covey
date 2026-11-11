@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { post } from "../api";
+import { api, ApiError, post } from "../api";
 import { usePublicLang } from "./lang";
 import { pathOf } from "./routes";
 import { useSignupState } from "./signupState";
@@ -35,7 +35,38 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   const { search } = useLocation();
   const abgelaufen = new URLSearchParams(search).has("weiter");
 
+  /* Single sign-on (#723): the address decides. Its domain may belong to an
+     organisation that signs its people in through its own provider — then
+     the card offers that, and if the organisation requires it, the password
+     field goes. The callback comes back here with ?sso_error= when it fails. */
+  const ssoError = new URLSearchParams(search).get("sso_error");
+  const [sso, setSso] = useState<{ sso: boolean; required?: boolean; org_name?: string }>({ sso: false });
+
   useEffect(() => setIsLocal(localHost()), []);
+
+  useEffect(() => {
+    const mail = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+      setSso({ sso: false });
+      return;
+    }
+    let stale = false;
+    const timer = setTimeout(() => {
+      api<{ sso: boolean; required?: boolean; org_name?: string }>(
+        `/public/sso/discover?email=${encodeURIComponent(mail)}`,
+      )
+        .then((r) => !stale && setSso(r))
+        .catch(() => !stale && setSso({ sso: false }));
+    }, 300);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [email]);
+
+  const startSSO = () => {
+    window.location.href = `/api/sso/start?email=${encodeURIComponent(email.trim())}`;
+  };
 
   const login = async (mail: string, pass: string) => {
     setBusy(true);
@@ -43,8 +74,13 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
     try {
       await post("/auth/login", { email: mail, password: pass });
       onLogin();
-    } catch {
-      setError(t("login.error"));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setSso({ sso: true, required: true });
+        setError(t("login.ssoRequired"));
+      } else {
+        setError(t("login.error"));
+      }
     } finally {
       setBusy(false);
     }
@@ -52,7 +88,8 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    login(email, password);
+    if (sso.required) startSSO();
+    else login(email, password);
   };
 
   return (
@@ -61,6 +98,11 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
       {abgelaufen && !error && (
         <p className="login-note" role="status">
           {t("login.expired")}
+        </p>
+      )}
+      {ssoError && !error && (
+        <p className="danger-text text-xs mb-3" role="alert">
+          {t(`login.ssoError.${ssoError}`, t("login.ssoError.failed"))}
         </p>
       )}
       <label htmlFor="email">{t("login.email")}</label>
@@ -73,20 +115,40 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
         className="mb-3"
         required
       />
-      <label htmlFor="password">{t("login.password")}</label>
-      <input
-        id="password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete="current-password"
-        className="mb-4"
-        required
-      />
+      {sso.sso && (
+        <>
+          <button type="button" className="btn primary w-full justify-center mb-3" onClick={startSSO}>
+            {sso.org_name ? t("login.ssoWith", { org: sso.org_name }) : t("login.sso")}
+          </button>
+          {!sso.required && (
+            <div className="login-divider" aria-hidden>
+              <span />
+              {t("login.orPassword")}
+              <span />
+            </div>
+          )}
+        </>
+      )}
+      {!sso.required && (
+        <>
+          <label htmlFor="password">{t("login.password")}</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            className="mb-4"
+            required
+          />
+        </>
+      )}
       {error && <p className="danger-text text-xs mb-3">{error}</p>}
-      <button className="btn primary w-full justify-center" disabled={busy}>
-        {busy ? t("login.submitting") : t("login.submit")}
-      </button>
+      {!sso.required && (
+        <button className={`btn ${sso.sso ? "" : "primary "}w-full justify-center`} disabled={busy}>
+          {busy ? t("login.submitting") : t("login.submit")}
+        </button>
+      )}
       {isLocal && (
         <>
           <div className="login-divider" aria-hidden>

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, photoUrl, post, ROLES, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
+import SSOSettings from "../components/SSOSettings";
 
 /** `embedded` leaves the own page head out — in the administration panel
  *  one already stands above, and two headings stacked are one
@@ -37,6 +38,8 @@ export default function Users({ me, embedded }: { me: Principal; embedded?: bool
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
         {t("users.desc")}
       </p>
+
+      <SSOSettings me={me} />
 
       <CreateUser onDone={() => qc.invalidateQueries({ queryKey: ["users"] })} />
 

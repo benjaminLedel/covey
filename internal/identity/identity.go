@@ -1,6 +1,8 @@
 // Package identity defines the IdentityProvider port (spec/10): issue agent
 // identities, authenticate humans, mint short-lived tokens.
 // Implementations: builtin (Ed25519 JWT + Argon2id) — oidc follows post-MVP.
+// Human single sign-on does not go through this port: it is configured per
+// organisation and lives in internal/sso (#723).
 package identity
 
 import (

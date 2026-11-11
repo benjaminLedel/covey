@@ -210,3 +210,19 @@ func byID(ctx context.Context, q queryRower, id uuid.UUID) (Account, error) {
 func (s *Store) ByID(ctx context.Context, id uuid.UUID) (Account, error) {
 	return byID(ctx, s.pool, id)
 }
+
+// ByResetToken is the account an unused, unexpired reset link belongs to,
+// without spending the link — for a check that has to come before the reset.
+func (s *Store) ByResetToken(ctx context.Context, token string) (Account, error) {
+	var email string
+	err := s.pool.QueryRow(ctx, `SELECT a.email FROM account_tokens t JOIN accounts a ON a.id=t.account_id
+		WHERE t.token_hash=$1 AND t.purpose=$2 AND t.used_at IS NULL AND t.expires_at > now()`,
+		hashToken(token), PurposeReset).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Account{}, ErrBadToken
+	}
+	if err != nil {
+		return Account{}, err
+	}
+	return s.ByEmail(ctx, email)
+}

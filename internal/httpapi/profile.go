@@ -94,6 +94,10 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 				"an API key cannot change the password — sign in in the browser")
 			return
 		}
+		if s.passwordRefused(r.Context(), p.Email) {
+			writeSSORequired(w)
+			return
+		}
 		if len(*in.Password) < minPasswordLen {
 			writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
 			return

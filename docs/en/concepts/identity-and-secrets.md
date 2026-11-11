@@ -31,7 +31,9 @@ Conversations are the exception to "the role decides": a conversation is read an
 
 Every member may write to AI colleagues directly. Whom they reach is a setting of the organisation (*Administration → Who writes to which colleague*): any colleague, or only those of their own department; the colleague's supervisor and the org admin always. When it narrows, a conversation that exists stays readable and takes no new message. Adding an AI colleague to a group stays with the roles that may hand over work by hand, and so does answering a parked task that is not in one's own conversation.
 
-Sign-in is built in via JWT and Argon2id. If you want a company login, hang an OIDC provider off the same interface — Keycloak, Entra, whatever the house runs.
+Sign-in is built in via JWT and Argon2id. An organisation that wants its people to sign in with their company account sets up **single sign-on** itself (*Organization → Users → Single sign-on*): the issuer URL, client ID and secret of an OIDC app at its provider — Keycloak, Entra ID, Google, Okta, whatever the house runs — and the role a person gets on their first sign-in. The provider is trusted only for e-mail domains the organisation has proven to hold, by a DNS TXT record `_covey-challenge.<domain>` carrying the token covey shows. The sign-in page then offers single sign-on to every address of those domains; an existing account is bound to its provider identity on its first sign-in, a new person gets an account and a seat.
+
+An org admin who has signed in through the provider once may **require** it. Accounts of the verified domains then lose their covey password and their open sessions, and password sign-in, reset and change are refused for those addresses. The instance's system administrators keep their password, so an installation cannot lock itself out.
 
 ## How secrets are stored
 
