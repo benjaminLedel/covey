@@ -60,6 +60,13 @@ var (
 	ErrForeignAddress = errors.New("sso: the provider signed in an address outside this organisation's verified domains")
 	// ErrNoEmail: the ID token names no e-mail address.
 	ErrNoEmail = errors.New("sso: the provider's ID token carries no e-mail address")
+	// ErrToken: the provider did not redeem the code — mostly a wrong client
+	// secret, or a redirect URI registered for another kind of client.
+	ErrToken = errors.New("sso: the provider did not redeem the code")
+	// ErrIDToken: the ID token is missing or does not verify.
+	ErrIDToken = errors.New("sso: the ID token does not verify")
+	// ErrUnverified: the provider says it has not verified the address.
+	ErrUnverified = errors.New("sso: the provider has not verified the address")
 	// ErrFlow: the flow cookie is missing, forged, expired or from another
 	// browser.
 	ErrFlow = errors.New("sso: the sign-in does not belong to a request started in this browser, or it expired")
@@ -74,6 +81,9 @@ type Config struct {
 	DefaultRole string    `json:"default_role"`
 	Required    bool      `json:"required"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// LastError is the last failed sign-in through the provider (#734).
+	LastError   string     `json:"last_error,omitempty"`
+	LastErrorAt *time.Time `json:"last_error_at,omitempty"`
 
 	secret string
 }
@@ -136,8 +146,9 @@ func (s *Service) Get(ctx context.Context, org uuid.UUID) (Config, error) {
 	var c Config
 	var n, ct []byte
 	err := s.Pool.QueryRow(ctx, `SELECT org_id, issuer, client_id, default_role, required, updated_at,
-		secret_nonce, secret_ct FROM org_sso WHERE org_id=$1`, org).
-		Scan(&c.OrgID, &c.Issuer, &c.ClientID, &c.DefaultRole, &c.Required, &c.UpdatedAt, &n, &ct)
+		last_error, last_error_at, secret_nonce, secret_ct FROM org_sso WHERE org_id=$1`, org).
+		Scan(&c.OrgID, &c.Issuer, &c.ClientID, &c.DefaultRole, &c.Required, &c.UpdatedAt,
+			&c.LastError, &c.LastErrorAt, &n, &ct)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Config{}, ErrNotConfigured
 	}

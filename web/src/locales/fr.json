@@ -288,7 +288,11 @@
       "foreign_address": "La connexion de votre organisation ne couvre pas cette adresse e-mail.",
       "unknown_domain": "Aucune authentification unique n'est configurée pour cette adresse e-mail.",
       "provider": "Le service de connexion de votre organisation a refusé ou était injoignable.",
-      "unavailable": "L'authentification unique n'est pas disponible sur cette installation."
+      "unavailable": "L'authentification unique n'est pas disponible sur cette installation.",
+      "token": "Le service de connexion de votre organisation n'a pas accepté la demande de covey. Demandez à votre administrateur de vérifier le secret client et l'adresse de redirection.",
+      "id_token": "La réponse du service de connexion n'a pas pu être vérifiée. Demandez à votre administrateur de vérifier l'URL de l'émetteur et l'ID client.",
+      "no_email": "La connexion de votre organisation n'a pas transmis d'adresse e-mail.",
+      "unverified_email": "La connexion de votre organisation n'a pas confirmé cette adresse e-mail."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} comptes se connectent désormais uniquement par authentification unique.",
     "verifiedByHand": "confirmé manuellement",
     "confirmByHand": "Confirmer sans DNS",
-    "confirmByHandAsk": "Confirmer {{domain}} sans enregistrement DNS ? À faire seulement si vous savez que le domaine appartient à l'organisation."
+    "confirmByHandAsk": "Confirmer {{domain}} sans enregistrement DNS ? À faire seulement si vous savez que le domaine appartient à l'organisation.",
+    "lastError": "Dernière connexion échouée ({{when}}) :"
   },
   "noOrg": {
     "pick": "Vous avez une place dans ces organisations :",

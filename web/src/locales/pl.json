@@ -288,7 +288,11 @@
       "foreign_address": "Logowanie Twojej organizacji nie obejmuje tego adresu e-mail.",
       "unknown_domain": "Dla tego adresu e-mail nie skonfigurowano logowania jednokrotnego.",
       "provider": "Usługa logowania Twojej organizacji odmówiła lub była niedostępna.",
-      "unavailable": "Logowanie jednokrotne nie jest dostępne w tej instalacji."
+      "unavailable": "Logowanie jednokrotne nie jest dostępne w tej instalacji.",
+      "token": "Usługa logowania Twojej organizacji nie przyjęła żądania covey. Poproś administratora o sprawdzenie sekretu klienta i adresu przekierowania.",
+      "id_token": "Nie udało się zweryfikować odpowiedzi usługi logowania. Poproś administratora o sprawdzenie URL wystawcy i ID klienta.",
+      "no_email": "Logowanie Twojej organizacji nie przesłało adresu e-mail.",
+      "unverified_email": "Logowanie Twojej organizacji nie potwierdziło tego adresu e-mail."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} kont loguje się teraz tylko przez logowanie jednokrotne.",
     "verifiedByHand": "potwierdzona ręcznie",
     "confirmByHand": "Potwierdź bez DNS",
-    "confirmByHandAsk": "Potwierdzić {{domain}} bez rekordu DNS? Rób to tylko, jeśli wiesz, że domena należy do organizacji."
+    "confirmByHandAsk": "Potwierdzić {{domain}} bez rekordu DNS? Rób to tylko, jeśli wiesz, że domena należy do organizacji.",
+    "lastError": "Ostatnie nieudane logowanie ({{when}}):"
   },
   "noOrg": {
     "pick": "Masz miejsce w tych organizacjach:",

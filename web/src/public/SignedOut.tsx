@@ -54,7 +54,7 @@ function useTitel(pathname: string) {
 }
 
 export default function SignedOut({ onLogin }: { onLogin: () => void }) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const lang = usePublicLang();
   /* The same query the sign-in card makes anyway (TanStack does not cache
@@ -105,7 +105,9 @@ export default function SignedOut({ onLogin }: { onLogin: () => void }) {
           {/* No language in the path — they come from a mail (routes.ts). */}
           <Route path="/verify" element={<Verify onLogin={onLogin} />} />
           <Route path="/reset" element={<Reset />} />
-          <Route path="*" element={<Navigate to={ziel} replace />} />
+          {/* The query travels along: the single sign-on callback names its
+              failure in ?sso_error=, and the card is what shows it (#734). */}
+          <Route path="*" element={<Navigate to={ziel + search} replace />} />
         </Routes>
       </main>
     </div>

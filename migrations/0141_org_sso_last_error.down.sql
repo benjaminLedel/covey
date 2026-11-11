@@ -1,0 +1,1 @@
+ALTER TABLE org_sso DROP COLUMN IF EXISTS last_error, DROP COLUMN IF EXISTS last_error_at;

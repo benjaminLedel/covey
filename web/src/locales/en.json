@@ -288,7 +288,11 @@
       "foreign_address": "Your organisation's sign-in does not cover this e-mail address.",
       "unknown_domain": "No single sign-on is set up for this e-mail address.",
       "provider": "Your organisation's sign-in service refused or could not be reached.",
-      "unavailable": "Single sign-on is not available on this installation."
+      "unavailable": "Single sign-on is not available on this installation.",
+      "token": "Your organisation's sign-in service did not accept covey's request. Ask your administrator to check the client secret and the redirect address.",
+      "id_token": "The sign-in service's answer could not be verified. Ask your administrator to check the issuer URL and client ID.",
+      "no_email": "Your organisation's sign-in did not send an e-mail address.",
+      "unverified_email": "Your organisation's sign-in has not confirmed this e-mail address."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} accounts now sign in through single sign-on only.",
     "verifiedByHand": "verified by hand",
     "confirmByHand": "Confirm without DNS",
-    "confirmByHandAsk": "Confirm {{domain}} without a DNS record? Only do this if you know the organisation holds the domain."
+    "confirmByHandAsk": "Confirm {{domain}} without a DNS record? Only do this if you know the organisation holds the domain.",
+    "lastError": "Last failed sign-in ({{when}}):"
   },
   "noOrg": {
     "pick": "You have a seat in these organisations:",

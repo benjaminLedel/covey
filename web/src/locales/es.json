@@ -288,7 +288,11 @@
       "foreign_address": "El inicio de sesión de su organización no cubre esta dirección de correo.",
       "unknown_domain": "No hay inicio de sesión único configurado para esta dirección de correo.",
       "provider": "El servicio de inicio de sesión de su organización lo rechazó o no estaba disponible.",
-      "unavailable": "El inicio de sesión único no está disponible en esta instalación."
+      "unavailable": "El inicio de sesión único no está disponible en esta instalación.",
+      "token": "El servicio de inicio de sesión de su organización no aceptó la solicitud de covey. Pida a su administrador que revise el secreto de cliente y la dirección de redirección.",
+      "id_token": "No se pudo verificar la respuesta del servicio de inicio de sesión. Pida a su administrador que revise la URL del emisor y el ID de cliente.",
+      "no_email": "El inicio de sesión de su organización no envió una dirección de correo.",
+      "unverified_email": "El inicio de sesión de su organización no ha confirmado esta dirección de correo."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} cuentas inician sesión ahora solo con inicio de sesión único.",
     "verifiedByHand": "confirmado a mano",
     "confirmByHand": "Confirmar sin DNS",
-    "confirmByHandAsk": "¿Confirmar {{domain}} sin registro DNS? Hágalo solo si sabe que el dominio pertenece a la organización."
+    "confirmByHandAsk": "¿Confirmar {{domain}} sin registro DNS? Hágalo solo si sabe que el dominio pertenece a la organización.",
+    "lastError": "Último inicio de sesión fallido ({{when}}):"
   },
   "noOrg": {
     "pick": "Tiene un puesto en estas organizaciones:",

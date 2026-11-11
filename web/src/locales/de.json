@@ -288,7 +288,11 @@
       "foreign_address": "Die Anmeldung Ihrer Organisation gilt nicht für diese E-Mail-Adresse.",
       "unknown_domain": "Für diese E-Mail-Adresse ist kein Single Sign-on eingerichtet.",
       "provider": "Der Anmeldedienst Ihrer Organisation hat abgelehnt oder war nicht erreichbar.",
-      "unavailable": "Single Sign-on ist auf dieser Installation nicht verfügbar."
+      "unavailable": "Single Sign-on ist auf dieser Installation nicht verfügbar.",
+      "token": "Der Anmeldedienst Ihrer Organisation hat die Anfrage von covey nicht angenommen. Bitten Sie Ihre Administration, Client-Secret und Weiterleitungsadresse zu prüfen.",
+      "id_token": "Die Antwort des Anmeldedienstes ließ sich nicht prüfen. Bitten Sie Ihre Administration, Issuer-URL und Client-ID zu prüfen.",
+      "no_email": "Die Anmeldung Ihrer Organisation hat keine E-Mail-Adresse mitgeschickt.",
+      "unverified_email": "Die Anmeldung Ihrer Organisation hat diese E-Mail-Adresse nicht bestätigt."
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} Konten melden sich jetzt nur noch per Single Sign-on an.",
     "verifiedByHand": "von Hand bestätigt",
     "confirmByHand": "Ohne DNS bestätigen",
-    "confirmByHandAsk": "{{domain}} ohne DNS-Eintrag bestätigen? Nur tun, wenn sicher ist, dass die Domain der Organisation gehört."
+    "confirmByHandAsk": "{{domain}} ohne DNS-Eintrag bestätigen? Nur tun, wenn sicher ist, dass die Domain der Organisation gehört.",
+    "lastError": "Letzte fehlgeschlagene Anmeldung ({{when}}):"
   },
   "noOrg": {
     "pick": "Sie haben einen Sitz in diesen Organisationen:",

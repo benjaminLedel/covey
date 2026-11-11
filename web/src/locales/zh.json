@@ -288,7 +288,11 @@
       "foreign_address": "您所在组织的登录不适用于此电子邮件地址。",
       "unknown_domain": "此电子邮件地址未设置单点登录。",
       "provider": "您所在组织的登录服务拒绝了请求或无法访问。",
-      "unavailable": "此安装不提供单点登录。"
+      "unavailable": "此安装不提供单点登录。",
+      "token": "您所在组织的登录服务未接受 covey 的请求。请让管理员检查客户端密钥和重定向地址。",
+      "id_token": "无法验证登录服务的响应。请让管理员检查颁发者 URL 和客户端 ID。",
+      "no_email": "您所在组织的登录未发送电子邮件地址。",
+      "unverified_email": "您所在组织的登录尚未确认此电子邮件地址。"
     }
   },
   "sso": {
@@ -327,7 +331,8 @@
     "rewritten_other": "{{count}} 个账号现在只能通过单点登录登录。",
     "verifiedByHand": "已手动确认",
     "confirmByHand": "无需 DNS 确认",
-    "confirmByHandAsk": "在没有 DNS 记录的情况下确认 {{domain}}？仅在确定该域名属于该组织时才这样做。"
+    "confirmByHandAsk": "在没有 DNS 记录的情况下确认 {{domain}}？仅在确定该域名属于该组织时才这样做。",
+    "lastError": "上次登录失败（{{when}}）："
   },
   "noOrg": {
     "pick": "您属于以下组织:",
