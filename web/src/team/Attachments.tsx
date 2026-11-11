@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { CHAT_MAX_BYTES, CHAT_MAX_FILES, chatAttachmentUrl, type ChatAttachment } from "../api";
 import { NavIcon } from "../components/navicons";
@@ -52,7 +53,7 @@ export default function Attachments({ files }: { files?: ChatAttachment[] }) {
 
 /** Holds the files chosen for a message to the server's limits; answers the
  *  sentence to show when they do not fit, or "" when they do. */
-export function attachmentLimit(t: (k: string, o?: Record<string, unknown>) => string, files: File[]): string {
+export function attachmentLimit(t: TFunction, files: File[]): string {
   if (files.length > CHAT_MAX_FILES) return t("chat.files.tooMany", { max: CHAT_MAX_FILES });
   const total = files.reduce((n, f) => n + f.size, 0);
   if (total > CHAT_MAX_BYTES) return t("chat.files.tooLarge", { max: CHAT_MAX_BYTES / 1048576 });
