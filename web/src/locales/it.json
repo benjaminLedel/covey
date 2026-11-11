@@ -324,7 +324,10 @@
     "signInFirst": "Accedi prima tu stesso una volta con il single sign-on prima di richiederlo.",
     "requiredConfirm": "Eliminare le password di tutti gli account dei domini verificati e chiudere le loro sessioni?",
     "rewritten_one": "{{count}} account ora accede solo con single sign-on.",
-    "rewritten_other": "{{count}} account ora accedono solo con single sign-on."
+    "rewritten_other": "{{count}} account ora accedono solo con single sign-on.",
+    "verifiedByHand": "confermato a mano",
+    "confirmByHand": "Conferma senza DNS",
+    "confirmByHandAsk": "Confermare {{domain}} senza record DNS? Fallo solo se sai che il dominio appartiene all'organizzazione."
   },
   "noOrg": {
     "pick": "Hai un posto in queste organizzazioni:",

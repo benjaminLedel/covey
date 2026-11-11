@@ -324,7 +324,10 @@
     "signInFirst": "Inicie sesión usted mismo una vez con inicio de sesión único antes de exigirlo.",
     "requiredConfirm": "¿Eliminar las contraseñas de todas las cuentas de los dominios verificados y terminar sus sesiones?",
     "rewritten_one": "{{count}} cuenta inicia sesión ahora solo con inicio de sesión único.",
-    "rewritten_other": "{{count}} cuentas inician sesión ahora solo con inicio de sesión único."
+    "rewritten_other": "{{count}} cuentas inician sesión ahora solo con inicio de sesión único.",
+    "verifiedByHand": "confirmado a mano",
+    "confirmByHand": "Confirmar sin DNS",
+    "confirmByHandAsk": "¿Confirmar {{domain}} sin registro DNS? Hágalo solo si sabe que el dominio pertenece a la organización."
   },
   "noOrg": {
     "pick": "Tiene un puesto en estas organizaciones:",

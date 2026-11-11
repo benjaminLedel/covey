@@ -324,7 +324,10 @@
     "signInFirst": "必須にする前に、まず自分でシングルサインオンで一度ログインしてください。",
     "requiredConfirm": "確認済みドメインのすべてのアカウントのパスワードを削除し、セッションを終了しますか?",
     "rewritten_one": "{{count}} 件のアカウントはシングルサインオンでのみログインします。",
-    "rewritten_other": "{{count}} 件のアカウントはシングルサインオンでのみログインします。"
+    "rewritten_other": "{{count}} 件のアカウントはシングルサインオンでのみログインします。",
+    "verifiedByHand": "手動で確認済み",
+    "confirmByHand": "DNS なしで確認",
+    "confirmByHandAsk": "DNS レコードなしで {{domain}} を確認しますか?ドメインが組織のものであると分かっている場合のみ行ってください。"
   },
   "noOrg": {
     "pick": "次の組織に所属しています:",

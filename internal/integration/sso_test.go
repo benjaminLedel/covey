@@ -302,3 +302,41 @@ func TestOrgSingleSignOn(t *testing.T) {
 	plain.expect(http.MethodPost, "/api/v1/auth/login",
 		map[string]string{"email": "anna@test.local", "password": "anna-passwort"}, http.StatusUnauthorized)
 }
+
+// An instance system admin confirms a domain by hand, without its DNS record
+// (#729); an org admin cannot.
+func TestOrgSSODomainConfirmedByHand(t *testing.T) {
+	s := newStack(t)
+	idp := newFakeIdP(t)
+	key, _ := sealbox.GenerateMasterKey()
+	box, _ := sealbox.New(key)
+	s.srv.SSO = &sso.Service{Pool: s.pool, Box: box, LookupTXT: func(context.Context, string) ([]string, error) {
+		return nil, nil
+	}}
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPut, "/api/v1/org/sso", map[string]string{
+		"issuer": idp.srv.URL, "client_id": idp.clientID, "secret": "s3cret"}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/org/sso/domains", map[string]string{"domain": "test.local"}, http.StatusCreated)
+
+	admin.expect(http.MethodPost, "/api/v1/org/sso/domains/test.local/confirm", nil, http.StatusForbidden)
+	admin.expect(http.MethodPost, "/api/v1/org/sso/domains/test.local/verify", nil, http.StatusUnprocessableEntity)
+
+	s.alsSystemadmin(t)
+	admin.expect(http.MethodPost, "/api/v1/org/sso/domains/unclaimed.example/confirm", nil, http.StatusNotFound)
+	d := admin.expect(http.MethodPost, "/api/v1/org/sso/domains/test.local/confirm", nil, http.StatusOK)
+	if d["verified_at"] == nil || d["verified_method"] != "manual" {
+		t.Fatalf("confirmed by hand: %v", d)
+	}
+	var by string
+	if err := s.pool.QueryRow(context.Background(), `SELECT a.email FROM org_sso_domains d JOIN accounts a ON a.id=d.verified_by
+		WHERE d.domain='test.local'`).Scan(&by); err != nil || by != "admin@test.local" {
+		t.Fatalf("confirmed by %q, %v", by, err)
+	}
+	if got := admin.expect(http.MethodGet, "/api/v1/public/sso/discover?email=anna@test.local", nil, http.StatusOK); got["sso"] != true {
+		t.Fatalf("a domain confirmed by hand is not discovered: %v", got)
+	}
+	// The panel says how it was confirmed.
+	if got := admin.expect(http.MethodGet, "/api/v1/org/sso", nil, http.StatusOK); got["domains"].([]any)[0].(map[string]any)["verified_method"] != "manual" {
+		t.Fatalf("domains: %v", got["domains"])
+	}
+}
