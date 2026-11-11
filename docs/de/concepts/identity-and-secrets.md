@@ -31,7 +31,9 @@ Gespräche sind die Ausnahme von „das entscheidet die Rolle“: Ein Gespräch 
 
 Jedes Mitglied darf KI-Kollegen direkt schreiben. Wen es erreicht, ist eine Einstellung der Organisation (*Verwaltung → Wer welchem Kollegen schreibt*): jeden Kollegen oder nur die der eigenen Abteilung; wem der Kollege berichtet und der Org-Admin immer. Wird das enger, bleibt ein bestehendes Gespräch lesbar und nimmt keine neue Nachricht mehr an. Einen KI-Kollegen in eine Gruppe zu holen, bleibt den Rollen, die Arbeit von Hand übergeben dürfen, ebenso das Beantworten einer wartenden Aufgabe außerhalb des eigenen Gesprächs.
 
-Angemeldet wird eingebaut über JWT und Argon2id. Wer ein Unternehmens-Login will, hängt einen OIDC-Anbieter an dieselbe Schnittstelle — Keycloak, Entra, was im Haus steht.
+Angemeldet wird eingebaut über JWT und Argon2id. Eine Organisation, deren Leute sich mit ihrem Firmenkonto anmelden sollen, richtet **Single Sign-on** selbst ein (*Administration → Benutzer → Single Sign-on*): Issuer-URL, Client-ID und Secret einer OIDC-App bei ihrem Anbieter — Keycloak, Entra ID, Google, Okta, was im Haus steht — und die Rolle, die jemand bei der ersten Anmeldung bekommt. Dem Anbieter wird nur für E-Mail-Domains geglaubt, die die Organisation nachweislich hält: per DNS-TXT-Eintrag `_covey-challenge.<domain>` mit dem Token, das covey anzeigt. Die Anmeldeseite bietet dann jeder Adresse dieser Domains Single Sign-on an; ein bestehendes Konto wird bei der ersten Anmeldung an seine Identität beim Anbieter gebunden, eine neue Person bekommt Konto und Sitz.
+
+Ein Org-Admin, der sich einmal über den Anbieter angemeldet hat, kann es **vorschreiben**. Die Konten der bestätigten Domains verlieren dann ihr covey-Passwort und ihre offenen Sitzungen; Anmeldung, Zurücksetzen und Ändern per Passwort werden für diese Adressen abgelehnt. Die Systemadministratoren der Installation behalten ihr Passwort, damit sich eine Installation nicht selbst aussperrt.
 
 ## Wie Secrets gespeichert werden
 

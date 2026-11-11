@@ -81,6 +81,7 @@ Issue agent identities, authenticate humans, mint scoped/short-lived tokens.
 
 - **`builtin`** — a DB entry + a signing key; tokens are **signed JWTs** (Ed25519), short TTL, scoped. Human login is simple (Argon2id + sessions).
 - **`oidc`** — delegates to Keycloak/Entra/Okta; covey is the relying party. Humans are federated to the company IdP.
+- **Human single sign-on hangs off the organisation, not off this switch** (#723). One installation serves several organisations and one login may hold seats in several of them, so each organisation configures its own OIDC provider in the interface (`internal/sso`): issuer, client, a sealed secret, the role of a new seat. A provider is believed only for e-mail domains its organisation proved by a DNS TXT record (`_covey-challenge.<domain>`); identities bind to accounts by issuer and subject. An organisation may require it, which removes the password of the accounts in its verified domains (system admins excepted) and ends their sessions. The instance-wide `oidc` provider remains the place for agent tokens and RFC 8693 exchange.
 - **Limit:** real **RFC 8693 token exchange against third-party systems** is **not** rebuilt — the `oidc` provider handles that. The built-in variant only mints covey's own tokens for covey's own target systems or ones connected simply by API key.
 
 ### `SecretStore`
@@ -137,6 +138,7 @@ type IdentityProvider interface {
 }
 // identity/builtin  → signed JWTs (Ed25519) + Argon2id, state in Postgres
 // identity/oidc     → Keycloak / Entra / Okta (relying party, RFC 8693 exchange)
+// sso               → human single sign-on per organisation (OIDC relying party, #723)
 
 // internal/secrets
 type SecretStore interface {
