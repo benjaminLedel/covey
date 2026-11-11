@@ -469,25 +469,7 @@ func (s *Store) DeleteHuman(ctx context.Context, orgID, id uuid.UUID) error {
 			return err
 		}
 	}
-	// Since migration 0025 agents.supervisor_id no longer carries a DB foreign
-	// key on humans — detach agents that reported to this human here (formerly
-	// via ON DELETE SET NULL).
-	if _, err := tx.Exec(ctx, `UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2`, id, orgID); err != nil {
-		return err
-	}
-	// A session working from this seat moves to the account's next seat, or to
-	// none. The foreign key would delete it (ON DELETE CASCADE): with one seat
-	// per account that was the same as signing out, with several it signs
-	// somebody out of every organisation because they left one (#262). Without
-	// a seat left the session stays valid and lands where a sign-in would, on
-	// the "no organisation" page. API keys are bound to the seat and do go.
-	if _, err := tx.Exec(ctx, `UPDATE http_sessions s SET human_id = (
-			SELECT h.id FROM humans h WHERE h.account_id = s.account_id AND h.id <> $1
-			ORDER BY h.created_at LIMIT 1)
-		WHERE s.human_id = $1`, id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM humans WHERE id=$1`, id); err != nil {
+	if err := removeSeat(ctx, tx, orgID, id); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -518,6 +500,103 @@ func ensureNoManagerCycle(ctx context.Context, tx pgx.Tx, orgID, id, managerID u
 		}
 		cur = *next
 	}
+}
+
+// removeSeat is what deleting a seat takes besides the row itself: agents
+// that reported to it are detached, and sessions working from it move on.
+func removeSeat(ctx context.Context, tx pgx.Tx, orgID, id uuid.UUID) error {
+	// Since migration 0025 agents.supervisor_id no longer carries a DB foreign
+	// key on humans — detach agents that reported to this human here (formerly
+	// via ON DELETE SET NULL).
+	if _, err := tx.Exec(ctx, `UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2`, id, orgID); err != nil {
+		return err
+	}
+	// A session working from this seat moves to the account's next seat, or to
+	// none. The foreign key would delete it (ON DELETE CASCADE): with one seat
+	// per account that was the same as signing out, with several it signs
+	// somebody out of every organisation because they left one (#262). Without
+	// a seat left the session stays valid and lands where a sign-in would, on
+	// the "no organisation" page. API keys are bound to the seat and do go.
+	if _, err := tx.Exec(ctx, `UPDATE http_sessions s SET human_id = (
+			SELECT h.id FROM humans h WHERE h.account_id = s.account_id AND h.id <> $1
+			ORDER BY h.created_at LIMIT 1)
+		WHERE s.human_id = $1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM humans WHERE id=$1`, id); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ErrLastSystemAdmin: the account is the installation's last system admin.
+var ErrLastSystemAdmin = errors.New("the last system administrator of the installation cannot be deleted")
+
+// DeleteAccount deletes a login with every seat it holds (#732). Each seat
+// goes the way DeleteHuman takes it; the account's own rows (sessions, API
+// keys, tokens, SSO identities) go with the account by their foreign keys.
+// It is refused while the account is the last org_admin of any of its
+// organisations, or the installation's last system admin.
+func (s *Store) DeleteAccount(ctx context.Context, accountID uuid.UUID) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var platformRole string
+	err = tx.QueryRow(ctx, `SELECT platform_role FROM accounts WHERE id=$1 FOR UPDATE`, accountID).Scan(&platformRole)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if platformRole == "system_admin" {
+		var others int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM accounts WHERE platform_role='system_admin' AND id<>$1`,
+			accountID).Scan(&others); err != nil {
+			return err
+		}
+		if others == 0 {
+			return ErrLastSystemAdmin
+		}
+	}
+	type seat struct {
+		id, org uuid.UUID
+		role    string
+	}
+	rows, err := tx.Query(ctx, `SELECT id, org_id, role FROM humans WHERE account_id=$1 ORDER BY created_at FOR UPDATE`, accountID)
+	if err != nil {
+		return err
+	}
+	var seats []seat
+	for rows.Next() {
+		var st seat
+		if err := rows.Scan(&st.id, &st.org, &st.role); err != nil {
+			rows.Close()
+			return err
+		}
+		seats = append(seats, st)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, st := range seats {
+		if identity.NormalizeRole(st.role) == identity.RoleOrgAdmin {
+			if err := ensureOtherAdmin(ctx, tx, st.org, st.id); err != nil {
+				return err
+			}
+		}
+		if err := removeSeat(ctx, tx, st.org, st.id); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM accounts WHERE id=$1`, accountID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, orgID, exceptID uuid.UUID) error {

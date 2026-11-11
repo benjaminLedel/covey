@@ -2451,7 +2451,10 @@
       "lastOk": "Zuletzt geprüft {{date}} — hat funktioniert.",
       "lastFailed": "Zuletzt geprüft {{date}} — fehlgeschlagen: {{error}}",
       "apnsNote": "Auch das iPhone wird über Firebase erreicht: Wer die App ausliefert, lädt ihren APNs-Schlüssel ins Firebase-Projekt (Projekteinstellungen → Cloud Messaging → Apple-App-Konfiguration). Die Prüfung belegt das Dienstkonto, nicht diesen Schlüssel."
-    }
+    },
+    "deleteAccount": "Konto löschen",
+    "deleteAccountConfirm_one": "{{email}} endgültig löschen, mit seinem Sitz? Das lässt sich nicht rückgängig machen.",
+    "deleteAccountConfirm_other": "{{email}} endgültig löschen, mit seinen {{count}} Sitzen? Das lässt sich nicht rückgängig machen."
   },
   "catalog": {
     "loading": "Katalog wird geladen …",

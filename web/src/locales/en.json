@@ -2451,7 +2451,10 @@
       "lastOk": "Last tested {{date}} — worked.",
       "lastFailed": "Last tested {{date}} — failed: {{error}}",
       "apnsNote": "The iPhone is reached through Firebase too: whoever ships the app uploads its APNs key to the Firebase project (Project settings → Cloud Messaging → Apple app configuration). The test proves the service account, not that key."
-    }
+    },
+    "deleteAccount": "Delete account",
+    "deleteAccountConfirm_one": "Delete {{email}} for good, with its seat? This cannot be undone.",
+    "deleteAccountConfirm_other": "Delete {{email}} for good, with its {{count}} seats? This cannot be undone."
   },
   "catalog": {
     "loading": "Loading the catalogue …",
