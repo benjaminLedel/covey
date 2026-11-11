@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -492,7 +493,7 @@ function stale(iso?: string): boolean {
   return Date.now() - new Date(iso).getTime() > 120_000;
 }
 
-function ago(iso: string, t: (k: string, o?: Record<string, unknown>) => string): string {
+function ago(iso: string, t: TFunction): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (seconds < 90) return t("runners.agoJustNow");
   if (seconds < 3600) return t("runners.agoMinutes", { count: Math.round(seconds / 60) });

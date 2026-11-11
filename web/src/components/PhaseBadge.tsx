@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { AgentPhase } from "../api";
 import { fmtBytes, fmtCount, fmtDelta } from "../format";
@@ -28,7 +29,7 @@ export function dauer(p: AgentPhase, jetzt = Date.now()): number {
   return Number.isNaN(seit) ? 0 : Math.max(0, jetzt - seit);
 }
 
-export function phaseZahlen(p: AgentPhase, t: (k: string, o?: Record<string, unknown>) => string): string {
+export function phaseZahlen(p: AgentPhase, t: TFunction): string {
   const teile: string[] = [];
   if (p.bytes !== undefined && p.bytes_total) teile.push(`${fmtBytes(p.bytes)} / ${fmtBytes(p.bytes_total)}`);
   else if (p.bytes) teile.push(fmtBytes(p.bytes));

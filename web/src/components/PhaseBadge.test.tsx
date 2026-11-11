@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { TFunction } from "i18next";
 import i18n from "../i18n";
 import { anteil, dauer, phaseZahlen } from "./PhaseBadge";
 import type { AgentPhase } from "../api";
@@ -55,8 +56,10 @@ describe("Dauer", () => {
 });
 
 describe("Zahlen", () => {
-  const t = (k: string, o?: Record<string, unknown>) =>
-    k === "activity.phase.filesOf" ? `${o?.count} von ${o?.total} Dateien` : `${o?.count} Dateien`;
+  // A stand-in for i18next's t: since i18next 27 TFunction is a branded
+  // type, so a plain function needs the cast.
+  const t = ((k: string, o?: Record<string, unknown>) =>
+    k === "activity.phase.filesOf" ? `${o?.count} von ${o?.total} Dateien` : `${o?.count} Dateien`) as unknown as TFunction;
 
   // fmtBytes computes in powers of two — the same unit as everywhere else in
   // the UI. Docker writes decimal; that is a difference of seven percent and
