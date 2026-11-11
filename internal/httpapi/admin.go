@@ -11,6 +11,7 @@ import (
 	"covey/internal/identity"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/org"
+	"covey/internal/sso"
 )
 
 // Admin endpoints: user and tenant management, org_admin only.
@@ -68,14 +69,22 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "unknown role "+in.Role)
 		return
 	}
-	if len(in.Password) < minPasswordLen {
-		writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
-		return
-	}
-	hash, err := identbuiltin.HashPassword(in.Password)
-	if err != nil {
-		mapErr(w, err)
-		return
+	// Under required single sign-on a new person gets no password: they sign
+	// in through the provider, and a password the admin typed would be one
+	// more way in that nobody asked for (#723).
+	var hash string
+	if s.passwordRefused(r.Context(), in.Email) {
+		hash = sso.NoPassword
+	} else {
+		if len(in.Password) < minPasswordLen {
+			writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
+			return
+		}
+		var err error
+		if hash, err = identbuiltin.HashPassword(in.Password); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	h, err := s.Org.CreateHuman(r.Context(), p.OrgID, in.Email, in.DisplayName, in.Role, hash, trimProfile(in.Profile))
 	if err != nil {
@@ -131,6 +140,10 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.Password != nil {
+		if target, err := s.Org.GetHuman(r.Context(), p.OrgID, id); err == nil && s.passwordRefused(r.Context(), target.Email) {
+			writeSSORequired(w)
+			return
+		}
 		if len(*in.Password) < minPasswordLen {
 			writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
 			return

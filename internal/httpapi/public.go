@@ -110,6 +110,12 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "name and e-mail address are required")
 		return
 	}
+	// An address under required single sign-on is created by its first
+	// sign-in through the provider, not here (#723).
+	if s.passwordRefused(r.Context(), in.Email) {
+		writeSSORequired(w)
+		return
+	}
 	if len(in.Password) < minSignupPassword {
 		writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
 		return
@@ -359,6 +365,12 @@ func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 			"this installation cannot send mail — ask an administrator for a new password")
 		return
 	}
+	// No reset link for an address that has no password to reset (#723).
+	// Saying so gives nothing away the sign-in page does not show already.
+	if s.passwordRefused(r.Context(), in.Email) {
+		writeSSORequired(w)
+		return
+	}
 
 	// From here on the answer is fixed. What follows either happens or does
 	// not; the caller learns nothing about which.
@@ -419,6 +431,13 @@ func (s *Server) handlePasswordResetConfirm(w http.ResponseWriter, r *http.Reque
 	}
 	if len(in.Password) < minSignupPassword {
 		writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
+		return
+	}
+	// A link mailed before single sign-on was required is dropped by the
+	// switch; this catches the one that slipped between the two (#723).
+	if acc, err := s.Accounts.ByResetToken(r.Context(), strings.TrimSpace(in.Token)); err == nil &&
+		s.passwordRefused(r.Context(), acc.Email) {
+		writeSSORequired(w)
 		return
 	}
 	hash, err := identbuiltin.HashPassword(in.Password)
