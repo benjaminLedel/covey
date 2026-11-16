@@ -618,6 +618,11 @@ func (s *Server) handleDeleteRunner(w http.ResponseWriter, r *http.Request) {
 // newest published release: an instance built from main is ahead of every
 // release, and prescribing its own version would send the host looking for an
 // artefact that does not exist. Whoever wants a different one names it.
+//
+// Where the binary comes from is not the request's to say. The checksums lie
+// beside the archive, so whoever names the origin names the program the host
+// runs next, as its service account. The origin is the operator's
+// COVEY_RUNNER_DOWNLOAD_BASE or the published release.
 func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
@@ -627,7 +632,6 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 	}
 	var in struct {
 		Version string `json:"version"`
-		BaseURL string `json:"base_url"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body not readable")
@@ -646,14 +650,14 @@ func (s *Server) handleUpdateRunnerBinary(w http.ResponseWriter, r *http.Request
 		return
 	}
 	version := strings.TrimSpace(in.Version)
+	if version != "" && !runner.IsReleaseTag(version) {
+		writeErr(w, http.StatusBadRequest, "version is not a release tag (v1.2.3)")
+		return
+	}
 	if version == "" {
 		version = installer.VersionFuerRelease(buildinfo.Get().Version)
 	}
-	base := strings.TrimSpace(in.BaseURL)
-	if base == "" {
-		base = s.RunnerDownloadBase
-	}
-	res, err := s.RunnerPool.Update(r.Context(), p.OrgID, id, version, base)
+	res, err := s.RunnerPool.Update(r.Context(), p.OrgID, id, version, s.RunnerDownloadBase)
 	if err != nil {
 		// The host's own words. "not connected", "does not answer" and a
 		// refusal because it is carrying sandboxes call for different things,

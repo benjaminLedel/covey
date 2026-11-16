@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -50,6 +51,16 @@ const Repo = "benjaminLedel/covey"
 func releaseBase(version string) string {
 	return "https://github.com/" + Repo + "/releases/download/" + version
 }
+
+// releaseTag is what a published version looks like: the tags the release
+// workflow builds from, v1.2.3 with an optional pre-release suffix (v1.2.3-rc1).
+// The version ends up in a URL path and in a file name, so anything else — a
+// slash, a "..", a query — is refused before it gets there.
+var releaseTag = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$`)
+
+// IsReleaseTag says whether v names a release in the shape the release
+// workflow publishes.
+func IsReleaseTag(v string) bool { return releaseTag.MatchString(v) }
 
 // maxBinary bounds what is read from the network. A runner binary is around
 // 30 MB; a hundred is not a runner binary, and reading it into memory to check
@@ -107,6 +118,10 @@ func (n *Node) updateSelf(ctx context.Context, req Update) UpdateResult {
 			return res
 		}
 		version = v
+	}
+	if !IsReleaseTag(version) {
+		res.Err = fmt.Sprintf("%q is not a release version (v1.2.3) — nothing was downloaded", version)
+		return res
 	}
 	res.To = version
 	// Already there — but only if the name also stands for the same binary.
