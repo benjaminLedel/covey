@@ -64,12 +64,12 @@
     "templates": "Sjablonen",
     "org": "Organigram",
     "costs": "Kosten",
-    "setup": "Inrichting",
-    "control": "Toezicht",
-    "guardrails": "Vangrails",
-    "secrets": "Geheimen",
-    "targets": "Doelsystemen",
-    "egress": "Uitgaand verkeer",
+    "setup": "Hulpmiddelen",
+    "control": "Beveiliging",
+    "guardrails": "Regels",
+    "secrets": "Inloggegevens",
+    "targets": "Gekoppelde systemen",
+    "egress": "Internettoegang",
     "platform": "Platform",
     "users": "Gebruikers",
     "organizations": "Organisaties",
@@ -77,20 +77,21 @@
     "logout": "Uitloggen",
     "userMenu": "Gebruikersmenu",
     "profile": "Profiel en instellingen",
-    "audit": "Audit",
-    "requests": "Verzoeken",
+    "audit": "Logboek",
+    "requests": "Verkeer",
     "skills": "Vaardigheden",
     "voices": "Stemmen",
     "setupPage": "Inrichting",
     "inbox": "Postvak in",
-    "administrationSection": "Beheer",
-    "administration": "Organisatie",
+    "administrationSection": "Organisatie",
+    "administration": "Instellingen",
     "approvals": "Goedkeuringen",
     "infrastructure": "Infrastructuur",
     "apps": "covey-app",
     "helpShort": "Help",
     "menu": "Menu",
-    "workflows": "Workflows"
+    "workflows": "Workflows",
+    "members": "Leden"
   },
   "costs": {
     "title": "Kosten en tokens",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Audit",
+    "title": "Logboek",
     "count": "{{count}} regels",
     "lead": "Wat mensen met het platform deden — de tegenhanger van de opname, die de agenten toont. Er staat in wie wat wanneer aanraakte; de inhoud ontbreekt met opzet, want daarin zouden geheime waarden belanden.",
     "searchPlaceholder": "Zoeken (pad, persoon, methode)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Toegepast als versie {{v}}"
   },
   "guardrails": {
-    "title": "Vangrails",
-    "subtitle": "centraal afgedwongen, fail-closed",
+    "title": "Regels",
+    "subtitle": "Grenzen die voor alle agents gelden — en waar ze niet omheen kunnen",
     "desc": "Regels gelden buiten de engine — bij de broker en in de gereedschapslaag. Een nauwere reikwijdte kan regels aanscherpen; een globale weigerregel kan nooit worden losgelaten. Gepauzeerde regels blijven bewaard maar gelden niet.",
     "noneByDefault": "Geen regels vastgelegd — standaard blijft de broker fail-closed.",
     "paused": "gepauzeerd",
@@ -1367,8 +1368,8 @@
     }
   },
   "secrets": {
-    "title": "Geheimen",
-    "subtitle": "AES-GCM-versleuteld in Postgres",
+    "title": "Inloggegevens",
+    "subtitle": "Wachtwoorden en sleutels waarmee uw agents inloggen — versleuteld opgeslagen",
     "noAccess": "Uw rol ({{role}}) heeft geen toegang tot de geheimenkluis.",
     "desc": "Geheimen beginnen als gewone variabelen (servernamen, URL's) en blijven leesbaar. Markeer tokens en wachtwoorden als gevoelig — dan is de waarde alleen-schrijven en via de API nooit meer leesbaar; alleen de eerste tekens dienen als herkenningshint.",
     "key": "Sleutel",
@@ -1741,7 +1742,7 @@
     "importSkipped": "weggelaten: {{what}}"
   },
   "targets": {
-    "title": "Doelsystemen",
+    "title": "Gekoppelde systemen",
     "subtitle": "Waar uw agenten in werken — uit de winkel, zelf aangesloten, of met covey meegeleverd",
     "desc": "Doelsystemen zijn plug-ins. De meeste haalt u uit de winkel: een catalogus waaruit u installeert, zonder deploy en zonder een nieuwe covey-release. Alleen wat echt code nodig heeft, zit meegecompileerd: protocollen voorbij REST, OAuth-stromen, werk binnen de sandbox. Een eigen REST-systeem sluit u aan als JSON-manifest.",
     "noAccess": "Uw rol ({{role}}) mag doelsystemen inzien maar niet beheren.",
@@ -1844,8 +1845,8 @@
     "kindWasm": "Code (wasm)"
   },
   "egress": {
-    "title": "Uitgaand verkeer",
-    "subtitle": "Uitgaand netwerkverkeer van sandboxen",
+    "title": "Internettoegang",
+    "subtitle": "Welke adressen op internet agents mogen bereiken",
     "overview": "Overzicht",
     "templates": "Sjablonen",
     "allowed24h": "toegestaan, laatste 24 u",
@@ -1929,8 +1930,8 @@
     }
   },
   "requests": {
-    "title": "Verzoeken",
-    "subtitle": "HTTP-verkeer aan de randen",
+    "title": "Verkeer",
+    "subtitle": "Wat er heen en weer ging tussen covey en de gekoppelde systemen",
     "intro": "Elk verzoek dat een doelsysteem-plug-in doet (uitgaand) en elke webhook die covey ontvangt (inkomend) — de geweigerde inbegrepen. De opname toont WAT een agent deed; dit toont wat er werkelijk over de lijn ging. Diagnosegegevens met korte bewaartijd, geen auditspoor. Inloggegevens worden onleesbaar gemaakt, bodies ingekort.",
     "disabled": "Het verzoekenlogboek staat uit",
     "disabledHint": "Zet het aan met COVEY_REQUEST_LOG=true (de standaard) en herstart het proces.",
@@ -2005,21 +2006,33 @@
   },
   "users": {
     "title": "Gebruikers",
-    "subtitle": "Mensen en rollen van deze organisatie (RBAC)",
-    "desc": "Rollen werken meteen door in actieve sessies. Een wachtwoordreset logt de gebruiker overal uit. De laatste org admin van een organisatie kan niet worden verwijderd of gedegradeerd.",
+    "desc": "Wie in deze organisatie werkt en wat elke persoon mag. Een gewijzigde rol geldt meteen.",
     "noAccess": "Uw rol ({{role}}) heeft geen toegang tot het gebruikersbeheer.",
     "email": "E-mail",
     "name": "Naam",
     "role": "Rol",
     "password": "Wachtwoord (min. 8 tekens)",
-    "create": "Aanmaken",
+    "create": "Toevoegen",
     "profileHint": "Functietitel, identiteiten op platformen en verantwoordelijkheden beheert u na het aanmaken op de profielpagina van de persoon.",
-    "passwordReset": "Wachtwoord",
+    "passwordReset": "Wachtwoord opnieuw instellen",
     "delete": "Verwijderen",
     "cantDeleteSelf": "Uw eigen account kan niet worden verwijderd",
     "self": "— U",
     "newPasswordLabel": "Nieuw wachtwoord (min. 8 tekens) — logt de gebruiker overal uit",
-    "setPassword": "Instellen"
+    "setPassword": "Instellen",
+    "add": "Persoon toevoegen",
+    "cancel": "Annuleren",
+    "count": "{{count}} personen",
+    "count_one": "Eén persoon",
+    "confirmDelete": "{{name}} echt verwijderen?",
+    "rolesHelp": "Wat mag elke rol?",
+    "roleDesc": {
+      "org_admin": "Beheert de organisatie: leden, instellingen en alle agents.",
+      "agent_owner": "Neemt agents aan, richt ze in en werkt met ze.",
+      "security": "Legt regels en internettoegang vast, kan agents stoppen en goedkeuringen geven.",
+      "auditor": "Leest het logboek en de werkverslagen mee, wijzigt niets.",
+      "controlling": "Ziet kosten en verbruik."
+    }
   },
   "account": {
     "title": "Account",
@@ -2317,19 +2330,24 @@
     "failed": "De opdracht is mislukt."
   },
   "administration": {
-    "title": "Beheer",
+    "title": "Organisatie",
     "subtitle": "Deze organisatie",
-    "tabProfile": "Profiel",
-    "tabMembers": "Leden en rollen",
+    "tabProfile": "Algemeen",
+    "tabMembers": "Leden",
     "tabUsage": "Gebruik",
-    "tabAudit": "Audit",
-    "profileDesc": "De stamgegevens van deze organisatie. Beschrijving en platformrepository staan ook op het organigram — dezelfde opslag, tweede ingang.",
+    "profileDesc": "Wie uw organisatie is en hoe ze met haar agents samenwerkt.",
     "usageDesc": "Wat deze organisatie verbruikt. De quota waaraan deze cijfers ooit worden getoetst, bestaan nog niet.",
     "members": "Leden",
     "agents": "Agenten",
     "agentsActive": "daarvan bezig",
     "cost30d": "Kosten (30 dagen)",
-    "tabDiagnostics": "Diagnostiek"
+    "tabDiagnostics": "Diagnostiek",
+    "tabSignIn": "Aanmelden",
+    "groupCompany": "Bedrijf",
+    "groupWork": "Samenwerking",
+    "groupVoice": "Taal en stem",
+    "advanced": "Geavanceerd",
+    "advancedDesc": "Technische instellingen die zelden nodig zijn."
   },
   "platform": {
     "seatAddPick": "Toevoegen aan een organisatie…",

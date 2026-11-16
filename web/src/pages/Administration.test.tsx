@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import Administration from "./Administration";
 import { mockFetch, renderWithProviders, testPrincipal, useGerman } from "../test/render";
 
@@ -50,7 +50,7 @@ describe("Administrations-Panel", () => {
     // Twice: in the panel header and on the master-data card it shares with
     // the org chart.
     expect(await screen.findAllByText("Northgate Systems")).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "Administration" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Organisation" })).toBeInTheDocument();
   });
 
   it("zählt beschäftigte Agenten ohne die schlafenden und gestoppten", async () => {
@@ -76,5 +76,34 @@ describe("Administrations-Panel", () => {
     // Exactly one h1: the panel's. The embedded page brings no
     // second one.
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("zeigt zuerst die Leute, das Formular erst auf Knopfdruck", async () => {
+    mockFetch(routen);
+    renderWithProviders(<Administration me={testPrincipal()} />, { route: "/administration/members", path: "/administration/*" });
+
+    expect(await screen.findByText("Mara")).toBeInTheDocument();
+    // Single sign-on has its own tab now; the members tab opens with people.
+    expect(screen.queryByText("Single Sign-on")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("E-Mail")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Person hinzufügen" }));
+    expect(document.querySelector("input[type=email]")).not.toBeNull();
+  });
+
+  it("fragt vor dem Entfernen noch einmal nach", async () => {
+    const calls: string[] = [];
+    mockFetch(routen);
+    const fetch0 = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE") calls.push(String(input));
+      return fetch0(input, init);
+    }) as typeof fetch;
+    renderWithProviders(<Administration me={testPrincipal()} />, { route: "/administration/members", path: "/administration/*" });
+
+    await screen.findByText("Jonas");
+    const entfernen = screen.getAllByRole("button", { name: "Entfernen" }).find((b) => !(b as HTMLButtonElement).disabled)!;
+    fireEvent.click(entfernen);
+    expect(calls).toHaveLength(0);
+    expect(screen.getByText(/^(Mara|Jonas) wirklich entfernen\?$/)).toBeInTheDocument();
   });
 });

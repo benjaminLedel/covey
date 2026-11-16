@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, photoUrl, post, ROLES, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
-import SSOSettings from "../components/SSOSettings";
 
 /** `embedded` leaves the own page head out — in the administration panel
  *  one already stands above, and two headings stacked are one
@@ -12,6 +11,7 @@ import SSOSettings from "../components/SSOSettings";
 export default function Users({ me, embedded }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
   const users = useQuery({
     queryKey: ["users"],
     queryFn: () => api<Human[]>("/users"),
@@ -27,30 +27,63 @@ export default function Users({ me, embedded }: { me: Principal; embedded?: bool
     );
   }
 
+  const list = users.data ?? [];
   return (
     <div>
-      {!embedded && (
-        <div className="flex items-baseline gap-3 mb-2">
-          <h1 className="text-[22px]">{t("users.title")}</h1>
-          <span className="muted">{t("users.subtitle")}</span>
-        </div>
+      {!embedded && <h1 className="text-[22px] mb-2">{t("users.title")}</h1>}
+      {/* The list first (#743). Single sign-on has its own tab, the form
+          opens on demand: adding someone is the rare case, looking up who
+          is here and what they may do the common one. */}
+      <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
+        <p className="muted text-xs m-0" style={{ maxWidth: 640 }}>
+          {t("users.desc")}
+        </p>
+        {!adding && (
+          <button className="btn primary sm" onClick={() => setAdding(true)}>
+            {t("users.add")}
+          </button>
+        )}
+      </div>
+      <RoleHelp />
+      {adding && (
+        <CreateUser
+          onDone={() => {
+            setAdding(false);
+            qc.invalidateQueries({ queryKey: ["users"] });
+          }}
+          onCancel={() => setAdding(false)}
+        />
       )}
-      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        {t("users.desc")}
-      </p>
-
-      <SSOSettings me={me} />
-
-      <CreateUser onDone={() => qc.invalidateQueries({ queryKey: ["users"] })} />
-
-      {(users.data ?? []).map((u) => (
-        <UserRow key={u.id} user={u} me={me} />
-      ))}
+      <div className="muted text-xs mb-2">{t("users.count", { count: list.length })}</div>
+      <div className="card member-list">
+        {list.map((u) => (
+          <UserRow key={u.id} user={u} me={me} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function CreateUser({ onDone }: { onDone: () => void }) {
+/* What the roles may do, in one line each. The select offered five names
+   and nothing that said what lies behind them. */
+function RoleHelp() {
+  const { t } = useTranslation();
+  return (
+    <details className="settings-advanced mt-2 mb-4" style={{ maxWidth: 640 }}>
+      <summary>{t("users.rolesHelp")}</summary>
+      <dl className="role-help">
+        {ROLES.map((r) => (
+          <div key={r}>
+            <dt>{t(`role.${r}`, r)}</dt>
+            <dd className="muted">{t(`users.roleDesc.${r}`)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
+function CreateUser({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -76,7 +109,7 @@ function CreateUser({ onDone }: { onDone: () => void }) {
       <div className="flex gap-3 items-end flex-wrap">
         <div className="flex-1 min-w-48">
           <label>{t("users.email")}</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
         </div>
         <div className="flex-1 min-w-40">
           <label>{t("users.name")}</label>
@@ -99,6 +132,9 @@ function CreateUser({ onDone }: { onDone: () => void }) {
         <button className="btn primary" disabled={mut.isPending}>
           {t("users.create")}
         </button>
+        <button type="button" className="btn" onClick={onCancel}>
+          {t("users.cancel")}
+        </button>
       </div>
       <p className="muted text-xs mt-2 mb-0">
         {t("users.profileHint")}
@@ -113,6 +149,8 @@ function UserRow({ user, me }: { user: Human; me: Principal }) {
   const qc = useQueryClient();
   const isSelf = user.id === me.ID;
   const [resetting, setResetting] = useState(false);
+  /* Removing someone asks once more: it ends their access at once. */
+  const [confirming, setConfirming] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const invalidate = () => {
     for (const key of ["users", "orgchart", "human"]) qc.invalidateQueries({ queryKey: [key] });
@@ -139,7 +177,7 @@ function UserRow({ user, me }: { user: Human; me: Principal }) {
   const identities = Object.entries(user.identities ?? {});
 
   return (
-    <div className="card mb-2" style={{ padding: "11px 15px" }}>
+    <div className="member-row">
       <div className="flex items-center gap-4 flex-wrap">
         <Link to={`/people/${user.id}`} title={t("org.openProfile")} style={{ color: "inherit", textDecoration: "none" }}>
           <Avatar name={user.display_name} human photo={photoUrl(user.id, user.photo_id)} />
@@ -150,7 +188,7 @@ function UserRow({ user, me }: { user: Human; me: Principal }) {
             {user.job_title && <span className="muted text-xs"> · {user.job_title}</span>}
             {isSelf && <span className="muted text-xs"> {t("users.self")}</span>}
           </div>
-          <div className="muted text-xs mono">
+          <div className="muted text-xs">
             {user.email}
             {identities.map(([system, id]) => (
               <span key={system}> · {system}: {id}</span>
@@ -172,14 +210,26 @@ function UserRow({ user, me }: { user: Human; me: Principal }) {
         <button className="btn sm" onClick={() => setResetting(!resetting)}>
           {t("users.passwordReset")}
         </button>
-        <button
-          className="btn sm danger"
-          onClick={() => remove.mutate()}
-          disabled={isSelf || remove.isPending}
-          title={isSelf ? t("users.cantDeleteSelf") : undefined}
-        >
-          {t("users.delete")}
-        </button>
+        {confirming ? (
+          <span className="flex items-center gap-2">
+            <span className="text-xs">{t("users.confirmDelete", { name: user.display_name })}</span>
+            <button className="btn sm danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+              {t("users.delete")}
+            </button>
+            <button className="btn sm" onClick={() => setConfirming(false)}>
+              {t("users.cancel")}
+            </button>
+          </span>
+        ) : (
+          <button
+            className="btn sm"
+            onClick={() => setConfirming(true)}
+            disabled={isSelf}
+            title={isSelf ? t("users.cantDeleteSelf") : undefined}
+          >
+            {t("users.delete")}
+          </button>
+        )}
       </div>
       {resetting && (
         <form

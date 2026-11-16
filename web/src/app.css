@@ -409,32 +409,6 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.nav-sec.toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: color 0.12s;
-}
-.nav-sec.toggle:hover:not(:disabled) { color: var(--text-secondary); }
-.nav-sec.toggle:disabled { cursor: default; }
-.nav-sec.toggle .ic {
-  width: 12px;
-  height: 12px;
-  margin-left: auto;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform 0.15s;
-}
-
 /* Fuß der Sidebar: Nutzer + Aktionen, leicht und ohne Kasten — nur eine
    Haarlinie trennt den Fuß von der Navigation. */
 .side-foot {
@@ -4862,3 +4836,41 @@ a.tm-file:hover { background: var(--tint); }
 .tm-vorschlag-knoepfe { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tm-vorschlag-stand { margin: 0; font-size: 12px; color: var(--text-muted); }
 .tm-vorschlag.st-rejected .tm-vorschlag-titel { text-decoration: line-through; color: var(--text-muted); }
+
+/* Settings grouped under headings (#743) — the administration's general tab. */
+.settings-group {
+  margin: 26px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.settings-group:first-of-type { margin-top: 8px; }
+.settings-advanced { margin-top: 26px; }
+.settings-advanced > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  list-style: none;
+}
+.settings-advanced > summary::-webkit-details-marker { display: none; }
+.settings-advanced > summary::before {
+  content: "›";
+  display: inline-block;
+  width: 1em;
+  transition: transform 0.15s;
+}
+.settings-advanced[open] > summary::before { transform: rotate(90deg); }
+
+/* What each role may do — the members tab (#743). */
+.role-help { margin: 0; display: grid; gap: 6px; font-size: 12.5px; }
+.role-help > div { display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+.role-help dt { font-weight: 500; }
+.role-help dd { margin: 0; }
+@media (max-width: 560px) { .role-help > div { grid-template-columns: 1fr; gap: 0; } }
+
+/* The members as one list, not a stack of cards (#743). */
+.member-list { padding: 0; overflow: hidden; }
+.member-row { padding: 11px 15px; }
+.member-row + .member-row { border-top: 1px solid var(--border); }

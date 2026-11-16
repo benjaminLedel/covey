@@ -64,12 +64,12 @@
     "templates": "Modelli",
     "org": "Organigramma",
     "costs": "Costi",
-    "setup": "Configurazione",
-    "control": "Vigilanza",
-    "guardrails": "Regole di sicurezza",
-    "secrets": "Segreti",
-    "targets": "Sistemi di destinazione",
-    "egress": "Uscita di rete",
+    "setup": "Strumenti",
+    "control": "Sicurezza",
+    "guardrails": "Regole",
+    "secrets": "Credenziali",
+    "targets": "Sistemi collegati",
+    "egress": "Accesso a internet",
     "platform": "Piattaforma",
     "users": "Utenti",
     "organizations": "Organizzazioni",
@@ -77,20 +77,21 @@
     "logout": "Esci",
     "userMenu": "Menu utente",
     "profile": "Profilo e impostazioni",
-    "audit": "Audit",
-    "requests": "Richieste",
+    "audit": "Registro",
+    "requests": "Traffico",
     "skills": "Competenze",
     "voices": "Voci",
     "setupPage": "Configurazione",
     "inbox": "Posta in arrivo",
-    "administrationSection": "Amministrazione",
-    "administration": "Organizzazione",
+    "administrationSection": "Organizzazione",
+    "administration": "Impostazioni",
     "approvals": "Approvazioni",
     "infrastructure": "Infrastruttura",
     "apps": "App covey",
     "helpShort": "Aiuto",
     "menu": "Menu",
-    "workflows": "Workflow"
+    "workflows": "Workflow",
+    "members": "Membri"
   },
   "costs": {
     "title": "Costi e token",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Audit",
+    "title": "Registro",
     "count": "{{count}} voci",
     "lead": "Che cosa hanno fatto le persone alla piattaforma — la controparte della registrazione, che mostra gli agenti. Contiene chi ha toccato che cosa e quando; i contenuti mancano di proposito, perché vi finirebbero valori segreti.",
     "searchPlaceholder": "Cerca (percorso, persona, metodo)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Applicata come versione {{v}}"
   },
   "guardrails": {
-    "title": "Regole di sicurezza",
-    "subtitle": "imposte centralmente, fail-closed",
+    "title": "Regole",
+    "subtitle": "Limiti validi per tutti gli agenti — e che non possono aggirare",
     "desc": "Le regole valgono fuori dal motore: presso il broker e nello strato degli strumenti. Un ambito più stretto può stringere le regole; una regola globale di divieto non si può mai allentare. Le regole in pausa restano ma non valgono.",
     "noneByDefault": "Nessuna regola definita — per impostazione predefinita il broker resta fail-closed.",
     "paused": "in pausa",
@@ -1367,8 +1368,8 @@
     }
   },
   "secrets": {
-    "title": "Segreti",
-    "subtitle": "cifrati con AES-GCM in Postgres",
+    "title": "Credenziali",
+    "subtitle": "Password e chiavi con cui i vostri agenti accedono — salvate cifrate",
     "noAccess": "Il tuo ruolo ({{role}}) non ha accesso all'archivio dei segreti.",
     "desc": "I segreti nascono come normali variabili (nomi di server, URL) e restano leggibili. Contrassegna token e password come sensibili: allora il valore è di sola scrittura e non è mai più leggibile tramite l'API; solo i primi caratteri servono da indizio di riconoscimento.",
     "key": "Chiave",
@@ -1741,7 +1742,7 @@
     "importSkipped": "escluso: {{what}}"
   },
   "targets": {
-    "title": "Sistemi di destinazione",
+    "title": "Sistemi collegati",
     "subtitle": "Ciò in cui lavorano i tuoi agenti — dal negozio, collegato da te, o incluso in covey",
     "desc": "I sistemi di destinazione sono plugin. La maggior parte li prendi dal negozio: un catalogo da cui installi, senza un deploy e senza una nuova versione di covey. Solo ciò che ha davvero bisogno di codice viene compilato dentro: protocolli oltre REST, flussi OAuth, lavoro dentro la sandbox. Un sistema REST tuo lo colleghi come manifesto JSON.",
     "noAccess": "Il tuo ruolo ({{role}}) può vedere i sistemi di destinazione ma non gestirli.",
@@ -1844,8 +1845,8 @@
     "kindWasm": "Codice (wasm)"
   },
   "egress": {
-    "title": "Uscita di rete",
-    "subtitle": "Traffico in uscita delle sandbox",
+    "title": "Accesso a internet",
+    "subtitle": "Quali indirizzi internet gli agenti possono raggiungere",
     "overview": "Quadro generale",
     "templates": "Modelli",
     "allowed24h": "consentite, ultime 24 h",
@@ -1929,8 +1930,8 @@
     }
   },
   "requests": {
-    "title": "Richieste",
-    "subtitle": "Traffico HTTP ai bordi",
+    "title": "Traffico",
+    "subtitle": "Cosa è passato tra covey e i sistemi collegati",
     "intro": "Ogni richiesta che un plugin di sistema di destinazione invia (in uscita) e ogni webhook che covey riceve (in entrata) — comprese quelle respinte. La registrazione mostra CHE COSA ha fatto un agente; questo mostra che cosa è passato davvero sul filo. Sono dati diagnostici con conservazione breve, non una traccia di audit. Le credenziali sono oscurate, i corpi troncati.",
     "disabled": "Il registro delle richieste è spento",
     "disabledHint": "Attivalo con COVEY_REQUEST_LOG=true (il valore predefinito) e riavvia il processo.",
@@ -2005,21 +2006,33 @@
   },
   "users": {
     "title": "Utenti",
-    "subtitle": "Persone e ruoli di questa organizzazione (RBAC)",
-    "desc": "I ruoli hanno effetto immediato sulle sessioni attive. Il ripristino della password disconnette l'utente ovunque. L'ultimo org admin di un'organizzazione non può essere né eliminato né declassato.",
+    "desc": "Chi lavora in questa organizzazione e cosa può fare ciascuno. Un ruolo modificato vale subito.",
     "noAccess": "Il tuo ruolo ({{role}}) non ha accesso alla gestione degli utenti.",
     "email": "E-mail",
     "name": "Nome",
     "role": "Ruolo",
     "password": "Password (min. 8 caratteri)",
-    "create": "Crea",
+    "create": "Aggiungi",
     "profileHint": "Qualifica, identità sulle piattaforme e responsabilità si gestiscono nella pagina di profilo della persona, dopo la creazione.",
-    "passwordReset": "Password",
-    "delete": "Elimina",
+    "passwordReset": "Reimposta password",
+    "delete": "Rimuovi",
     "cantDeleteSelf": "Il tuo account non può essere eliminato",
     "self": "— Tu",
     "newPasswordLabel": "Nuova password (min. 8 caratteri) — disconnette l'utente ovunque",
-    "setPassword": "Imposta"
+    "setPassword": "Imposta",
+    "add": "Aggiungi persona",
+    "cancel": "Annulla",
+    "count": "{{count}} persone",
+    "count_one": "Una persona",
+    "confirmDelete": "Rimuovere davvero {{name}}?",
+    "rolesHelp": "Cosa può fare ogni ruolo?",
+    "roleDesc": {
+      "org_admin": "Gestisce l'organizzazione: membri, impostazioni e tutti gli agenti.",
+      "agent_owner": "Assume agenti, li configura e lavora con loro.",
+      "security": "Stabilisce regole e accesso a internet, può fermare agenti e concedere approvazioni.",
+      "auditor": "Legge il registro e i resoconti di lavoro, senza modificare nulla.",
+      "controlling": "Vede costi e consumi."
+    }
   },
   "account": {
     "title": "Account",
@@ -2317,19 +2330,24 @@
     "failed": "L'incarico è fallito."
   },
   "administration": {
-    "title": "Amministrazione",
+    "title": "Organizzazione",
     "subtitle": "Questa organizzazione",
-    "tabProfile": "Profilo",
-    "tabMembers": "Membri e ruoli",
+    "tabProfile": "Generale",
+    "tabMembers": "Membri",
     "tabUsage": "Utilizzo",
-    "tabAudit": "Audit",
-    "profileDesc": "I dati anagrafici di questa organizzazione. Descrizione e repository della piattaforma stanno anche nell'organigramma — stesso archivio, seconda porta.",
+    "profileDesc": "Chi è la vostra organizzazione e come lavora con i suoi agenti.",
     "usageDesc": "Quello che questa organizzazione consuma. Le quote con cui un giorno si confronteranno questi numeri non esistono ancora.",
     "members": "Membri",
     "agents": "Agenti",
     "agentsActive": "di cui occupati",
     "cost30d": "Costo (30 giorni)",
-    "tabDiagnostics": "Diagnostica"
+    "tabDiagnostics": "Diagnostica",
+    "tabSignIn": "Accesso",
+    "groupCompany": "Azienda",
+    "groupWork": "Collaborazione",
+    "groupVoice": "Lingua e voce",
+    "advanced": "Avanzate",
+    "advancedDesc": "Impostazioni tecniche che servono di rado."
   },
   "platform": {
     "seatAddPick": "Aggiungi a un’organizzazione…",

@@ -64,12 +64,12 @@
     "templates": "Modelos",
     "org": "Organograma",
     "costs": "Custos",
-    "setup": "Configuração",
-    "control": "Supervisão",
-    "guardrails": "Barreiras",
-    "secrets": "Segredos",
-    "targets": "Sistemas de destino",
-    "egress": "Saída de rede",
+    "setup": "Ferramentas",
+    "control": "Segurança",
+    "guardrails": "Regras",
+    "secrets": "Credenciais",
+    "targets": "Sistemas ligados",
+    "egress": "Acesso à internet",
     "platform": "Plataforma",
     "users": "Utilizadores",
     "organizations": "Organizações",
@@ -77,20 +77,21 @@
     "logout": "Terminar sessão",
     "userMenu": "Menu do utilizador",
     "profile": "Perfil e definições",
-    "audit": "Auditoria",
-    "requests": "Pedidos",
+    "audit": "Registo",
+    "requests": "Tráfego",
     "skills": "Competências",
     "voices": "Vozes",
     "setupPage": "Configuração",
     "inbox": "Caixa de entrada",
-    "administrationSection": "Administração",
-    "administration": "Organização",
+    "administrationSection": "Organização",
+    "administration": "Definições",
     "approvals": "Aprovações",
     "infrastructure": "Infraestrutura",
     "apps": "App covey",
     "helpShort": "Ajuda",
     "menu": "Menu",
-    "workflows": "Fluxos de trabalho"
+    "workflows": "Fluxos de trabalho",
+    "members": "Membros"
   },
   "costs": {
     "title": "Custo e tokens",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Auditoria",
+    "title": "Registo",
     "count": "{{count}} entradas",
     "lead": "O que as pessoas fizeram à plataforma — a contraparte da gravação, que mostra os agentes. Guarda quem tocou em quê e quando; os conteúdos faltam de propósito, pois neles acabariam valores secretos.",
     "searchPlaceholder": "Pesquisar (caminho, pessoa, método)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Aplicada como versão {{v}}"
   },
   "guardrails": {
-    "title": "Barreiras",
-    "subtitle": "impostas centralmente, em fail-closed",
+    "title": "Regras",
+    "subtitle": "Limites que valem para todos os agentes — e que não conseguem contornar",
     "desc": "As regras valem fora do motor — no intermediário e na camada das ferramentas. Um âmbito mais estreito pode apertá-las; uma regra global de recusa nunca pode ser afrouxada. As regras em pausa mantêm-se mas não valem.",
     "noneByDefault": "Nenhuma regra definida — por omissão o intermediário continua em fail-closed.",
     "paused": "em pausa",
@@ -1367,8 +1368,8 @@
     }
   },
   "secrets": {
-    "title": "Segredos",
-    "subtitle": "cifrados com AES-GCM no Postgres",
+    "title": "Credenciais",
+    "subtitle": "Palavras-passe e chaves com que os seus agentes iniciam sessão — guardadas cifradas",
     "noAccess": "O seu papel ({{role}}) não tem acesso ao cofre de segredos.",
     "desc": "Os segredos começam como variáveis simples (nomes de servidores, URLs) e continuam legíveis. Marque tokens e palavras-passe como sensíveis — o valor passa então a ser só de escrita e nunca mais é legível pela API; apenas os primeiros caracteres servem de pista de reconhecimento.",
     "key": "Chave",
@@ -1741,7 +1742,7 @@
     "importSkipped": "omitido: {{what}}"
   },
   "targets": {
-    "title": "Sistemas de destino",
+    "title": "Sistemas ligados",
     "subtitle": "Aquilo em que os seus agentes trabalham — da loja, ligado por si, ou incluído no covey",
     "desc": "Os sistemas de destino são plugins. A maioria vem da loja: um catálogo a partir do qual instala, sem deploy e sem uma nova versão do covey. Só o que precisa mesmo de código vai compilado dentro: protocolos para lá do REST, fluxos OAuth, trabalho dentro da sandbox. Um sistema REST seu liga-se como manifesto JSON.",
     "noAccess": "O seu papel ({{role}}) pode ver os sistemas de destino mas não geri-los.",
@@ -1844,8 +1845,8 @@
     "kindWasm": "Código (wasm)"
   },
   "egress": {
-    "title": "Saída de rede",
-    "subtitle": "Tráfego de saída das sandboxes",
+    "title": "Acesso à internet",
+    "subtitle": "Que endereços na internet os agentes podem alcançar",
     "overview": "Vista geral",
     "templates": "Modelos",
     "allowed24h": "permitidas, últimas 24 h",
@@ -1929,8 +1930,8 @@
     }
   },
   "requests": {
-    "title": "Pedidos",
-    "subtitle": "Tráfego HTTP nas fronteiras",
+    "title": "Tráfego",
+    "subtitle": "O que circulou entre o covey e os sistemas ligados",
     "intro": "Cada pedido que um plugin de sistema de destino faz (de saída) e cada webhook que o covey recebe (de entrada) — os recusados incluídos. A gravação mostra O QUE um agente fez; isto mostra o que passou mesmo no fio. Dados de diagnóstico com retenção curta, não um rasto de auditoria. As credenciais são ocultadas, os corpos truncados.",
     "disabled": "O registo de pedidos está desligado",
     "disabledHint": "Ative-o com COVEY_REQUEST_LOG=true (a omissão) e reinicie o processo.",
@@ -2005,21 +2006,33 @@
   },
   "users": {
     "title": "Utilizadores",
-    "subtitle": "Pessoas e papéis desta organização (RBAC)",
-    "desc": "Os papéis produzem efeito imediato nas sessões activas. Repor a palavra-passe termina a sessão do utilizador em todo o lado. O último org admin de uma organização não pode ser eliminado nem despromovido.",
+    "desc": "Quem trabalha nesta organização e o que cada pessoa pode fazer. Uma função alterada aplica-se de imediato.",
     "noAccess": "O seu papel ({{role}}) não tem acesso à gestão de utilizadores.",
     "email": "E-mail",
     "name": "Nome",
     "role": "Papel",
     "password": "Palavra-passe (mín. 8 caracteres)",
-    "create": "Criar",
+    "create": "Adicionar",
     "profileHint": "Cargo, identidades nas plataformas e responsabilidades geram-se depois, na página de perfil da pessoa.",
-    "passwordReset": "Palavra-passe",
-    "delete": "Eliminar",
+    "passwordReset": "Redefinir palavra-passe",
+    "delete": "Remover",
     "cantDeleteSelf": "A sua própria conta não pode ser eliminada",
     "self": "— Você",
     "newPasswordLabel": "Palavra-passe nova (mín. 8 caracteres) — termina a sessão do utilizador em todo o lado",
-    "setPassword": "Definir"
+    "setPassword": "Definir",
+    "add": "Adicionar pessoa",
+    "cancel": "Cancelar",
+    "count": "{{count}} pessoas",
+    "count_one": "Uma pessoa",
+    "confirmDelete": "Remover mesmo {{name}}?",
+    "rolesHelp": "O que pode cada função?",
+    "roleDesc": {
+      "org_admin": "Gere a organização: membros, definições e todos os agentes.",
+      "agent_owner": "Contrata agentes, configura-os e trabalha com eles.",
+      "security": "Define regras e acesso à internet, pode parar agentes e conceder aprovações.",
+      "auditor": "Lê o registo e os relatórios de trabalho, sem alterar nada.",
+      "controlling": "Vê custos e consumo."
+    }
   },
   "account": {
     "title": "Conta",
@@ -2317,19 +2330,24 @@
     "failed": "A encomenda falhou."
   },
   "administration": {
-    "title": "Administração",
+    "title": "Organização",
     "subtitle": "Esta organização",
-    "tabProfile": "Perfil",
-    "tabMembers": "Membros e papéis",
+    "tabProfile": "Geral",
+    "tabMembers": "Membros",
     "tabUsage": "Utilização",
-    "tabAudit": "Auditoria",
-    "profileDesc": "Os dados mestres desta organização. Descrição e repositório da plataforma estão também no organograma — mesmo armazenamento, segunda porta.",
+    "profileDesc": "Quem é a sua organização e como trabalha com os seus agentes.",
     "usageDesc": "O que esta organização consome. As quotas com que estes números um dia serão confrontados ainda não existem.",
     "members": "Membros",
     "agents": "Agentes",
     "agentsActive": "destes ocupados",
     "cost30d": "Custo (30 dias)",
-    "tabDiagnostics": "Diagnóstico"
+    "tabDiagnostics": "Diagnóstico",
+    "tabSignIn": "Início de sessão",
+    "groupCompany": "Empresa",
+    "groupWork": "Colaboração",
+    "groupVoice": "Idioma e voz",
+    "advanced": "Avançado",
+    "advancedDesc": "Definições técnicas raramente necessárias."
   },
   "platform": {
     "seatAddPick": "Adicionar a uma organização…",

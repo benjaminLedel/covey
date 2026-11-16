@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { NavLink, Route, Routes } from "react-router";
+import { NavLink, Navigate, Route, Routes } from "react-router";
 import { api, type Agent, type Human, type OrgCostReport, type Organization, type Principal } from "../api";
-import Audit from "./Audit";
 import Diagnostics from "./Diagnostics";
 import { VoiceProviderSettings } from "../components/VoiceProviderSettings";
 import { ChatToneSettings, CompanyDescription, OfficeFurnishing, PlatformRepo, PushSettings, ReachSettings, RecordingSettings, TeamSurfaceSettings, TriageSettings } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import { OrgVoiceDefaults } from "./voices/Slots";
 import Users from "./Users";
+import SSOSettings from "../components/SSOSettings";
 import { fmtUSD } from "../format";
 
 // The administration panel: THIS organisation, not the installation.
@@ -25,8 +25,11 @@ export default function Administration({ me }: { me: Principal }) {
     <Routes>
       <Route index element={<Profile me={me} />} />
       <Route path="members" element={<Members me={me} />} />
+      <Route path="sign-in" element={<SignIn me={me} />} />
       <Route path="usage" element={<Usage />} />
-      <Route path="audit" element={<AuditTab />} />
+      {/* The audit trail had a tab here as well as its own entry in the
+          navigation — one page, two places (#743). The address stays valid. */}
+      <Route path="audit" element={<Navigate to="/audit" replace />} />
       <Route path="diagnostics" element={<DiagnosticsTab me={me} />} />
     </Routes>
   );
@@ -48,11 +51,11 @@ function Header() {
         <NavLink to="/administration/members" className={({ isActive }) => (isActive ? "active" : "")}>
           {t("administration.tabMembers")}
         </NavLink>
+        <NavLink to="/administration/sign-in" className={({ isActive }) => (isActive ? "active" : "")}>
+          {t("administration.tabSignIn")}
+        </NavLink>
         <NavLink to="/administration/usage" className={({ isActive }) => (isActive ? "active" : "")}>
           {t("administration.tabUsage")}
-        </NavLink>
-        <NavLink to="/administration/audit" className={({ isActive }) => (isActive ? "active" : "")}>
-          {t("administration.tabAudit")}
         </NavLink>
         <NavLink to="/administration/diagnostics" className={({ isActive }) => (isActive ? "active" : "")}>
           {t("administration.tabDiagnostics")}
@@ -71,24 +74,37 @@ function Header() {
  * editor (same pattern as ACCESS.md as a text view onto the UI store). */
 function Profile({ me }: { me: Principal }) {
   const { t } = useTranslation();
+  /* Twelve cards in one column read as a heap (#743). Grouped by what they
+     are about; the two that only an operator needs — how deep runs are
+     recorded, which repository the platform reads — fold away under
+     "Advanced". Folded, not removed. */
   return (
     <div>
       <Header />
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
         {t("administration.profileDesc")}
       </p>
+      <h2 className="settings-group">{t("administration.groupCompany")}</h2>
       <CompanyDescription />
+      <ProfileFieldsSettings />
+      <h2 className="settings-group">{t("administration.groupWork")}</h2>
       <TeamSurfaceSettings />
-      <PushSettings />
       <OfficeFurnishing />
       <TriageSettings />
       <ReachSettings me={me} />
+      <PushSettings />
+      <h2 className="settings-group">{t("administration.groupVoice")}</h2>
       <ChatToneSettings me={me} />
       <VoiceProviderSettings me={me} />
       <OrgVoiceDefaults me={me} />
-      <RecordingSettings />
-      <PlatformRepo />
-      <ProfileFieldsSettings />
+      <details className="settings-advanced">
+        <summary>{t("administration.advanced")}</summary>
+        <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
+          {t("administration.advancedDesc")}
+        </p>
+        <RecordingSettings />
+        <PlatformRepo />
+      </details>
     </div>
   );
 }
@@ -116,11 +132,15 @@ function DiagnosticsTab({ me }: { me: Principal }) {
   );
 }
 
-function AuditTab() {
+/* Single sign-on has a tab of its own (#743). It used to open the members
+   tab — issuer URL, domains, TXT records — and pushed the list of people
+   below the fold, although it is set up once and the list is what one
+   comes for. */
+function SignIn({ me }: { me: Principal }) {
   return (
     <div>
       <Header />
-      <Audit embedded />
+      <SSOSettings me={me} />
     </div>
   );
 }

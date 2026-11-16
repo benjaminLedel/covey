@@ -64,12 +64,12 @@
     "templates": "Szablony",
     "org": "Schemat organizacyjny",
     "costs": "Koszty",
-    "setup": "Konfiguracja",
-    "control": "Nadzór",
-    "guardrails": "Bariery ochronne",
-    "secrets": "Sekrety",
-    "targets": "Systemy docelowe",
-    "egress": "Ruch wychodzący",
+    "setup": "Narzędzia",
+    "control": "Bezpieczeństwo",
+    "guardrails": "Zasady",
+    "secrets": "Dane logowania",
+    "targets": "Połączone systemy",
+    "egress": "Dostęp do internetu",
     "platform": "Platforma",
     "users": "Użytkownicy",
     "organizations": "Organizacje",
@@ -77,20 +77,21 @@
     "logout": "Wyloguj",
     "userMenu": "Menu użytkownika",
     "profile": "Profil i ustawienia",
-    "audit": "Audyt",
-    "requests": "Żądania",
+    "audit": "Dziennik",
+    "requests": "Ruch",
     "skills": "Umiejętności",
     "voices": "Głosy",
     "setupPage": "Konfiguracja",
     "inbox": "Skrzynka",
-    "administrationSection": "Administracja",
-    "administration": "Organizacja",
+    "administrationSection": "Organizacja",
+    "administration": "Ustawienia",
     "approvals": "Zatwierdzenia",
     "infrastructure": "Infrastruktura",
     "apps": "Aplikacja covey",
     "helpShort": "Pomoc",
     "menu": "Menu",
-    "workflows": "Przepływy pracy"
+    "workflows": "Przepływy pracy",
+    "members": "Członkowie"
   },
   "costs": {
     "title": "Koszty i tokeny",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Audyt",
+    "title": "Dziennik",
     "count": "{{count}} wpisów",
     "lead": "Co ludzie zrobili z platformą — odpowiednik nagrania, które pokazuje agentów. Zawiera, kto czego i kiedy dotknął; treści celowo brakuje, bo trafiałyby do niej wartości sekretów.",
     "searchPlaceholder": "Szukaj (ścieżka, osoba, metoda)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Zastosowano jako wersję {{v}}"
   },
   "guardrails": {
-    "title": "Bariery ochronne",
-    "subtitle": "egzekwowane centralnie, domyślnie zamknięte",
+    "title": "Zasady",
+    "subtitle": "Granice obowiązujące wszystkich agentów — których nie mogą obejść",
     "desc": "Reguły obowiązują poza silnikiem — u brokera i w warstwie narzędzi. Węższy zakres może regułę zaostrzyć; globalnej reguły odmowy nigdy nie da się poluzować. Wstrzymane reguły zostają zachowane, ale nie obowiązują.",
     "noneByDefault": "Nie zdefiniowano reguł — domyślnie broker i tak pozostaje zamknięty.",
     "paused": "wstrzymana",
@@ -1367,8 +1368,8 @@
     }
   },
   "secrets": {
-    "title": "Sekrety",
-    "subtitle": "szyfrowane AES-GCM w Postgresie",
+    "title": "Dane logowania",
+    "subtitle": "Hasła i klucze, którymi logują się agenci — przechowywane w postaci zaszyfrowanej",
     "noAccess": "Twoja rola ({{role}}) nie ma dostępu do magazynu sekretów.",
     "desc": "Sekrety zaczynają jako zwykłe zmienne (nazwy serwerów, adresy URL) i pozostają czytelne. Tokeny i hasła oznacz jako wrażliwe — wtedy wartość jest tylko do zapisu i nigdy więcej nie da się jej odczytać przez API; do rozpoznania służy tylko kilka pierwszych znaków.",
     "key": "Klucz",
@@ -1741,7 +1742,7 @@
     "importSkipped": "pominięto: {{what}}"
   },
   "targets": {
-    "title": "Systemy docelowe",
+    "title": "Połączone systemy",
     "subtitle": "To, w czym pracują Twoi agenci — ze sklepu, podłączone samodzielnie albo dostarczone z covey",
     "desc": "Systemy docelowe to wtyczki. Większość bierzesz ze sklepu: katalogu, z którego instalujesz bez wdrożenia i bez nowego wydania covey. Wkompilowane jest tylko to, co naprawdę wymaga kodu: protokoły poza REST, przepływy OAuth, praca wewnątrz piaskownicy. Własny system REST podłączasz jako manifest JSON.",
     "noAccess": "Twoja rola ({{role}}) może oglądać systemy docelowe, ale nimi nie zarządza.",
@@ -1844,8 +1845,8 @@
     "kindWasm": "Kod (wasm)"
   },
   "egress": {
-    "title": "Ruch wychodzący",
-    "subtitle": "Ruch wychodzący piaskownic",
+    "title": "Dostęp do internetu",
+    "subtitle": "Które adresy w internecie agenci mogą odwiedzać",
     "overview": "Przegląd",
     "templates": "Szablony",
     "allowed24h": "dozwolone, ostatnie 24 h",
@@ -1929,8 +1930,8 @@
     }
   },
   "requests": {
-    "title": "Żądania",
-    "subtitle": "Ruch HTTP na krawędziach",
+    "title": "Ruch",
+    "subtitle": "Co przepływało między covey a połączonymi systemami",
     "intro": "Każde żądanie, które wysyła wtyczka systemu docelowego (wychodzące), i każdy webhook, który covey odbiera (przychodzące) — łącznie z odrzuconymi. Nagranie pokazuje, CO agent zrobił; to pokazuje, co naprawdę poszło po drucie. Dane diagnostyczne o krótkim czasie przechowywania, nie ślad audytowy. Poświadczenia są zamazywane, treści skracane.",
     "disabled": "Dziennik żądań jest wyłączony",
     "disabledHint": "Włącz przez COVEY_REQUEST_LOG=true (wartość domyślna) i zrestartuj proces.",
@@ -2005,21 +2006,33 @@
   },
   "users": {
     "title": "Użytkownicy",
-    "subtitle": "Ludzie i role tej organizacji (RBAC)",
-    "desc": "Role działają natychmiast w aktywnych sesjach. Zresetowanie hasła wylogowuje użytkownika wszędzie. Ostatniego org admina organizacji nie da się usunąć ani zdegradować.",
+    "desc": "Kto pracuje w tej organizacji i co może każda osoba. Zmiana roli obowiązuje od razu.",
     "noAccess": "Twoja rola ({{role}}) nie ma dostępu do zarządzania użytkownikami.",
     "email": "E-mail",
     "name": "Imię i nazwisko",
     "role": "Rola",
     "password": "Hasło (min. 8 znaków)",
-    "create": "Utwórz",
+    "create": "Dodaj",
     "profileHint": "Stanowisko, tożsamości na platformach i zakres odpowiedzialności prowadzi się po utworzeniu na stronie profilu tej osoby.",
-    "passwordReset": "Hasło",
+    "passwordReset": "Zresetuj hasło",
     "delete": "Usuń",
     "cantDeleteSelf": "Własnego konta nie można usunąć",
     "self": "— Ty",
     "newPasswordLabel": "Nowe hasło (min. 8 znaków) — wylogowuje użytkownika wszędzie",
-    "setPassword": "Ustaw"
+    "setPassword": "Ustaw",
+    "add": "Dodaj osobę",
+    "cancel": "Anuluj",
+    "count": "Osoby: {{count}}",
+    "count_one": "Jedna osoba",
+    "confirmDelete": "Na pewno usunąć: {{name}}?",
+    "rolesHelp": "Co może każda rola?",
+    "roleDesc": {
+      "org_admin": "Zarządza organizacją: członkami, ustawieniami i wszystkimi agentami.",
+      "agent_owner": "Zatrudnia agentów, konfiguruje ich i z nimi pracuje.",
+      "security": "Ustala zasady i dostęp do internetu, może zatrzymać agentów i udzielać zgód.",
+      "auditor": "Czyta dziennik i raporty z pracy, niczego nie zmienia.",
+      "controlling": "Widzi koszty i zużycie."
+    }
   },
   "account": {
     "title": "Konto",
@@ -2317,19 +2330,24 @@
     "failed": "Zlecenie się nie powiodło."
   },
   "administration": {
-    "title": "Administracja",
+    "title": "Organizacja",
     "subtitle": "Ta organizacja",
-    "tabProfile": "Profil",
-    "tabMembers": "Członkowie i role",
+    "tabProfile": "Ogólne",
+    "tabMembers": "Członkowie",
     "tabUsage": "Zużycie",
-    "tabAudit": "Audyt",
-    "profileDesc": "Dane podstawowe tej organizacji. Opis i repozytorium platformy stoją też w schemacie organizacyjnym — ten sam magazyn, drugie wejście.",
+    "profileDesc": "Kim jest Twoja organizacja i jak współpracuje ze swoimi agentami.",
     "usageDesc": "To, czego zużywa ta organizacja. Limity, z którymi kiedyś zostaną zestawione te liczby, jeszcze nie istnieją.",
     "members": "Członkowie",
     "agents": "Agenci",
     "agentsActive": "w tym zajętych",
     "cost30d": "Koszt (30 dni)",
-    "tabDiagnostics": "Diagnostyka"
+    "tabDiagnostics": "Diagnostyka",
+    "tabSignIn": "Logowanie",
+    "groupCompany": "Firma",
+    "groupWork": "Współpraca",
+    "groupVoice": "Język i głos",
+    "advanced": "Zaawansowane",
+    "advancedDesc": "Ustawienia techniczne, rzadko potrzebne."
   },
   "platform": {
     "seatAddPick": "Dodaj do organizacji…",

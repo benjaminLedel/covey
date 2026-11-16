@@ -64,12 +64,12 @@
     "templates": "Modèles",
     "org": "Organigramme",
     "costs": "Coûts",
-    "setup": "Mise en place",
-    "control": "Contrôle",
-    "guardrails": "Garde-fous",
-    "secrets": "Secrets",
-    "targets": "Systèmes cibles",
-    "egress": "Sortie réseau",
+    "setup": "Outils",
+    "control": "Sécurité",
+    "guardrails": "Règles",
+    "secrets": "Identifiants",
+    "targets": "Systèmes connectés",
+    "egress": "Accès internet",
     "platform": "Plateforme",
     "users": "Utilisateurs",
     "organizations": "Organisations",
@@ -77,20 +77,21 @@
     "logout": "Se déconnecter",
     "userMenu": "Menu utilisateur",
     "profile": "Profil et réglages",
-    "audit": "Audit",
-    "requests": "Requêtes",
+    "audit": "Journal",
+    "requests": "Trafic",
     "skills": "Compétences",
     "voices": "Voix",
     "setupPage": "Mise en place",
     "inbox": "Boîte de réception",
-    "administrationSection": "Administration",
-    "administration": "Organisation",
+    "administrationSection": "Organisation",
+    "administration": "Paramètres",
     "approvals": "Validations",
     "infrastructure": "Infrastructure",
     "apps": "App covey",
     "helpShort": "Aide",
     "menu": "Menu",
-    "workflows": "Workflows"
+    "workflows": "Workflows",
+    "members": "Membres"
   },
   "costs": {
     "title": "Coût et jetons",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Audit",
+    "title": "Journal",
     "count": "{{count}} entrées",
     "lead": "Ce que des humains ont fait à la plateforme — le pendant de l'enregistrement, qui montre les agents. On y trouve qui a touché quoi et quand ; les contenus sont délibérément absents, car des valeurs secrètes y atterriraient.",
     "searchPlaceholder": "Rechercher (chemin, personne, méthode)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Appliquée en version {{v}}"
   },
   "guardrails": {
-    "title": "Garde-fous",
-    "subtitle": "appliqués centralement, en fail-closed",
+    "title": "Règles",
+    "subtitle": "Des limites valables pour tous les agents — et qu'ils ne peuvent pas contourner",
     "desc": "Les règles s'appliquent en dehors du moteur — au courtier et dans la couche outils. Une portée plus étroite peut resserrer une règle ; une règle globale d'interdiction ne peut jamais être desserrée. Les règles en pause sont conservées mais ne s'appliquent pas.",
     "noneByDefault": "Aucune règle définie — par défaut, le courtier reste en fail-closed.",
     "paused": "en pause",
@@ -1367,8 +1368,8 @@
     }
   },
   "secrets": {
-    "title": "Secrets",
-    "subtitle": "chiffrés en AES-GCM dans Postgres",
+    "title": "Identifiants",
+    "subtitle": "Mots de passe et clés avec lesquels vos agents se connectent — stockés chiffrés",
     "noAccess": "Votre rôle ({{role}}) n'a pas accès au coffre à secrets.",
     "desc": "Les secrets commencent comme de simples variables (noms de serveurs, URL) et restent lisibles. Marquez jetons et mots de passe comme sensibles — la valeur devient alors en écriture seule et n'est plus jamais lisible par l'API ; seuls les premiers caractères servent d'indice de reconnaissance.",
     "key": "Clé",
@@ -1741,7 +1742,7 @@
     "importSkipped": "ignoré : {{what}}"
   },
   "targets": {
-    "title": "Systèmes cibles",
+    "title": "Systèmes connectés",
     "subtitle": "Ce dans quoi vos agents travaillent — depuis la boutique, connecté par vous, ou livré avec covey",
     "desc": "Les systèmes cibles sont des greffons. La plupart viennent de la boutique : un catalogue depuis lequel vous installez, sans déploiement et sans nouvelle version de covey. Seul ce qui exige vraiment du code est compilé dedans — protocoles au-delà de REST, flux OAuth, travail à l'intérieur du bac à sable. Un système REST à vous se connecte sous forme de manifeste JSON.",
     "noAccess": "Votre rôle ({{role}}) peut consulter les systèmes cibles mais pas les gérer.",
@@ -1844,8 +1845,8 @@
     "kindWasm": "Code (wasm)"
   },
   "egress": {
-    "title": "Sortie réseau",
-    "subtitle": "Trafic sortant des bacs à sable",
+    "title": "Accès internet",
+    "subtitle": "Les adresses internet que les agents peuvent joindre",
     "overview": "Vue d'ensemble",
     "templates": "Modèles",
     "allowed24h": "autorisées, 24 dernières heures",
@@ -1929,8 +1930,8 @@
     }
   },
   "requests": {
-    "title": "Requêtes",
-    "subtitle": "Trafic HTTP aux frontières",
+    "title": "Trafic",
+    "subtitle": "Ce qui a circulé entre covey et les systèmes connectés",
     "intro": "Chaque requête qu'un greffon de système cible envoie (sortante) et chaque webhook que covey reçoit (entrante) — les refusées comprises. L'enregistrement montre CE QU'un agent a fait ; ceci montre ce qui est réellement passé sur le fil. Données de diagnostic à courte rétention, pas une piste d'audit. Les identifiants sont masqués, les corps tronqués.",
     "disabled": "Le journal des requêtes est désactivé",
     "disabledHint": "Activez-le avec COVEY_REQUEST_LOG=true (la valeur par défaut) et redémarrez le processus.",
@@ -2005,21 +2006,33 @@
   },
   "users": {
     "title": "Utilisateurs",
-    "subtitle": "Personnes et rôles de cette organisation (RBAC)",
-    "desc": "Les rôles prennent effet immédiatement sur les sessions actives. Une réinitialisation de mot de passe déconnecte l'utilisateur partout. Le dernier org admin d'une organisation ne peut être ni supprimé ni rétrogradé.",
+    "desc": "Qui travaille dans cette organisation et ce que chaque personne peut faire. Un changement de rôle s'applique aussitôt.",
     "noAccess": "Votre rôle ({{role}}) n'a pas accès à la gestion des utilisateurs.",
     "email": "E-mail",
     "name": "Nom",
     "role": "Rôle",
     "password": "Mot de passe (8 caractères min.)",
-    "create": "Créer",
+    "create": "Ajouter",
     "profileHint": "Intitulé de poste, identités sur les plateformes et responsabilités se gèrent sur la page de profil de la personne, une fois celle-ci créée.",
-    "passwordReset": "Mot de passe",
-    "delete": "Supprimer",
+    "passwordReset": "Réinitialiser le mot de passe",
+    "delete": "Retirer",
     "cantDeleteSelf": "Votre propre compte ne peut pas être supprimé",
     "self": "— Vous",
     "newPasswordLabel": "Nouveau mot de passe (8 caractères min.) — déconnecte l'utilisateur partout",
-    "setPassword": "Définir"
+    "setPassword": "Définir",
+    "add": "Ajouter une personne",
+    "cancel": "Annuler",
+    "count": "{{count}} personnes",
+    "count_one": "Une personne",
+    "confirmDelete": "Vraiment retirer {{name}} ?",
+    "rolesHelp": "Que peut faire chaque rôle ?",
+    "roleDesc": {
+      "org_admin": "Gère l'organisation : membres, paramètres et tous les agents.",
+      "agent_owner": "Recrute des agents, les configure et travaille avec eux.",
+      "security": "Fixe les règles et l'accès internet, peut arrêter des agents et accorder des validations.",
+      "auditor": "Lit le journal et les comptes rendus de travail, sans rien modifier.",
+      "controlling": "Voit les coûts et la consommation."
+    }
   },
   "account": {
     "title": "Compte",
@@ -2317,19 +2330,24 @@
     "failed": "Le brief a échoué."
   },
   "administration": {
-    "title": "Administration",
+    "title": "Organisation",
     "subtitle": "Cette organisation",
-    "tabProfile": "Profil",
-    "tabMembers": "Membres et rôles",
+    "tabProfile": "Général",
+    "tabMembers": "Membres",
     "tabUsage": "Utilisation",
-    "tabAudit": "Audit",
-    "profileDesc": "Les données de base de cette organisation. Description et dépôt de la plateforme figurent aussi sur l'organigramme — même stockage, deuxième porte d'entrée.",
+    "profileDesc": "Qui est votre organisation et comment elle travaille avec ses agents.",
     "usageDesc": "Ce que cette organisation consomme. Les quotas auxquels ces chiffres seront un jour confrontés n'existent pas encore.",
     "members": "Membres",
     "agents": "Agents",
     "agentsActive": "dont occupés",
     "cost30d": "Coût (30 jours)",
-    "tabDiagnostics": "Diagnostic"
+    "tabDiagnostics": "Diagnostic",
+    "tabSignIn": "Connexion",
+    "groupCompany": "Entreprise",
+    "groupWork": "Collaboration",
+    "groupVoice": "Langue et voix",
+    "advanced": "Avancé",
+    "advancedDesc": "Réglages techniques rarement nécessaires."
   },
   "platform": {
     "seatAddPick": "Ajouter à une organisation…",
