@@ -121,6 +121,11 @@ Revoke a key when you no longer know what uses it. The list shows **last used**
 for exactly that decision: a key that has not been used in three months is
 either dead or a spare set of house keys under the mat.
 
+A password reset through the mailed link revokes every key of the account,
+together with its browser sessions and unused pairing codes. The reset is how
+an account is recovered, and a key minted by whoever held the old password
+must not survive it. Re-issue the keys that are still needed afterwards.
+
 ## 7. Typical failure patterns
 
 | Symptom | Cause | Remedy |
