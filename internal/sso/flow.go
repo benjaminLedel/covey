@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/oauth2"
+
+	"covey/internal/accounts"
 )
 
 // FlowTTL is how long a started sign-in may take.
@@ -269,6 +271,24 @@ func (s *Service) resolve(ctx context.Context, org uuid.UUID, cfg Config, issuer
 		}
 	default:
 		return Result{}, err
+	}
+
+	// The provider has just vouched for the address; whoever registered it
+	// here without confirming it never did. Such an account is the provider's
+	// person's now, and nothing the registrant set up may outlive that: no
+	// password (they sign in through the provider), no session, no key, no
+	// pending link (accounts.TakeOverIn). Checked for an identity bound
+	// before as well, so a binding made before this check existed is cleaned
+	// up at its next sign-in.
+	var verified bool
+	if err := tx.QueryRow(ctx, `SELECT email_verified_at IS NOT NULL FROM accounts WHERE id=$1 FOR UPDATE`,
+		res.AccountID).Scan(&verified); err != nil {
+		return Result{}, err
+	}
+	if !verified {
+		if err := accounts.TakeOverIn(ctx, tx, res.AccountID, NoPassword, name); err != nil {
+			return Result{}, err
+		}
 	}
 
 	err = tx.QueryRow(ctx, `SELECT id FROM humans WHERE org_id=$1 AND account_id=$2`, org, res.AccountID).Scan(&res.SeatID)
