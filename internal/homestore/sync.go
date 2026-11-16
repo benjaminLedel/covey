@@ -52,7 +52,9 @@ const transferWorkers = 8
 type pendingBlock struct {
 	hash string
 	data []byte
-	// path, size and index locate the block on disk for the nil-data case.
+	// home, path, size and index locate the block on disk for the nil-data
+	// case; path is relative to home.
+	home  *os.Root
 	path  string
 	size  int64
 	index int
@@ -85,6 +87,14 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 	// previous cache — which is at worst stale, never wrong about a file it
 	// names, because the stat has to match too.
 	cache := LoadStatCache(root)
+	// Everything the sync reads, it reads through this root (see scanCached).
+	// It stays open until the uploader has finished, which may still read a
+	// block the cache vouched for.
+	home, err := os.OpenRoot(root)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	defer home.Close()
 	// Where each cached hash would be read from, should the store lack it.
 	var cachedPath string
 	var cachedSize int64
@@ -136,7 +146,7 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 		}
 	}
 
-	manifest, err := scanCached(root, excludes, cache, func(hash string, data []byte) error {
+	manifest, err := scanCached(home, excludes, cache, func(hash string, data []byte) error {
 		// Per block read, not per block uploaded: for a home that hardly
 		// changed, looking through it is the work — every block is read and
 		// hashed, and in the end nothing goes into the store. A heartbeat that
@@ -155,7 +165,7 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 			}
 			seen[hash] = true
 			// Asked about like any other; read only if the store says no.
-			buf = append(buf, pendingBlock{hash: hash, path: cachedPath, size: cachedSize, index: index})
+			buf = append(buf, pendingBlock{hash: hash, home: home, path: cachedPath, size: cachedSize, index: index})
 			if len(buf) >= askBatch {
 				return flush()
 			}
@@ -179,8 +189,8 @@ func SyncWatched(ctx context.Context, blobs BlobStore, orgID uuid.UUID, root str
 			return flush()
 		}
 		return nil
-	}, func(path string, size int64) {
-		cachedPath, cachedSize, cachedIndex = path, size, 0
+	}, func(rel string, size int64) {
+		cachedPath, cachedSize, cachedIndex = rel, size, 0
 	})
 	flushErr := flush()
 	close(batches)
@@ -270,7 +280,7 @@ func uploadBatches(ctx context.Context, blobs BlobStore, orgID uuid.UUID, batche
 					// The cache vouched for a block the store does not hold —
 					// it was swept, or never arrived. Read now, from where the
 					// cache said it lies.
-					read, err := readBlock(b.path, b.size, b.index, b.hash)
+					read, err := readBlock(b.home, b.path, b.size, b.index, b.hash)
 					if err != nil {
 						firstMu.Lock()
 						if first == nil {

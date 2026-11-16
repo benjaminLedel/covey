@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -154,8 +155,27 @@ func (e Excludes) skip(rel string) bool {
 // that is so is decided by the caller, which is the only one that knows the
 // store.
 func Scan(root string, excludes Excludes, put func(hash string, data []byte) error) (Manifest, error) {
-	return scanCached(root, excludes, nil, put, nil)
+	home, err := os.OpenRoot(root)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer home.Close()
+	return scanCached(home, excludes, nil, put, nil)
 }
+
+// The home is written by the sandbox while it is scanned: a parked warm
+// sandbox keeps running during its background sync, and its processes own
+// every entry of the tree. So nothing the walk saw is assumed to still be
+// there when the content is read. Directories are listed, links read and
+// files opened through an os.Root on the home — a name cannot resolve to
+// anything outside it, whatever a directory was swapped for — and a file is
+// read only from a descriptor that is the very regular file the walk
+// classified (os.SameFile against the walk's Lstat). An entry that changed in between is left out of this snapshot; the
+// next sync sees it as whatever it has become.
+
+// scanHook, if set, runs after an entry has been classified and before it is
+// acted on. Tests use it to change the tree at exactly that moment.
+var scanHook func(rel string)
 
 // scanCached is Scan with a stat cache (#174). A file the cache knows —
 // same size, mtime and inode as at the last scan — is not read: its hashes
@@ -163,12 +183,13 @@ func Scan(root string, excludes Excludes, put func(hash string, data []byte) err
 // still holds them. Everything read is noted in the cache; what the walk did
 // not see is forgotten from it.
 //
-// onFile, if given, is told which file the following cached hashes belong to,
-// so the caller can find a block on disk without the data in hand.
-func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash string, data []byte) error, onFile func(path string, size int64)) (Manifest, error) {
+// onFile, if given, is told which file (relative to the home) the following
+// cached hashes belong to, so the caller can find a block on disk without the
+// data in hand.
+func scanCached(home *os.Root, excludes Excludes, cache *StatCache, put func(hash string, data []byte) error, onFile func(rel string, size int64)) (Manifest, error) {
 	var m Manifest
 	seen := map[string]bool{}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(home.FS(), ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// A file that disappeared under us is not a reason to lose the
 			// whole snapshot: a home is a workplace, and something is always
@@ -177,16 +198,17 @@ func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash 
 			if os.IsNotExist(err) {
 				return nil
 			}
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
+			// Nor is a directory that became something else — a link the
+			// root refuses to follow out of the home, say. It is skipped,
+			// not followed.
+			if rel != "." && changedFromDir(home, rel) {
+				return nil
+			}
 			return err
 		}
 		if rel == "." {
 			return nil
 		}
-		rel = filepath.ToSlash(rel)
 		if excludes.skip(rel) {
 			if d.IsDir() {
 				return fs.SkipDir
@@ -194,6 +216,13 @@ func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash 
 			return nil
 		}
 
+		// DirEntry.Info is an Lstat by host path, so through whatever the
+		// parent directories are by now. That is acceptable for the
+		// classification only: content is read through the root and only
+		// from the inode this Lstat named (openSame), and link targets are
+		// read through the root too. An Lstat through the root for every
+		// entry would cost an openat per path component, per file, on every
+		// sync — the cache exists to keep that walk cheap.
 		info, err := d.Info()
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -201,12 +230,22 @@ func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash 
 			}
 			return err
 		}
+		if d.IsDir() != info.IsDir() {
+			// Replaced between the directory listing and the Lstat.
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if scanHook != nil {
+			scanHook(rel)
+		}
 		switch {
-		case d.IsDir():
+		case info.IsDir():
 			m.Entries = append(m.Entries, Entry{Path: rel, Mode: info.Mode().Perm(), Dir: true})
 			return nil
 		case info.Mode()&fs.ModeSymlink != 0:
-			target, err := os.Readlink(path)
+			target, err := home.Readlink(filepath.FromSlash(rel))
 			if err != nil {
 				return nil
 			}
@@ -224,7 +263,7 @@ func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash 
 			// asks the store about them and reads the file only if one is
 			// missing there.
 			if onFile != nil {
-				onFile(path, info.Size())
+				onFile(rel, info.Size())
 			}
 			for _, h := range blocks {
 				if err := put(h, nil); err != nil {
@@ -236,9 +275,9 @@ func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash 
 			})
 			return nil
 		}
-		blocks, err := blocksOf(path, info.Size(), put)
+		blocks, err := blocksOf(home, rel, info, put)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if os.IsNotExist(err) || errors.Is(err, errChanged) {
 				return nil
 			}
 			return err
@@ -263,15 +302,56 @@ func scanCached(root string, excludes Excludes, cache *StatCache, put func(hash 
 	return m, nil
 }
 
-func blocksOf(path string, size int64, put func(hash string, data []byte) error) ([]string, error) {
-	f, err := os.Open(path)
+// changedFromDir reports whether rel, which the walk listed as a directory,
+// is no longer one.
+func changedFromDir(home *os.Root, rel string) bool {
+	info, err := home.Lstat(filepath.FromSlash(rel))
+	return err != nil || !info.IsDir()
+}
+
+// errChanged marks a file that is no longer the one the walk classified.
+var errChanged = errors.New("changed under the scan")
+
+// openSame opens rel inside the home and returns it only if the descriptor is
+// the regular file want describes. The root resolves any link inside the home
+// at most, and the identity check turns even that into a refusal: a name that
+// now points somewhere else is not what was classified.
+func openSame(home *os.Root, rel string, want fs.FileInfo) (*os.File, fs.FileInfo, error) {
+	f, err := home.Open(filepath.FromSlash(rel))
+	if err != nil {
+		// A link put in its place that leads out of the home fails here
+		// rather than at the identity check. Either way it is a change, not
+		// a fault of the sync.
+		if now, lerr := home.Lstat(filepath.FromSlash(rel)); lerr != nil || !os.SameFile(now, want) {
+			return nil, nil, fmt.Errorf("%s: %w", rel, errChanged)
+		}
+		return nil, nil, err
+	}
+	got, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, nil, err
+	}
+	if !got.Mode().IsRegular() || !os.SameFile(got, want) {
+		f.Close()
+		return nil, nil, fmt.Errorf("%s: %w", rel, errChanged)
+	}
+	return f, got, nil
+}
+
+func blocksOf(home *os.Root, rel string, want fs.FileInfo, put func(hash string, data []byte) error) ([]string, error) {
+	f, got, err := openSame(home, rel, want)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+	// Read no further than the file was long when it was opened: what is
+	// appended meanwhile belongs to the next snapshot.
+	size := got.Size()
+	r := io.LimitReader(f, size)
 
 	if size <= wholeFileLimit {
-		data, err := io.ReadAll(f)
+		data, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
 		}
@@ -285,7 +365,7 @@ func blocksOf(path string, size int64, put func(hash string, data []byte) error)
 	var out []string
 	buf := make([]byte, chunkSize)
 	for {
-		n, err := io.ReadFull(f, buf)
+		n, err := io.ReadFull(r, buf)
 		if n > 0 {
 			chunk := buf[:n]
 			h := Hash(chunk)
@@ -308,16 +388,20 @@ func blocksOf(path string, size int64, put func(hash string, data []byte) error)
 // stood for, now that the store turned out not to hold it. Its hash is
 // checked: the cache's bet lost (the file changed with size and mtime intact,
 // which the racy guard is there to make rare), and a wrong block must not be
-// uploaded under a hash it does not have.
-func readBlock(path string, size int64, index int, want string) ([]byte, error) {
-	f, err := os.Open(path)
+// uploaded under a hash it does not have. Like the scan it reads only through
+// the home's root and only a regular file.
+func readBlock(home *os.Root, rel string, size int64, index int, want string) ([]byte, error) {
+	f, err := home.Open(filepath.FromSlash(rel))
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
+	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: %w", rel, errChanged)
+	}
 	var data []byte
 	if size <= wholeFileLimit {
-		data, err = io.ReadAll(f)
+		data, err = io.ReadAll(io.LimitReader(f, size))
 	} else {
 		data = make([]byte, chunkSize)
 		var n int
@@ -331,7 +415,7 @@ func readBlock(path string, size int64, index int, want string) ([]byte, error) 
 		return nil, err
 	}
 	if Hash(data) != want {
-		return nil, fmt.Errorf("%s: block %d changed under the cache", path, index)
+		return nil, fmt.Errorf("%s: block %d changed under the cache", rel, index)
 	}
 	return data, nil
 }
