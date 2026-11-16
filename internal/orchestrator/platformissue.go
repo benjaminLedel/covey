@@ -98,6 +98,11 @@ func (o *Orchestrator) platformIssue(ctx context.Context, agent agents.Agent, ta
 		}
 		call, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
+		// The URL is the organisation's; the request is the control plane's (#692).
+		call, err = orgURLContext(call, cred.BaseURL)
+		if err != nil {
+			return fail("the issue cannot be filed on %s: %v", system, err)
+		}
 		res, err = sys.Execute(call, "create_issue", params, cred)
 		if err != nil {
 			return fail("%s refused the issue: %v", system, err)
