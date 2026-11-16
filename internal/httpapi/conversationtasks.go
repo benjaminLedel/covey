@@ -113,3 +113,52 @@ func (s *Server) gespraecheVon(ctx context.Context, ids []uuid.UUID) (map[uuid.U
 	}
 	return out, rows.Err()
 }
+
+// imGespraechZeigbar is the same rule for the triage (spec/28, section 5).
+// What the turn is shown of the agent's backlog it may say in the
+// conversation it answers in, so a task from a conversation is shown there
+// only when everybody who reads this conversation reads that one too: the
+// same conversation, or one every human member of this one is in. The audit
+// roles do not widen it — the audit is a reading of the record, not a seat
+// in a conversation.
+func (s *Server) imGespraechZeigbar(hier chat.Conversation) func(context.Context, *uuid.UUID) bool {
+	known := map[uuid.UUID]bool{}
+	var menschen []uuid.UUID
+	for _, m := range hier.Active() {
+		if m.Kind == chat.MemberHuman {
+			menschen = append(menschen, m.ID)
+		}
+	}
+	return func(ctx context.Context, conv *uuid.UUID) bool {
+		if conv == nil || *conv == hier.ID {
+			return true
+		}
+		if v, ok := known[*conv]; ok {
+			return v
+		}
+		v := false
+		if s.Chat != nil && len(menschen) > 0 {
+			if c, err := s.Chat.Get(ctx, *conv); err == nil && c.OrgID == hier.OrgID {
+				v = true
+				for _, id := range menschen {
+					if !c.Has(chat.Human(id)) {
+						v = false
+						break
+					}
+				}
+			}
+		}
+		known[*conv] = v
+		return v
+	}
+}
+
+// notizZiel: whether the triage may offer a task to a note, and write the
+// note onto it, for a message by wer — the task's content may be said in
+// this conversation, and wer may answer it (darfAntworten), since a note
+// wakes a parked task with the writer's words as its answer, which is what
+// POST /tasks/{id}/reply refuses to whoever darfAntworten refuses.
+func (s *Server) notizZiel(ctx context.Context, wer identity.Principal,
+	zeigbar func(context.Context, *uuid.UUID) bool, t backlog.Task) bool {
+	return zeigbar(ctx, t.ConversationID) && s.darfAntworten(ctx, wer, t)
+}
