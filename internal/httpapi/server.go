@@ -1092,6 +1092,7 @@ func mapErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
 		errors.Is(err, org.ErrAlreadyMember), errors.Is(err, org.ErrSharedLogin),
+		errors.Is(err, org.ErrUnconfirmedLogin),
 		errors.Is(err, accounts.ErrLastSystemAdmin), errors.Is(err, org.ErrManagerCycle),
 		errors.Is(err, org.ErrLastSystemAdmin):
 		writeErr(w, http.StatusConflict, err.Error())
