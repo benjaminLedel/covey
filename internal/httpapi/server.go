@@ -579,15 +579,16 @@ func (s *Server) Handler() http.Handler {
 	// Platform diagnostics: what a restart would run into, and which agent
 	// configs need catching up after an upgrade. Both existed only as
 	// subcommands, which is to say: only for whoever has a shell on the host.
-	// identity.RolePlatformAdmin, which this line used to name, is what
-	// RoleOrgAdmin was called before migration 0061 — so the rename, not a
-	// change of who may ask.
-	mux.Handle("GET /api/v1/platform/doctor", s.rbac([]string{identity.RoleOrgAdmin}, s.handleDoctor))
+	// The doctor reads the whole installation — every organisation's
+	// workplaces and agents, host paths, images, runners — so it belongs to
+	// whoever administers the installation, not to the admin of one tenant.
+	mux.Handle("GET /api/v1/platform/doctor", s.platformAdmin(s.handleDoctor))
 	// The confirmation that the block store lies in the backup. Not
 	// checkable, only to record — and for that very reason its own step, which
-	// a human takes (see handleConfirmHomeStoreBackup).
+	// a human takes (see handleConfirmHomeStoreBackup). It is an
+	// instance-wide setting, so the same gate as the doctor it answers.
 	mux.Handle("POST /api/v1/platform/doctor/home-store-backup",
-		s.rbac([]string{identity.RoleOrgAdmin}, s.handleConfirmHomeStoreBackup))
+		s.platformAdmin(s.handleConfirmHomeStoreBackup))
 	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
 	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
 	mux.Handle("POST /api/v1/platform/home-store/cleanup", s.rbac(manage, s.handleCleanupStore))

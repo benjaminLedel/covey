@@ -471,6 +471,7 @@ func TestStoreViewReportsTheFillLevel(t *testing.T) {
 func TestPlatformDiagnosticsAnswerInTheBrowser(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
+	s.alsSystemadmin(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
 
 	// Without the process configuration the question is left unasked rather
