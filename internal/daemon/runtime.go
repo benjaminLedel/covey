@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
+
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // DefaultAllowedTools is the default tool scope of a run as long as no agent
@@ -171,16 +172,11 @@ type Runtime interface {
 // executable configuration (hooks, MCP servers) — so the filter applies to every
 // subprocess. Whatever a run legitimately needs comes in explicitly via extra
 // (COVEY_ACTION_PORT, brokered LLM key), not by inheritance.
+//
+// The rule itself lives in the plugin SDK (target.ChildEnv), so the processes
+// plugins start follow the same one.
 func childEnv(extra ...string) []string {
-	host := os.Environ()
-	env := make([]string, 0, len(host)+len(extra))
-	for _, kv := range host {
-		if strings.HasPrefix(kv, "COVEY_") {
-			continue
-		}
-		env = append(env, kv)
-	}
-	return append(env, extra...)
+	return append(target.ChildEnv(), extra...)
 }
 
 // covey_status is the closing line the compiled config demands from the runtime

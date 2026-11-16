@@ -39,9 +39,13 @@ func main() {
 		}
 	}
 
-	wsURL := os.Getenv("COVEY_WS_URL")
-	token := os.Getenv("COVEY_DAEMON_TOKEN")
-	agentID := os.Getenv("COVEY_AGENT_ID")
+	// Before anything else reads the token: from here on no other process of
+	// the sandbox user can read coveyd's environment or memory.
+	if err := protectProcess(); err != nil {
+		log.Error("cannot protect the daemon process (prctl PR_SET_DUMPABLE)", "err", err)
+		os.Exit(2)
+	}
+	wsURL, token, agentID := daemonEnv()
 	homeDir := os.Getenv("COVEY_HOME")
 	if wsURL == "" || token == "" || agentID == "" {
 		log.Error("COVEY_WS_URL, COVEY_DAEMON_TOKEN and COVEY_AGENT_ID are mandatory")
