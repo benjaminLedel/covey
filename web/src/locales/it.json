@@ -548,6 +548,8 @@
       "originAgent": "creato da {{slug}}",
       "originHeartbeat": "battito",
       "parentTask": "compito principale",
+      "redactedTitle": "Attività da una conversazione",
+      "redactedHint": "Questa attività viene da una conversazione di cui non fai parte. Il testo e il risultato restano ai membri della conversazione.",
       "cost": "Costo",
       "costHint": "Quanto è costata finora l'esecuzione di questo compito — da {{n}} voci",
       "costEntries": "da {{n}} voci",

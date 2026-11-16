@@ -86,6 +86,27 @@ type Task struct {
 	// (#502). Its reply or result is heard as well as read, and carries a
 	// spoken form beside the written one. Inherited by its continuations.
 	SaidInCall bool `json:"said_in_call,omitempty"`
+	// Redacted is never stored: the API sets it when it withheld the task's
+	// text from a reader who may not read the conversation it came from
+	// (spec/28, section 3). See Redact.
+	Redacted bool `json:"redacted,omitempty"`
+}
+
+// RedactedTitle stands in the place of a withheld title, for a client that
+// does not know the redacted flag.
+const RedactedTitle = "Task from a conversation"
+
+// Redact withholds what a task from a conversation carries of it: the title
+// and body (the message and the conversation before it), the answer it was
+// resumed with, its result and its error (the agent's reply). What stays is
+// what the board needs to place the task — id, state, origin, stage, times.
+func (t *Task) Redact() {
+	t.Title = RedactedTitle
+	t.Body = ""
+	t.ResumeInput = nil
+	t.Result = nil
+	t.Error = nil
+	t.Redacted = true
 }
 
 // Stage is a freely definable Kanban column of an agent (an overlay on top of

@@ -109,6 +109,9 @@ type offenerVorgang struct {
 	Origin  string    `json:"origin"`
 	Created time.Time `json:"created_at"`
 	Updated time.Time `json:"updated_at"`
+	// Redacted: opened in a conversation the reader is not in, and shown
+	// without its title (conversationtasks.go).
+	Redacted bool `json:"redacted,omitempty"`
 }
 
 // chatMark is one emoji on one task, already grouped: wie oft, und ob ich
@@ -231,7 +234,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	out.Tasks, err = s.offeneVorgaenge(r.Context(), id)
+	out.Tasks, err = s.offeneVorgaenge(r.Context(), id, s.gespraechsLeser(p))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -369,9 +372,9 @@ offeneVorgaenge sind die Vorgänge, die noch laufen — das, was nach einer
 * Tisch hat, ist der Grund, warum er auf das hier noch nicht gekommen ist. Die
 * Herkunft steht daneben, damit man das eigene wiedererkennt.
 */
-func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID) ([]offenerVorgang, error) {
+func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID, leser *gespraechsLeser) ([]offenerVorgang, error) {
 	rows, err := s.Pool.Query(ctx,
-		`SELECT id, title, state, origin, created_at, updated_at
+		`SELECT id, title, state, origin, created_at, updated_at, conversation_id
 		   FROM backlog_tasks
 		  WHERE agent_id=$1 AND archived_at IS NULL
 		    AND state IN ('open','in_progress','blocked')
@@ -383,14 +386,30 @@ func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID) ([]offe
 	}
 	defer rows.Close()
 	out := []offenerVorgang{}
+	var convs []*uuid.UUID
 	for rows.Next() {
 		var v offenerVorgang
-		if err := rows.Scan(&v.ID, &v.Title, &v.State, &v.Origin, &v.Created, &v.Updated); err != nil {
+		var conv *uuid.UUID
+		if err := rows.Scan(&v.ID, &v.Title, &v.State, &v.Origin, &v.Created, &v.Updated, &conv); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
+		convs = append(convs, conv)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	/* The backlog is shared, a conversation is not (conversationtasks.go):
+	   a task opened in somebody else's conversation shows here as a task,
+	   without its title. */
+	for i := range out {
+		if !leser.liest(ctx, convs[i]) {
+			out[i].Title = backlog.RedactedTitle
+			out[i].Redacted = true
+		}
+	}
+	return out, nil
 }
 
 // marksOf collects the reactions of every task in the thread and groups them

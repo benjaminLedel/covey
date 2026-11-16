@@ -330,11 +330,19 @@ func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
 	// behind, the archive included. Whoever searches is looking for a task that
 	// is no longer on the board; a search that stopped at the board's edge would
 	// only ever find what one can already see. Without q: the board as before.
+	//
+	// A task from a conversation shows its text only to who reads that
+	// conversation (conversationtasks.go): on the board it stays, redacted;
+	// from a search it is left out, since a redacted hit would still answer
+	// whether the words were said there.
+	leser := s.gespraechsLeser(principalFrom(r))
 	var tasks []backlog.Task
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
 		tasks, err = s.Backlog.SearchByAgent(r.Context(), id, q, backlog.SearchMaxResults)
+		tasks = leser.lesbare(r.Context(), tasks)
 	} else {
 		tasks, err = s.Backlog.ListByAgent(r.Context(), id, r.URL.Query().Get("archived") == "1")
+		leser.schwaerzen(r.Context(), tasks)
 	}
 	if err != nil {
 		mapErr(w, err)
@@ -594,6 +602,13 @@ func (s *Server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// The notes of the transitions carry the agent's question and who
+	// answered it — of a task from a conversation, only for who reads it.
+	if !s.gespraechsLeser(principalFrom(r)).aufgabeLesbar(r.Context(), id) {
+		for i := range trs {
+			trs[i].Note = ""
+		}
+	}
 	writeJSON(w, http.StatusOK, trs)
 }
 
@@ -602,6 +617,12 @@ func (s *Server) handleTaskNotes(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	// Of a task from a conversation the notes are the conversation's too:
+	// the answers given to it and what the run found.
+	if !s.gespraechsLeser(principalFrom(r)).aufgabeLesbar(r.Context(), id) {
+		writeJSON(w, http.StatusOK, []backlog.Note{})
 		return
 	}
 	notes, err := s.Backlog.ListNotes(r.Context(), id)

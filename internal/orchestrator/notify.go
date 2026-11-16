@@ -99,10 +99,17 @@ func (o *Orchestrator) NotifyTaskEnded(ctx context.Context, task backlog.Task) {
 		verb = "failed at"
 	}
 	id := task.ID
+	/* The notice goes to the agent's owner, who is not necessarily in the
+	   conversation a task came from — and its title is the message
+	   (spec/28, section 3). Its members read the outcome there. */
+	title := task.Title
+	if task.ConversationID != nil {
+		title = backlog.RedactedTitle
+	}
 	o.emit(ctx, notify.Event{
 		OrgID: task.OrgID, AgentID: task.AgentID,
 		Class: notify.ClassTask, Kind: kind, SubjectID: &id,
-		Title: fmt.Sprintf("%s %s: %s", o.agentName(ctx, task.AgentID), verb, task.Title),
+		Title: fmt.Sprintf("%s %s: %s", o.agentName(ctx, task.AgentID), verb, title),
 		Link:  "/agents/" + task.AgentID.String(),
 	})
 }

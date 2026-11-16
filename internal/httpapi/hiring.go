@@ -248,6 +248,12 @@ func (s *Server) handleHiringBriefStatus(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		notes = nil
 	}
+	// The route takes any task of the organisation; one from a conversation
+	// the reader is not in comes without its text (conversationtasks.go).
+	if leser := s.gespraechsLeser(p); !leser.liest(r.Context(), task.ConversationID) {
+		task.Redact()
+		notes = nil
+	}
 	drafts := []agents.Agent{}
 	rows, err := s.Pool.Query(r.Context(), `SELECT DISTINCT payload->>'drafted_agent'
 		FROM recording_events WHERE task_id=$1 AND kind='lifecycle'

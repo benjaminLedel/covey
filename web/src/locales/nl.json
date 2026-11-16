@@ -548,6 +548,8 @@
       "originAgent": "aangemaakt door {{slug}}",
       "originHeartbeat": "hartslag",
       "parentTask": "hoofdtaak",
+      "redactedTitle": "Taak uit een gesprek",
+      "redactedHint": "Deze taak komt uit een gesprek waar je geen lid van bent. De tekst en het resultaat blijven bij de leden van het gesprek.",
       "cost": "Kosten",
       "costHint": "Wat de run van deze taak tot nu toe heeft gekost — uit {{n}} posten",
       "costEntries": "uit {{n}} posten",

@@ -506,6 +506,8 @@ function TaskCard({
     onSuccess: invalBacklog,
   });
   const archived = !!task.archived_at;
+  // A task from a conversation the reader is not in comes without its text.
+  const title = task.redacted ? t("agent.backlog.redactedTitle") : task.title;
   const terminal = terminalStates.includes(task.state);
   // Draggable only where there is somewhere to drop it: the search list has no
   // columns, and a grab cursor that leads nowhere is a lie.
@@ -527,7 +529,7 @@ function TaskCard({
     >
       <div className="kc-title">
         <span className={`badge state st-${task.state} kc-state`}>{t(`status.${task.state}`, task.state)}</span>
-        <span className="font-medium min-w-0 truncate">{task.title}</span>
+        <span className={`font-medium min-w-0 truncate${task.redacted ? " muted" : ""}`}>{title}</span>
         {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
       </div>
@@ -553,6 +555,7 @@ function TaskCard({
       </div>
       {open && (
         <div className="kc-detail fade">
+          {task.redacted && <p className="muted text-xs mb-2">{t("agent.backlog.redactedHint")}</p>}
           {task.body && (
             <pre className="voice whitespace-pre-wrap m-0 mb-2 secondary">{task.body}</pre>
           )}
@@ -630,7 +633,7 @@ function TaskCard({
               className="btn sm"
               onClick={(e) => {
                 e.stopPropagation();
-                onShowRecording(task.id, task.title);
+                onShowRecording(task.id, title);
               }}
             >
               {t("agent.backlog.showRecording")}
@@ -667,7 +670,7 @@ function TaskCard({
                 disabled={cancel.isPending}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm(t("agent.backlog.discardConfirm", { title: task.title }))) cancel.mutate();
+                  if (confirm(t("agent.backlog.discardConfirm", { title }))) cancel.mutate();
                 }}
               >
                 {t("agent.backlog.discard")}

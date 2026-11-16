@@ -110,6 +110,9 @@ func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) 
 
 	// Backlog including the archive (blocked reasons, errors, results).
 	if tasks, err := s.Backlog.ListByAgent(ctx, id, true); err == nil {
+		// Tasks from conversations the exporter is not in, redacted
+		// (conversationtasks.go).
+		s.gespraechsLeser(p).schwaerzen(ctx, tasks)
 		d.Backlog = tasks
 	}
 

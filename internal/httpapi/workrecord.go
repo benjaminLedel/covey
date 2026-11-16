@@ -17,8 +17,12 @@ package httpapi
 // answer that makes the feature unusable in any company with a works council.
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/google/uuid"
+
+	"covey/internal/backlog"
 	"covey/internal/identity"
 	"covey/internal/workrecord"
 )
@@ -39,7 +43,49 @@ func (s *Server) handleWorkRecord(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	if err := s.recordSchwaerzen(r.Context(), principalFrom(r), &rec); err != nil {
+		mapErr(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, rec)
+}
+
+// recordSchwaerzen takes the two free-text fields of the record — a task's
+// title and the question it waits on — off the tasks from conversations the
+// reader is not in (conversationtasks.go). The counts stay: they say how
+// much was done, not what was said.
+func (s *Server) recordSchwaerzen(ctx context.Context, p identity.Principal, rec *workrecord.Record) error {
+	leser := s.gespraechsLeser(p)
+	if leser.audit {
+		return nil
+	}
+	var ids []uuid.UUID
+	for _, t := range rec.Throughput.Tasks {
+		ids = append(ids, t.ID)
+	}
+	for _, t := range rec.Stuck {
+		ids = append(ids, t.ID)
+	}
+	convs, err := s.gespraecheVon(ctx, ids)
+	if err != nil {
+		return err
+	}
+	verborgen := func(id uuid.UUID) bool {
+		conv, ok := convs[id]
+		return ok && !leser.liest(ctx, &conv)
+	}
+	for i := range rec.Throughput.Tasks {
+		if verborgen(rec.Throughput.Tasks[i].ID) {
+			rec.Throughput.Tasks[i].Title = backlog.RedactedTitle
+		}
+	}
+	for i := range rec.Stuck {
+		if verborgen(rec.Stuck[i].ID) {
+			rec.Stuck[i].Title = backlog.RedactedTitle
+			rec.Stuck[i].Question = ""
+		}
+	}
+	return nil
 }
 
 // workRecords builds the collector anew on every call — it holds no state,

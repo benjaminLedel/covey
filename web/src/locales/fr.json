@@ -548,6 +548,8 @@
       "originAgent": "créée par {{slug}}",
       "originHeartbeat": "battement",
       "parentTask": "tâche parente",
+      "redactedTitle": "Tâche issue d'une conversation",
+      "redactedHint": "Cette tâche vient d'une conversation dont vous n'êtes pas membre. Son texte et son résultat restent réservés aux membres de la conversation.",
       "cost": "Coût",
       "costHint": "Ce que l'exécution de cette tâche a coûté jusqu'ici — d'après {{n}} écritures",
       "costEntries": "d'après {{n}} écritures",

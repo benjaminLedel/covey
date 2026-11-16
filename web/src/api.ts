@@ -160,6 +160,9 @@ export type Task = {
   // nothing — that is not $0.00, but "not run yet".
   cost_usd?: number;
   cost_entries?: number;
+  // The task came from a conversation the reader is not in (spec/28): its
+  // title, body, result and error are withheld; state, origin and times stay.
+  redacted?: boolean;
 };
 
 export type Stage = {
@@ -269,6 +272,8 @@ export type Hintergrundvorgang = {
   origin: string;
   created_at: string;
   updated_at: string;
+  // Opened in a conversation the reader is not in: the title is withheld.
+  redacted?: boolean;
 };
 
 /** One agent's thread as a person's list shows it (#378, #385): how much

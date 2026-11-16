@@ -548,6 +548,8 @@
       "originAgent": "angelegt von {{slug}}",
       "originHeartbeat": "Heartbeat",
       "parentTask": "Ursprungsaufgabe",
+      "redactedTitle": "Aufgabe aus einem Gespräch",
+      "redactedHint": "Diese Aufgabe kam aus einem Gespräch, in dem du nicht bist. Ihr Text und ihr Ergebnis bleiben bei den Mitgliedern des Gesprächs.",
       "cost": "Kosten",
       "costHint": "Was der Lauf dieser Aufgabe bisher gekostet hat — aus {{n}} Buchungen",
       "costEntries": "aus {{n}} Buchungen",
