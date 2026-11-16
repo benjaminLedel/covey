@@ -66,10 +66,13 @@ func TestRequestLogTeams(t *testing.T) {
 		return false
 	})
 
-	// The store writes asynchronously — wait for the expected entries.
+	// The store writes asynchronously — wait for the expected entries. The
+	// rejected webhook names no agent and so no organisation: it is read in
+	// the system_admin's scope.
+	scope := reqlogstore.Scope{OrgID: s.orgID, Unattributed: true}
 	var entries []reqlogstore.View
 	waitFor(t, "request log filled", 10*time.Second, func() bool {
-		entries, _ = s.reqlog.List(ctx, s.orgID, reqlogstore.Filter{Limit: 200})
+		entries, _ = s.reqlog.List(ctx, scope, reqlogstore.Filter{Limit: 200})
 		return countDirection(entries, "in") >= 2 && countDirection(entries, "out") >= 1
 	})
 
@@ -83,7 +86,10 @@ func TestRequestLogTeams(t *testing.T) {
 	if rejected.System != "teams" {
 		t.Fatalf("wrong system: %q", rejected.System)
 	}
-	detail, err := s.reqlog.Get(ctx, s.orgID, rejected.ID)
+	if rejected.OrgID != nil {
+		t.Fatalf("a webhook to an unknown address belongs to no organisation: %+v", rejected)
+	}
+	detail, err := s.reqlog.Get(ctx, scope, rejected.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

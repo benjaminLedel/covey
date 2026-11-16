@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/msauth"
+	"covey/internal/reqlog"
 	"covey/internal/teamsapp"
 	"covey/internal/teamsapp/teamsys"
 	"covey/internal/teamsuser"
@@ -41,6 +42,14 @@ func (s *Server) handleTeamsAppWebhook(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "no such bot")
 		return
+	}
+	// Request log: every branch below is this bot's organisation's traffic —
+	// the incoming activity, and the bot's own calls out (sign-in card,
+	// answer, token exchange), which would otherwise fall through to the
+	// default sink without an organisation.
+	noteIncomingOrg(r, bot.OrgID)
+	if s.ReqLog != nil {
+		r = r.WithContext(reqlog.WithSink(r.Context(), s.ReqLog.Sink(&bot.OrgID, nil, nil)))
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err != nil {

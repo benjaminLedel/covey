@@ -707,6 +707,7 @@ func (s *Server) handleWorkflowWebhook(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "no such workflow")
 		return
 	}
+	noteIncomingOrg(r, st.OrgID) // request log: the entry is the workflow's organisation's
 	if !s.webhookLimiter.allow("workflow:"+id.String(), time.Now()) {
 		w.Header().Set("Retry-After", "60")
 		writeErr(w, http.StatusTooManyRequests, "too many webhook calls for this workflow — please redeliver later")
@@ -733,6 +734,9 @@ func (s *Server) handleWorkflowTrigger(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "unknown token")
 		return
+	}
+	if st, ok := s.Workflows.ByID(id); ok {
+		noteIncomingOrg(r, st.OrgID) // request log: the entry is the workflow's organisation's
 	}
 	if !s.webhookLimiter.allow("workflow:"+id.String(), time.Now()) {
 		w.Header().Set("Retry-After", "60")
