@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
-import { Link, Navigate, useParams } from "react-router";
+import { useRef, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, deletePhoto, isNotFound, photoUrl, setPhoto, type Human, type OrgChart, type Principal } from "../api";
+import { api, del, deletePhoto, isNotFound, patch, photoUrl, ROLES, setPhoto, type Human, type OrgChart, type Principal } from "../api";
 import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
@@ -10,6 +10,9 @@ import ProfileForm from "../components/ProfileForm";
 export default function PersonPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  /* Opened from the member list, the way back leads there — not to the
+     org chart one never came from (#743). */
+  const fromMembers = (useLocation().state as { from?: string } | null)?.from === "members";
   const person = useQuery({
     queryKey: ["human", id],
     queryFn: () => api<Human>(`/org/humans/${id}`),
@@ -38,8 +41,8 @@ export default function PersonPage({ me }: { me: Principal }) {
   return (
     <div style={{ maxWidth: 720 }}>
       <div className="text-sm secondary mb-3">
-        <Link to="/org" style={{ color: "inherit" }}>
-          {t("person.breadcrumb")}
+        <Link to={fromMembers ? "/administration/members" : "/org"} style={{ color: "inherit" }}>
+          {fromMembers ? t("nav.members") : t("person.breadcrumb")}
         </Link>{" "}
         / <b style={{ color: "var(--text-primary)", fontWeight: 500 }}>{h.display_name}</b>
       </div>
@@ -56,13 +59,16 @@ export default function PersonPage({ me }: { me: Principal }) {
             {isSelf && <span className="muted text-sm"> {t("person.self")}</span>}
           </h1>
           <div className="muted text-xs">
-            {h.job_title || t(`role.${h.role}`, h.role)} · <span className="mono">{h.email}</span>
+            {h.job_title ? `${h.job_title} · ` : ""}
+            {h.email}
           </div>
         </div>
         <span className="ntag" style={{ marginLeft: "auto" }}>
           {t(`role.${h.role}`, h.role)}
         </span>
       </div>
+
+      {isAdmin && <AccessCard human={h} isSelf={isSelf} />}
 
       <div className="card mb-4">
         <div className="text-sm font-medium mb-2">{t("person.profile")}</div>
@@ -72,8 +78,11 @@ export default function PersonPage({ me }: { me: Principal }) {
         )}
       </div>
 
-      <div className="card">
-        <div className="text-sm font-medium mb-2">{t("person.orgChart")}</div>
+      <div className="card mb-4">
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="text-sm font-medium">{t("person.orgChart")}</div>
+          <Link to="/org" className="text-xs">{t("person.openOrgChart")}</Link>
+        </div>
         <div className="text-xs">
           <div className="flex gap-2 py-0.5">
             <span className="muted" style={{ minWidth: 110 }}>{t("person.reportsTo")}</span>
@@ -115,6 +124,156 @@ export default function PersonPage({ me }: { me: Principal }) {
       </div>
 
       {isSelf && <AccountSettings me={me} />}
+    </div>
+  );
+}
+
+/* Role, password, removal — what an admin changes about someone's access
+   (#743). Each behind its own explicit step: the list used to change a role
+   on the first wrong click of a select, and remove a person on one click.
+   One's own role is not changed here; that keeps an admin from locking
+   themselves out by accident (the server keeps the last admin anyway). */
+function AccessCard({ human, isSelf }: { human: Human; isSelf: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"" | "role" | "password" | "remove">("");
+  const [role, setRole] = useState(human.role);
+  const [password, setPassword] = useState("");
+  const invalidate = () => {
+    for (const key of ["users", "orgchart", "human"]) void qc.invalidateQueries({ queryKey: [key] });
+  };
+  const close = () => {
+    setMode("");
+    setRole(human.role);
+    setPassword("");
+  };
+  const saveRole = useMutation({
+    mutationFn: () => patch(`/users/${human.id}`, { role }),
+    onSuccess: () => {
+      invalidate();
+      setMode("");
+    },
+  });
+  const savePassword = useMutation({
+    mutationFn: () => patch(`/users/${human.id}`, { password }),
+    onSuccess: close,
+  });
+  const remove = useMutation({
+    mutationFn: () => del(`/users/${human.id}`),
+    onSuccess: () => {
+      invalidate();
+      navigate("/administration/members", { replace: true });
+    },
+  });
+  const error = saveRole.error ?? savePassword.error ?? remove.error;
+
+  return (
+    <div className="card mb-4 access-card">
+      <div className="text-sm font-medium mb-3">{t("person.access")}</div>
+
+      <div className="access-row">
+        <div className="flex-1 min-w-0">
+          <div className="muted text-xs">{t("users.role")}</div>
+          <div className="text-sm font-medium">{t(`role.${human.role}`, human.role)}</div>
+          <div className="muted text-xs">{t(`users.roleDesc.${human.role}`, "")}</div>
+        </div>
+        {!isSelf && mode !== "role" && (
+          <button className="btn sm" onClick={() => setMode("role")}>
+            {t("person.roleChange")}
+          </button>
+        )}
+      </div>
+      {isSelf && <p className="muted text-xs mt-1 mb-0">{t("person.ownRole")}</p>}
+      {mode === "role" && (
+        <form
+          className="access-edit"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveRole.mutate();
+          }}
+        >
+          <fieldset className="role-pick">
+            <legend className="sr-only">{t("users.role")}</legend>
+            {ROLES.map((r) => (
+              <label key={r} className={`role-option${role === r ? " on" : ""}`}>
+                <input type="radio" name="role" value={r} checked={role === r} onChange={() => setRole(r)} />
+                <span>
+                  <span className="text-sm font-medium block">{t(`role.${r}`, r)}</span>
+                  <span className="muted text-xs block">{t(`users.roleDesc.${r}`)}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <p className="muted text-xs mb-2">{t("person.roleHint")}</p>
+          <div className="flex gap-2">
+            <button className="btn sm primary" disabled={role === human.role || saveRole.isPending}>
+              {t("person.roleSave")}
+            </button>
+            <button type="button" className="btn sm" onClick={close}>
+              {t("users.cancel")}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="access-row">
+        <div className="flex-1 min-w-0">
+          <div className="muted text-xs">{t("person.passwordTitle")}</div>
+          <div className="muted text-xs">{t("person.passwordHint")}</div>
+        </div>
+        {!isSelf && mode !== "password" && (
+          <button className="btn sm" onClick={() => setMode("password")}>
+            {t("users.passwordReset")}
+          </button>
+        )}
+      </div>
+      {isSelf && <p className="muted text-xs mt-1 mb-0">{t("person.ownPassword")}</p>}
+      {mode === "password" && (
+        <form
+          className="access-edit flex gap-2 items-end flex-wrap"
+          onSubmit={(e) => {
+            e.preventDefault();
+            savePassword.mutate();
+          }}
+        >
+          <div className="flex-1 min-w-52">
+            <label>{t("users.newPasswordLabel")}</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required autoFocus />
+          </div>
+          <button className="btn sm primary" disabled={savePassword.isPending}>
+            {t("users.setPassword")}
+          </button>
+          <button type="button" className="btn sm" onClick={close}>
+            {t("users.cancel")}
+          </button>
+        </form>
+      )}
+
+      {!isSelf && (
+        <div className="access-row">
+          <div className="flex-1 min-w-0">
+            <div className="muted text-xs">{t("person.removeTitle")}</div>
+            <div className="muted text-xs">{t("person.removeHint")}</div>
+          </div>
+          {mode === "remove" ? (
+            <span className="flex gap-2 items-center">
+              <span className="text-xs">{t("users.confirmDelete", { name: human.display_name })}</span>
+              <button className="btn sm danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                {t("users.delete")}
+              </button>
+              <button className="btn sm" onClick={close}>
+                {t("users.cancel")}
+              </button>
+            </span>
+          ) : (
+            <button className="btn sm danger" onClick={() => setMode("remove")}>
+              {t("users.delete")}
+            </button>
+          )}
+        </div>
+      )}
+      {error && <p className="danger-text text-xs mt-2 mb-0">{(error as Error).message}</p>}
     </div>
   );
 }

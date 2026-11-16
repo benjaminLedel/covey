@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, patch, photoUrl, post, ROLES, type Human, type Principal } from "../api";
-import { Avatar, PersonLink } from "../components/person";
+import { api, photoUrl, post, ROLES, type Human, type Principal } from "../api";
+import { Avatar } from "../components/person";
 
 /** `embedded` leaves the own page head out — in the administration panel
  *  one already stands above, and two headings stacked are one
@@ -144,111 +144,27 @@ function CreateUser({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
   );
 }
 
+/* A row only shows and leads on (#743). Role, password and removal sit on
+   the person's page behind an explicit "change" — a select in the list
+   changed a role on the first wrong click. */
 function UserRow({ user, me }: { user: Human; me: Principal }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const isSelf = user.id === me.ID;
-  const [resetting, setResetting] = useState(false);
-  /* Removing someone asks once more: it ends their access at once. */
-  const [confirming, setConfirming] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const invalidate = () => {
-    for (const key of ["users", "orgchart", "human"]) qc.invalidateQueries({ queryKey: [key] });
-  };
-
-  const setRole = useMutation({
-    mutationFn: (role: string) => patch(`/users/${user.id}`, { role }),
-    onSuccess: invalidate,
-  });
-  const resetPassword = useMutation({
-    mutationFn: () => patch(`/users/${user.id}`, { password: newPassword }),
-    onSuccess: () => {
-      setResetting(false);
-      setNewPassword("");
-      invalidate();
-    },
-  });
-  const remove = useMutation({
-    mutationFn: () => del(`/users/${user.id}`),
-    onSuccess: invalidate,
-  });
-  const error = setRole.error ?? resetPassword.error ?? remove.error;
-
-  const identities = Object.entries(user.identities ?? {});
-
   return (
-    <div className="member-row">
-      <div className="flex items-center gap-4 flex-wrap">
-        <Link to={`/people/${user.id}`} title={t("org.openProfile")} style={{ color: "inherit", textDecoration: "none" }}>
-          <Avatar name={user.display_name} human photo={photoUrl(user.id, user.photo_id)} />
-        </Link>
-        <div className="flex-1 min-w-44">
-          <div className="text-sm font-medium">
-            <PersonLink human={user} />
-            {user.job_title && <span className="muted text-xs"> · {user.job_title}</span>}
-            {isSelf && <span className="muted text-xs"> {t("users.self")}</span>}
-          </div>
-          <div className="muted text-xs">
-            {user.email}
-            {identities.map(([system, id]) => (
-              <span key={system}> · {system}: {id}</span>
-            ))}
-          </div>
+    <Link to={`/people/${user.id}`} state={{ from: "members" }} className="member-row member-link">
+      <Avatar name={user.display_name} human photo={photoUrl(user.id, user.photo_id)} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">
+          {user.display_name}
+          {isSelf && <span className="muted text-xs"> {t("users.self")}</span>}
         </div>
-        <select
-          value={user.role}
-          onChange={(e) => setRole.mutate(e.target.value)}
-          disabled={setRole.isPending}
-          style={{ width: "auto" }}
-        >
-          {ROLES.map((value) => (
-            <option key={value} value={value}>
-              {t(`role.${value}`, value)}
-            </option>
-          ))}
-        </select>
-        <button className="btn sm" onClick={() => setResetting(!resetting)}>
-          {t("users.passwordReset")}
-        </button>
-        {confirming ? (
-          <span className="flex items-center gap-2">
-            <span className="text-xs">{t("users.confirmDelete", { name: user.display_name })}</span>
-            <button className="btn sm danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              {t("users.delete")}
-            </button>
-            <button className="btn sm" onClick={() => setConfirming(false)}>
-              {t("users.cancel")}
-            </button>
-          </span>
-        ) : (
-          <button
-            className="btn sm"
-            onClick={() => setConfirming(true)}
-            disabled={isSelf}
-            title={isSelf ? t("users.cantDeleteSelf") : undefined}
-          >
-            {t("users.delete")}
-          </button>
-        )}
+        <div className="muted text-xs truncate">
+          {user.job_title ? `${user.job_title} · ` : ""}
+          {user.email}
+        </div>
       </div>
-      {resetting && (
-        <form
-          className="flex gap-3 items-end mt-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            resetPassword.mutate();
-          }}
-        >
-          <div className="flex-1 min-w-52">
-            <label>{t("users.newPasswordLabel")}</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required autoFocus />
-          </div>
-          <button className="btn sm primary" disabled={resetPassword.isPending}>
-            {t("users.setPassword")}
-          </button>
-        </form>
-      )}
-      {error && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(error as Error).message}</p>}
-    </div>
+      <span className="ntag">{t(`role.${user.role}`, user.role)}</span>
+      <span className="member-chev" aria-hidden="true">›</span>
+    </Link>
   );
 }

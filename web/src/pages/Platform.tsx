@@ -37,14 +37,52 @@ function Accounts({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const accounts = useQuery({ queryKey: ["platform", "accounts"], queryFn: () => api<Account[]>("/platform/accounts") });
   const orgs = useQuery({ queryKey: ["orgs"], queryFn: () => api<Organization[]>("/platform/orgs") });
+  /* A list to scan and a search over it; one account open at a time (#743).
+     Every row used to carry two selects and two delete buttons that acted
+     on the first click — one wrong pick changed what someone may do in an
+     organisation, or across the whole installation. */
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const q = query.trim().toLowerCase();
+  const list = (accounts.data ?? []).filter(
+    (a) =>
+      !q ||
+      a.email.toLowerCase().includes(q) ||
+      (a.display_name ?? "").toLowerCase().includes(q) ||
+      a.seats.some((s) => s.org_name.toLowerCase().includes(q)),
+  );
 
   return (
     <div>
       <PlatformHeader />
-      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>{t("platform.accountsDesc")}</p>
-      {(accounts.data ?? []).map((a) => (
-        <AccountRow key={a.id} account={a} isSelf={a.id === me.AccountID} orgs={orgs.data ?? []} />
-      ))}
+      <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>{t("platform.accountsDesc")}</p>
+      {(accounts.data?.length ?? 0) > 0 && (
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("platform.accountsSearch")}
+            aria-label={t("platform.accountsSearch")}
+            style={{ maxWidth: 320 }}
+          />
+          <span className="muted text-xs">{t("platform.accountsCount", { count: list.length })}</span>
+        </div>
+      )}
+      {list.length > 0 && (
+        <div className="card member-list">
+          {list.map((a) => (
+            <AccountRow
+              key={a.id}
+              account={a}
+              isSelf={a.id === me.AccountID}
+              orgs={orgs.data ?? []}
+              open={open === a.id}
+              onToggle={() => setOpen(open === a.id ? null : a.id)}
+            />
+          ))}
+        </div>
+      )}
       {accounts.data?.length === 0 && <p className="muted text-xs">{t("platform.noAccounts")}</p>}
     </div>
   );
@@ -53,17 +91,62 @@ function Accounts({ me }: { me: Principal }) {
 /* The roles a seat can carry — the same set the API accepts (validRoles). */
 const ORG_ROLES = ["org_admin", "agent_owner", "security", "auditor", "controlling"];
 
-function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boolean; orgs: Organization[] }) {
+function AccountRow({
+  account,
+  isSelf,
+  orgs,
+  open,
+  onToggle,
+}: {
+  account: Account;
+  isSelf: boolean;
+  orgs: Organization[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  const admin = account.platform_role === "system_admin";
+  return (
+    <div className={`account${open ? " open" : ""}`}>
+      <button type="button" className="member-row member-link account-head" onClick={onToggle} aria-expanded={open}>
+        <div className="flex-1 min-w-0 text-left">
+          <div className="text-sm font-medium truncate">
+            {account.display_name || account.email}
+            {isSelf && <span className="muted text-xs"> {t("platform.you")}</span>}
+          </div>
+          <div className="muted text-xs truncate">{account.email}</div>
+        </div>
+        <div className="account-chips">
+          {admin && <span className="ntag">{t("platform.roleSystemAdmin")}</span>}
+          {!account.email_verified_at && <span className="badge">{t("platform.unverified")}</span>}
+          {account.seats.length === 0 ? (
+            <span className="muted text-xs">{t("platform.noSeat")}</span>
+          ) : (
+            account.seats.map((s) => (
+              <span key={s.org_id} className="account-seat">
+                {s.org_name} · {t(`role.${s.role}`, s.role)}
+              </span>
+            ))
+          )}
+        </div>
+        <span className="muted text-xs account-last">
+          {account.last_login_at
+            ? t("platform.lastLogin", { date: new Date(account.last_login_at).toLocaleDateString() })
+            : t("platform.neverSignedIn")}
+        </span>
+        <span className="member-chev" aria-hidden="true">{open ? "⌄" : "›"}</span>
+      </button>
+      {open && <AccountDetail account={account} isSelf={isSelf} orgs={orgs} />}
+    </div>
+  );
+}
+
+function AccountDetail({ account, isSelf, orgs }: { account: Account; isSelf: boolean; orgs: Organization[] }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const setRole = useMutation({
-    mutationFn: (platform_role: string) => patch(`/platform/accounts/${account.id}`, { platform_role }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform", "accounts"] }),
-  });
-
   /* Seats (#262). The counts on the organisations page change with them, and
      one's own seats are also what the org switcher and the session show. */
-  const seatsChanged = () => {
+  const changed = () => {
     void qc.invalidateQueries({ queryKey: ["platform", "accounts"] });
     void qc.invalidateQueries({ queryKey: ["orgs"] });
     if (isSelf) {
@@ -71,20 +154,33 @@ function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boole
       void qc.invalidateQueries({ queryKey: ["me"] });
     }
   };
+  // Which step is open: the instance level, one seat's role or removal, adding a seat, deleting.
+  const [step, setStep] = useState("");
+  const [level, setLevel] = useState(account.platform_role);
+  const [seatRole, setSeatRole] = useState("");
+  const [addOrg, setAddOrg] = useState("");
+  const [addRole, setAddRole] = useState("agent_owner");
+  const done = () => {
+    setStep("");
+    changed();
+  };
+
+  const setPlatformRole = useMutation({
+    mutationFn: () => patch(`/platform/accounts/${account.id}`, { platform_role: level }),
+    onSuccess: done,
+  });
   const seat = useMutation({
     mutationFn: (op: { org: string; role?: string }) =>
       op.role
         ? patch(`/platform/orgs/${op.org}/members/${account.id}`, { role: op.role })
         : del(`/platform/orgs/${op.org}/members/${account.id}`),
-    onSuccess: seatsChanged,
+    onSuccess: done,
   });
-  const [addOrg, setAddOrg] = useState("");
-  const [addRole, setAddRole] = useState("agent_owner");
   const add = useMutation({
     mutationFn: () => post(`/platform/orgs/${addOrg}/members`, { account_id: account.id, role: addRole }),
     onSuccess: () => {
       setAddOrg("");
-      seatsChanged();
+      done();
     },
   });
   /* Deleting the login with every seat (#732). The server refuses one's own
@@ -92,104 +188,150 @@ function AccountRow({ account, isSelf, orgs }: { account: Account; isSelf: boole
      the button is not offered for one's own row. */
   const remove = useMutation({
     mutationFn: () => del(`/platform/accounts/${account.id}`),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["platform", "accounts"] });
-      void qc.invalidateQueries({ queryKey: ["orgs"] });
-    },
+    onSuccess: changed,
   });
   const free = orgs.filter((o) => !account.seats.some((s) => s.org_id === o.id));
-  const seatError = (seat.error ?? add.error) as Error | null;
+  const error = (setPlatformRole.error ?? seat.error ?? add.error ?? remove.error) as Error | null;
+  const cancel = () => setStep("");
 
   return (
-    <div className="card mb-2" style={{ padding: "11px 15px" }}>
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex-1 min-w-52">
-          <div className="text-sm font-medium">
-            {account.display_name || account.email}
-            {isSelf && <span className="muted text-xs"> {t("platform.you")}</span>}
-            {!account.email_verified_at && <span className="badge ml-2">{t("platform.unverified")}</span>}
-          </div>
-          <div className="muted text-xs mono">{account.email}</div>
-          {account.seats.length === 0 && <div className="muted text-xs">{t("platform.noSeat")}</div>}
-        </div>
-        <div className="muted text-xs" style={{ minWidth: 130 }}>
-          {account.last_login_at
-            ? t("platform.lastLogin", { date: new Date(account.last_login_at).toLocaleDateString() })
-            : t("platform.neverSignedIn")}
-        </div>
-        <select
-          value={account.platform_role}
-          onChange={(e) => setRole.mutate(e.target.value)}
-          disabled={setRole.isPending}
-          style={{ width: 170 }}
-        >
-          <option value="user">{t("platform.roleUser")}</option>
-          <option value="system_admin">{t("platform.roleSystemAdmin")}</option>
-        </select>
-        {!isSelf && (
-          <button
-            className="btn sm danger"
-            disabled={remove.isPending}
-            onClick={() => {
-              if (window.confirm(t("platform.deleteAccountConfirm", { email: account.email, count: account.seats.length })))
-                remove.mutate();
-            }}
-          >
-            {t("platform.deleteAccount")}
-          </button>
-        )}
-      </div>
-      {setRole.isError && (
-        <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(setRole.error as Error).message}</p>
-      )}
-      {remove.isError && (
-        <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(remove.error as Error).message}</p>
-      )}
-      {(account.seats.length > 0 || free.length > 0) && (
-        <div className="mt-2" style={{ display: "grid", gap: 6 }}>
-          {account.seats.map((s) => (
-            <div key={s.org_id} className="flex items-center gap-3 flex-wrap text-xs">
-              <span className="flex-1 min-w-44">{s.org_name}</span>
-              <select
-                value={s.role}
-                onChange={(e) => seat.mutate({ org: s.org_id, role: e.target.value })}
-                disabled={seat.isPending}
-                style={{ width: 170 }}
-              >
+    <div className="account-detail">
+      <div className="text-xs font-medium mb-1">{t("platform.detailOrgs")}</div>
+      {account.seats.length === 0 && <p className="muted text-xs mt-0">{t("platform.noSeat")}</p>}
+      {account.seats.map((s) => (
+        <div key={s.org_id} className="access-row text-xs">
+          <span className="flex-1 min-w-0">
+            <span className="font-medium">{s.org_name}</span>
+            <span className="muted"> · {t(`role.${s.role}`, s.role)}</span>
+          </span>
+          {step === `role:${s.org_id}` ? (
+            <form
+              className="flex gap-2 items-center"
+              onSubmit={(e) => {
+                e.preventDefault();
+                seat.mutate({ org: s.org_id, role: seatRole });
+              }}
+            >
+              <select value={seatRole} onChange={(e) => setSeatRole(e.target.value)} style={{ width: 170 }} autoFocus>
                 {ORG_ROLES.map((r) => (
                   <option key={r} value={r}>{t(`role.${r}`, r)}</option>
                 ))}
               </select>
+              <button className="btn sm primary" disabled={seatRole === s.role || seat.isPending}>{t("platform.save")}</button>
+              <button type="button" className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+            </form>
+          ) : step === `remove:${s.org_id}` ? (
+            <span className="flex gap-2 items-center">
+              <span>{t("platform.seatRemoveConfirm", { org: s.org_name })}</span>
               <button className="btn sm danger" onClick={() => seat.mutate({ org: s.org_id })} disabled={seat.isPending}>
                 {t("platform.seatRemove")}
               </button>
-            </div>
-          ))}
-          {free.length > 0 && (
-            <form
-              className="flex items-center gap-3 flex-wrap text-xs"
-              onSubmit={(e) => {
-                e.preventDefault();
-                add.mutate();
+              <button className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+            </span>
+          ) : (
+            <span className="flex gap-2">
+              <button
+                className="btn sm"
+                onClick={() => {
+                  setSeatRole(s.role);
+                  setStep(`role:${s.org_id}`);
+                }}
+              >
+                {t("person.roleChange")}
+              </button>
+              <button className="btn sm" onClick={() => setStep(`remove:${s.org_id}`)}>
+                {t("platform.seatRemove")}
+              </button>
+            </span>
+          )}
+        </div>
+      ))}
+      {free.length > 0 &&
+        (step === "add" ? (
+          <form
+            className="access-row text-xs flex-wrap"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add.mutate();
+            }}
+          >
+            <select value={addOrg} onChange={(e) => setAddOrg(e.target.value)} className="flex-1 min-w-44" autoFocus>
+              <option value="">{t("platform.seatAddPick")}</option>
+              {free.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+            <select value={addRole} onChange={(e) => setAddRole(e.target.value)} style={{ width: 170 }}>
+              {ORG_ROLES.map((r) => (
+                <option key={r} value={r}>{t(`role.${r}`, r)}</option>
+              ))}
+            </select>
+            <button className="btn sm primary" disabled={!addOrg || add.isPending}>{t("platform.seatAdd")}</button>
+            <button type="button" className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+          </form>
+        ) : (
+          <button className="btn sm mt-1" onClick={() => setStep("add")}>{t("platform.seatAddButton")}</button>
+        ))}
+
+      <div className="text-xs font-medium mt-4 mb-1">{t("platform.detailInstance")}</div>
+      <div className="access-row text-xs">
+        <span className="flex-1 min-w-0">
+          <span className="font-medium">
+            {account.platform_role === "system_admin" ? t("platform.roleSystemAdmin") : t("platform.roleUser")}
+          </span>
+          <span className="muted block">{t("platform.levelHint")}</span>
+        </span>
+        {step === "level" ? (
+          <form
+            className="flex gap-2 items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPlatformRole.mutate();
+            }}
+          >
+            <select value={level} onChange={(e) => setLevel(e.target.value)} style={{ width: 170 }} autoFocus>
+              <option value="user">{t("platform.roleUser")}</option>
+              <option value="system_admin">{t("platform.roleSystemAdmin")}</option>
+            </select>
+            <button className="btn sm primary" disabled={level === account.platform_role || setPlatformRole.isPending}>
+              {t("platform.save")}
+            </button>
+            <button type="button" className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+          </form>
+        ) : (
+          !isSelf && (
+            <button
+              className="btn sm"
+              onClick={() => {
+                setLevel(account.platform_role);
+                setStep("level");
               }}
             >
-              <select value={addOrg} onChange={(e) => setAddOrg(e.target.value)} className="flex-1 min-w-44">
-                <option value="">{t("platform.seatAddPick")}</option>
-                {free.map((o) => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </select>
-              <select value={addRole} onChange={(e) => setAddRole(e.target.value)} style={{ width: 170 }}>
-                {ORG_ROLES.map((r) => (
-                  <option key={r} value={r}>{t(`role.${r}`, r)}</option>
-                ))}
-              </select>
-              <button className="btn sm" disabled={!addOrg || add.isPending}>{t("platform.seatAdd")}</button>
-            </form>
+              {t("person.roleChange")}
+            </button>
+          )
+        )}
+      </div>
+
+      {!isSelf && (
+        <div className="access-row text-xs mt-2">
+          <span className="flex-1 min-w-0 muted">{t("platform.deleteHint")}</span>
+          {step === "delete" ? (
+            <span className="flex gap-2 items-center">
+              <span>{t("platform.deleteAccountConfirm", { email: account.email, count: account.seats.length })}</span>
+              <button className="btn sm danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                {t("platform.deleteAccount")}
+              </button>
+              <button className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+            </span>
+          ) : (
+            <button className="btn sm danger" onClick={() => setStep("delete")}>
+              {t("platform.deleteAccount")}
+            </button>
           )}
-          {seatError && <p className="text-xs m-0" style={{ color: "var(--text-danger)" }}>{seatError.message}</p>}
         </div>
       )}
+      {error && <p className="danger-text text-xs mt-2 mb-0">{error.message}</p>}
     </div>
   );
 }

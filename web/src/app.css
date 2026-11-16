@@ -4874,3 +4874,42 @@ a.tm-file:hover { background: var(--tint); }
 .member-list { padding: 0; overflow: hidden; }
 .member-row { padding: 11px 15px; }
 .member-row + .member-row { border-top: 1px solid var(--border); }
+.member-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.member-link:hover { background: var(--surface-1); }
+.member-chev { color: var(--text-muted); font-size: 18px; line-height: 1; }
+
+/* Role and access on a person's page (#743). */
+.access-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.access-row + .access-row, .access-edit + .access-row { border-top: 1px solid var(--border); }
+.access-edit { padding: 4px 0 12px; }
+.role-pick { border: 0; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.role-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  margin: 0;
+}
+.role-option input { width: auto; margin-top: 3px; }
+.role-option.on { border-color: var(--border-strong); background: var(--surface-1); }
+
+/* Platform accounts (#743): a scannable list, one account open at a time. */
+.account-head { width: 100%; background: none; border: 0; font: inherit; cursor: pointer; flex-wrap: wrap; }
+.account + .account { border-top: 1px solid var(--border); }
+.account .member-row + .member-row { border-top: 0; }
+.account.open .account-head { background: var(--surface-1); }
+.account-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; max-width: 50%; }
+.account-seat { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+.account-last { min-width: 110px; text-align: right; }
+.account-detail { padding: 6px 15px 14px 15px; background: var(--surface-1); }
+@media (max-width: 720px) { .account-chips { max-width: 100%; justify-content: flex-start; } .account-last { text-align: left; } }

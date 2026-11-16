@@ -69,6 +69,7 @@ function NavItem({
   end,
   count,
   except,
+  also,
 }: {
   to: string;
   icon: string;
@@ -77,11 +78,13 @@ function NavItem({
   count?: number;
   /** A sub-path with an entry of its own: there this one stays unmarked. */
   except?: string;
+  /** Marked as well, where the address alone does not say so. */
+  also?: boolean;
 }) {
   const { pathname } = useLocation();
   const elsewhere = except != null && (pathname === except || pathname.startsWith(except + "/"));
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => `nav-item ${isActive && !elsewhere ? "active" : ""}`}>
+    <NavLink to={to} end={end} className={({ isActive }) => `nav-item ${(isActive && !elsewhere) || also ? "active" : ""}`}>
       <NavIcon name={icon} />
       {label}
       {count != null && count > 0 && <span className="count">{count}</span>}
@@ -369,7 +372,12 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <div className="nav-group">
             {me.Role === "org_admin" && (
               <>
-                <NavItem to="/administration/members" icon="user" label={t("nav.members")} />
+                <NavItem
+                  to="/administration/members"
+                  icon="user"
+                  label={t("nav.members")}
+                  also={location.pathname.startsWith("/people/") && (location.state as { from?: string } | null)?.from === "members"}
+                />
                 <NavItem to="/administration" except="/administration/members" icon="cog" label={t("nav.administration")} />
               </>
             )}

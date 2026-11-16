@@ -90,20 +90,13 @@ describe("Administrations-Panel", () => {
     expect(document.querySelector("input[type=email]")).not.toBeNull();
   });
 
-  it("fragt vor dem Entfernen noch einmal nach", async () => {
-    const calls: string[] = [];
+  it("ändert in der Liste nichts — eine Zeile führt zur Person", async () => {
     mockFetch(routen);
-    const fetch0 = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === "DELETE") calls.push(String(input));
-      return fetch0(input, init);
-    }) as typeof fetch;
     renderWithProviders(<Administration me={testPrincipal()} />, { route: "/administration/members", path: "/administration/*" });
 
-    await screen.findByText("Jonas");
-    const entfernen = screen.getAllByRole("button", { name: "Entfernen" }).find((b) => !(b as HTMLButtonElement).disabled)!;
-    fireEvent.click(entfernen);
-    expect(calls).toHaveLength(0);
-    expect(screen.getByText(/^(Mara|Jonas) wirklich entfernen\?$/)).toBeInTheDocument();
+    const jonas = await screen.findByText("Jonas");
+    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Entfernen" })).not.toBeInTheDocument();
+    expect(jonas.closest("a")).toHaveAttribute("href", "/people/h2");
   });
 });
