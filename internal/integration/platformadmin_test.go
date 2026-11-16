@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"covey/internal/accounts"
+	"covey/internal/config"
 	"covey/internal/settings"
 )
 
@@ -65,6 +66,49 @@ func TestPlattformVerwaltungNurFuerSystemadmin(t *testing.T) {
 	id := konten[0]["id"].(string)
 	admin.expect(http.MethodPatch, "/api/v1/platform/accounts/"+id,
 		map[string]string{"platform_role": "user"}, http.StatusConflict)
+}
+
+// The doctor reads the whole installation — every organisation's agents and
+// workplaces, host paths, images, runners — and its backup confirmation is an
+// installation setting. So both belong to whoever administers the
+// installation. The admin of one tenant gets the same 404 as for every other
+// instance route, and changes nothing.
+func TestDoctorBelongsToTheInstanceAdmin(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	s.srv.Config = &config.Config{HomeStore: true, DataDir: t.TempDir(), SandboxImage: "covey-sandbox:test"}
+
+	s.alsSystemadmin(t)
+	op := login(t, s, "admin@test.local", "admin-passwort")
+	op.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{
+		"name": "Tenant B", "admin_email": "boss@tenant-b.example", "admin_name": "Boss",
+		"admin_password": "boss-passwort-lang",
+	}, http.StatusCreated)
+
+	tenant := login(t, s, "boss@tenant-b.example", "boss-passwort-lang")
+	if me := tenant.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["Role"] != "org_admin" {
+		t.Fatalf("the tenant admin is expected to be org_admin: %v", me["Role"])
+	}
+	for _, c := range []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/platform/doctor"},
+		{http.MethodPost, "/api/v1/platform/doctor/home-store-backup"},
+	} {
+		resp := tenant.do(c.method, c.path, map[string]bool{"confirmed": true})
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s %s as a tenant's org_admin: %d, expected 404", c.method, c.path, resp.StatusCode)
+		}
+	}
+	if v, _ := s.settings.Get(ctx, settings.HomeStoreBackup); v != "" {
+		t.Errorf("a tenant's org_admin recorded the backup confirmation: %q", v)
+	}
+
+	op.expect(http.MethodGet, "/api/v1/platform/doctor", nil, http.StatusOK)
+	op.expect(http.MethodPost, "/api/v1/platform/doctor/home-store-backup",
+		map[string]bool{"confirmed": true}, http.StatusOK)
+	if v, _ := s.settings.Get(ctx, settings.HomeStoreBackup); v == "" {
+		t.Error("the instance admin's confirmation was not recorded")
+	}
 }
 
 func TestSystemEinstellungenUeberDieApi(t *testing.T) {

@@ -111,6 +111,12 @@ func (p *Pool) Capacity(runnerID uuid.UUID) (CapacityView, bool) {
 // difference between "installed, coming back" and "fell over" readable at all:
 // after the restart there is nothing left to ask.
 func (p *Pool) Update(ctx context.Context, orgID, runnerID uuid.UUID, version, baseURL string) (UpdateResult, error) {
+	// The version becomes part of a URL and a file name on the host. The host
+	// checks it as well; asking here saves the round trip and keeps a plan
+	// with a malformed version from being re-sent on every idle beat.
+	if version != "" && !IsReleaseTag(version) {
+		return UpdateResult{}, fmt.Errorf("%q is not a release version (v1.2.3)", version)
+	}
 	p.mu.Lock()
 	c := p.conns[runnerID]
 	p.mu.Unlock()

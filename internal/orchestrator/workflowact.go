@@ -115,6 +115,11 @@ func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, ac
 	}
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	// The URL is the organisation's; the request is the control plane's (#692).
+	cctx, err = orgURLContext(cctx, cred.BaseURL)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", subject, err)
+	}
 	if o.ReqLog != nil {
 		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&agent.OrgID, &agent.ID, nil))
 	}

@@ -365,7 +365,9 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                     : agent.data.status === "sleeping"
                       ? t("conversation.asleep")
                       : aktuell
-                        ? t("conversation.workingOn", { title: aktuell.title })
+                        ? t("conversation.workingOn", {
+                            title: aktuell.redacted ? t("agent.backlog.redactedTitle") : aktuell.title,
+                          })
                         : t("conversation.working")
                 }
               />
@@ -414,7 +416,7 @@ export default function Thread({ agentId, me }: { agentId: string; me: Principal
                       }}
                     >
                       <span className={`tm-art z-${v.state}`}>{t(`status.${v.state}`, v.state)}</span>
-                      <span className="tm-hg-titel">{v.title}</span>
+                      <span className="tm-hg-titel">{v.redacted ? t("agent.backlog.redactedTitle") : v.title}</span>
                       <span className="tm-hg-unten">
                         {l?.step && <>{t(`team.schritt.${l.step}`, l.step)} · </>}
                         {t("team.quelle", { quelle: v.origin })}

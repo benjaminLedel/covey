@@ -548,6 +548,8 @@
       "originAgent": "criada por {{slug}}",
       "originHeartbeat": "batimento",
       "parentTask": "tarefa principal",
+      "redactedTitle": "Tarefa de uma conversa",
+      "redactedHint": "Esta tarefa veio de uma conversa da qual você não participa. O texto e o resultado ficam com os membros da conversa.",
       "cost": "Custo",
       "costHint": "Quanto custou até agora a execução desta tarefa — a partir de {{n}} lançamentos",
       "costEntries": "de {{n}} lançamentos",

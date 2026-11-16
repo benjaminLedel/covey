@@ -186,3 +186,28 @@ func TestStoppedColleagueNamedIn(t *testing.T) {
 		t.Errorf("unexpected section:\n%s", s)
 	}
 }
+
+// TestPlatformAccessAdded: a new covey entry or a new scope on it is a grant;
+// keeping or narrowing what the agent holds is not.
+func TestPlatformAccessAdded(t *testing.T) {
+	held := ParseAccess("- system: covey scope: agents:write\n- system: ticketing scope: read")
+	cases := []struct {
+		name string
+		cur  []SystemAccess
+		next string
+		want bool
+	}{
+		{"new entry", nil, "- system: covey scope: agents:write", true},
+		{"new entry without scope", nil, "- system: covey", true},
+		{"other systems only", nil, "- system: ticketing scope: read,write", false},
+		{"unchanged", held, "- system: covey scope: agents:write", false},
+		{"case of the scope", held, "- system: covey scope: Agents:Write", false},
+		{"narrowed", held, "- system: ticketing scope: read", false},
+		{"further scope", held, "- system: covey scope: agents:write, agents:review", true},
+	}
+	for _, c := range cases {
+		if got := PlatformAccessAdded(c.cur, ParseAccess(c.next)); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}

@@ -548,6 +548,8 @@
       "originAgent": "{{slug}} が作成",
       "originHeartbeat": "ハートビート",
       "parentTask": "親タスク",
+      "redactedTitle": "会話から生まれたタスク",
+      "redactedHint": "このタスクはあなたが参加していない会話から生まれました。本文と結果は会話のメンバーだけが見られます。",
       "cost": "コスト",
       "costHint": "このタスクの実行にこれまでかかったコスト — {{n}} 件の記録から",
       "costEntries": "{{n}} 件の記録から",

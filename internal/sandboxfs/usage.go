@@ -1,8 +1,8 @@
 package sandboxfs
 
 import (
+	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"syscall"
 )
@@ -57,13 +57,31 @@ func (f *FS) Usage() Usage {
 	}
 	u.Exists = true
 
-	var fs syscall.Statfs_t
-	if err := syscall.Statfs(f.root, &fs); err == nil {
-		u.TotalBytes = int64(fs.Blocks) * int64(fs.Bsize)
-		u.FreeBytes = int64(fs.Bavail) * int64(fs.Bsize)
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(f.root, &st); err == nil {
+		u.TotalBytes = int64(st.Blocks) * int64(st.Bsize)
+		u.FreeBytes = int64(st.Bavail) * int64(st.Bsize)
 	}
 
-	entries, err := os.ReadDir(filepath.Join(f.root, "repos"))
+	// Through the same os.Root as every other operation: repos/ and what lies
+	// in it are written by the sandbox, and a link there must not make the
+	// runner list or measure anything outside the home. A repos that is a
+	// link is no checkout directory and is treated as absent.
+	root, err := f.openRoot()
+	if err != nil {
+		return u
+	}
+	defer root.Close()
+	if li, err := root.Lstat("repos"); err != nil || !li.IsDir() {
+		return u
+	}
+	repos, err := root.OpenRoot("repos")
+	if err != nil {
+		return u
+	}
+	defer repos.Close()
+	rfs := repos.FS()
+	entries, err := fs.ReadDir(rfs, ".")
 	if err != nil {
 		return u
 	}
@@ -71,12 +89,12 @@ func (f *FS) Usage() Usage {
 		if !e.IsDir() || i >= maxCheckoutsMeasured {
 			continue
 		}
-		dir := filepath.Join(f.root, "repos", e.Name())
-		size := dirSize(dir)
-		mod := ""
-		if info, err := e.Info(); err == nil {
-			mod = info.ModTime().UTC().Format("2006-01-02T15:04:05Z")
+		info, err := repos.Lstat(e.Name())
+		if err != nil || !info.IsDir() {
+			continue
 		}
+		size := dirSize(rfs, e.Name())
+		mod := info.ModTime().UTC().Format("2006-01-02T15:04:05Z")
 		u.Checkouts = append(u.Checkouts, CheckoutUsage{Name: e.Name(), Bytes: size, ModTime: mod})
 		u.CheckoutBytes += size
 	}
@@ -84,12 +102,14 @@ func (f *FS) Usage() Usage {
 	return u
 }
 
-// dirSize adds up the file sizes of a tree. Symlinks are not followed (Lstat
-// through WalkDir's DirEntry) — a link into the home would otherwise be counted
-// twice, one out of it would count foreign bytes.
-func dirSize(dir string) int64 {
+// dirSize adds up the file sizes of a tree inside fsys, which is rooted in the
+// home: directories are opened through the root, so none resolves outside it.
+// Symlinks are not followed (Lstat through WalkDir's DirEntry) — a link into
+// the home would otherwise be counted twice, one out of it would count foreign
+// bytes.
+func dirSize(fsys fs.FS, dir string) int64 {
 	var total int64
-	_ = filepath.WalkDir(dir, func(_ string, d os.DirEntry, err error) error {
+	_ = fs.WalkDir(fsys, dir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil //nolint:nilerr // best effort: an unreadable subtree is skipped
 		}

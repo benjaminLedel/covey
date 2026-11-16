@@ -244,6 +244,53 @@ func TestPasswordReset(t *testing.T) {
 	}
 }
 
+// A reset is how an account is recovered, and recovery has to lock out
+// whatever the old password let in: a browser signed in before the reset, an
+// API key and a pairing code minted from such a session. None of them may
+// outlive the new password.
+func TestPasswordResetEndsEveryOldCredential(t *testing.T) {
+	s := newStack(t)
+	smtp := startFakeSMTP(t)
+	s.configureMailer(t, smtp)
+
+	before := login(t, s, "admin@test.local", "admin-passwort")
+	key, _ := createKey(t, before, "pipeline", 0)
+	pairing := before.expect(http.MethodPost, "/api/v1/auth/pairings", nil, http.StatusCreated)
+	code, _ := pairing["code"].(string)
+
+	res := s.postJSON(t, "/api/v1/public/password-reset", map[string]any{
+		"email": "admin@test.local", "lang": "en"})
+	res.Body.Close()
+	_, _, msg := smtp.snapshot()
+	token := tokenOf(t, linkIn(t, msg, "/reset"))
+	res = s.postJSON(t, "/api/v1/public/password-reset/confirm", map[string]any{
+		"token": token, "password": "the-new-long-password"})
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("setting the password answers %d, expected 200", res.StatusCode)
+	}
+
+	if r := before.do(http.MethodGet, "/api/v1/auth/me", nil); r.StatusCode != http.StatusUnauthorized {
+		r.Body.Close()
+		t.Errorf("a session from before the reset answers %d, expected 401", r.StatusCode)
+	} else {
+		r.Body.Close()
+	}
+	if r := bearer(t, s, key, http.MethodGet, "/api/v1/auth/me", nil); r.StatusCode != http.StatusUnauthorized {
+		r.Body.Close()
+		t.Errorf("an API key from before the reset answers %d, expected 401", r.StatusCode)
+	} else {
+		r.Body.Close()
+	}
+	if status, out := redeem(t, s, code, "phone"); status == http.StatusCreated {
+		t.Errorf("a pairing code from before the reset still mints a key: %v", out)
+	}
+
+	// The new password signs in as usual.
+	login(t, s, "admin@test.local", "the-new-long-password").
+		expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK)
+}
+
 // An expired link is worth as much as a wrong one, and says so the same way.
 func TestExpiredTokenIsRefused(t *testing.T) {
 	s := newStack(t)

@@ -23,7 +23,8 @@ import (
 // und noch einmal so viele aus dem Backlog.
 const suchTreffer = 8
 
-func (s *Server) suchen(ctx context.Context, agentID, convID uuid.UUID, organisation, anfrage string) []string {
+func (s *Server) suchen(ctx context.Context, agentID, convID uuid.UUID, organisation, anfrage string,
+	zeigbar func(context.Context, *uuid.UUID) bool) []string {
 	woerter := suchWoerter(anfrage)
 	var out []string
 	out = append(out, orgTreffer(organisation, woerter)...)
@@ -35,40 +36,59 @@ func (s *Server) suchen(ctx context.Context, agentID, convID uuid.UUID, organisa
 	} else {
 		s.Log.Warn("triage search: the conversation could not be searched", "agent", agentID, "err", err)
 	}
-	out = append(out, s.backlogTreffer(ctx, agentID, woerter)...)
+	out = append(out, s.backlogTreffer(ctx, agentID, woerter, zeigbar)...)
 	return out
 }
 
 /* backlogTreffer: the agent's tasks whose title, result or error carries a
  * word, newest first — also archived ones, which the lists leave out, since
  * "what came of the Globex invoice in spring?" asks exactly for those. It is
- * the agent's own backlog, as the lists are; nothing of another agent. */
-func (s *Server) backlogTreffer(ctx context.Context, agentID uuid.UUID, woerter []string) []string {
+ * the agent's own backlog, as the lists are; nothing of another agent. A
+ * task from a conversation whose content may not be said in this one is
+ * left out, as in the lists (imGespraechZeigbar). */
+func (s *Server) backlogTreffer(ctx context.Context, agentID uuid.UUID, woerter []string,
+	zeigbar func(context.Context, *uuid.UUID) bool) []string {
 	muster := chat.Muster(woerter)
 	if len(muster) == 0 || s.Pool == nil {
 		return nil
 	}
 	rows, err := s.Pool.Query(ctx, `SELECT title, state, updated_at,
-		       CASE WHEN state = 'failed' THEN coalesce(error, '') ELSE coalesce(result, '') END
+		       CASE WHEN state = 'failed' THEN coalesce(error, '') ELSE coalesce(result, '') END,
+		       conversation_id
 		  FROM backlog_tasks
 		 WHERE agent_id = $1
 		   AND (title ILIKE ANY($2::text[]) OR coalesce(result, '') ILIKE ANY($2::text[])
 		        OR coalesce(error, '') ILIKE ANY($2::text[]))
-		 ORDER BY updated_at DESC LIMIT $3`, agentID, muster, suchTreffer)
+		 ORDER BY updated_at DESC LIMIT $3`, agentID, muster, suchTreffer*5)
 	if err != nil {
 		s.Log.Warn("triage search: the backlog could not be searched", "agent", agentID, "err", err)
 		return nil
 	}
 	defer rows.Close()
-	var out []string
+	type treffer struct {
+		titel, zustand, ausgang string
+		wann                    time.Time
+		conv                    *uuid.UUID
+	}
+	var gefunden []treffer
 	for rows.Next() {
-		var titel, zustand, ausgang string
-		var wann time.Time
-		if rows.Scan(&titel, &zustand, &wann, &ausgang) != nil {
+		var t treffer
+		if rows.Scan(&t.titel, &t.zustand, &t.wann, &t.ausgang, &t.conv) != nil {
 			continue
 		}
-		zeile := fmt.Sprintf("your task, %s, %s: %s", wann.Format("2006-01-02"), zustand, titel)
-		if ausgang = strings.TrimSpace(ausgang); ausgang != "" {
+		gefunden = append(gefunden, t)
+	}
+	rows.Close()
+	var out []string
+	for _, t := range gefunden {
+		if len(out) >= suchTreffer {
+			break
+		}
+		if !zeigbar(ctx, t.conv) {
+			continue
+		}
+		zeile := fmt.Sprintf("your task, %s, %s: %s", t.wann.Format("2006-01-02"), t.zustand, t.titel)
+		if ausgang := strings.TrimSpace(t.ausgang); ausgang != "" {
 			zeile += " — outcome: " + ausgang
 		}
 		out = append(out, zeile)

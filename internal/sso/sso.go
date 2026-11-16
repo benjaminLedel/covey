@@ -34,6 +34,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"covey/internal/netguard"
 	"covey/internal/secrets/sealbox"
 )
 
@@ -122,7 +123,8 @@ type Service struct {
 	Box  *sealbox.Box
 	// LookupTXT resolves a DNS TXT record; nil: net.DefaultResolver.
 	LookupTXT func(ctx context.Context, name string) ([]string, error)
-	// HTTP talks to the providers; nil: a client with a timeout.
+	// HTTP talks to the providers; nil: a client with a timeout whose
+	// transport refuses destinations on the host itself (netguard, #692).
 	HTTP *http.Client
 	// ValidRole says whether a role may be handed to a new seat.
 	ValidRole func(string) bool
@@ -132,11 +134,14 @@ func (s *Service) client() *http.Client {
 	if s.HTTP != nil {
 		return s.HTTP
 	}
-	return &http.Client{Timeout: 15 * time.Second}
+	return &http.Client{Timeout: 15 * time.Second, Transport: netguard.Transport()}
 }
 
+// ctx carries the provider client and the netguard mark: the issuer, and the
+// token and key endpoints its discovery document names, are URLs an
+// organisation configured, fetched by the control plane (#692).
 func (s *Service) ctx(ctx context.Context) context.Context {
-	return oidc.ClientContext(ctx, s.client())
+	return oidc.ClientContext(netguard.Guard(ctx), s.client())
 }
 
 func secretAAD(org uuid.UUID) []byte { return []byte("org-sso:secret:" + org.String()) }

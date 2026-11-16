@@ -548,6 +548,8 @@
       "originAgent": "creada por {{slug}}",
       "originHeartbeat": "latido",
       "parentTask": "tarea principal",
+      "redactedTitle": "Tarea de una conversación",
+      "redactedHint": "Esta tarea viene de una conversación en la que no participas. Su texto y su resultado quedan con los miembros de la conversación.",
       "cost": "Coste",
       "costHint": "Lo que ha costado hasta ahora la ejecución de esta tarea, a partir de {{n}} apuntes",
       "costEntries": "de {{n}} apuntes",

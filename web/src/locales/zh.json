@@ -548,6 +548,8 @@
       "originAgent": "由 {{slug}} 创建",
       "originHeartbeat": "心跳",
       "parentTask": "父任务",
+      "redactedTitle": "来自对话的任务",
+      "redactedHint": "此任务来自你未参与的对话。其内容和结果仅对该对话的成员可见。",
       "cost": "成本",
       "costHint": "这个任务的运行迄今花了多少——来自 {{n}} 条记录",
       "costEntries": "来自 {{n}} 条记录",

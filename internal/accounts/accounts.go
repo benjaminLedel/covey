@@ -140,6 +140,47 @@ func (s *Store) Register(ctx context.Context, reg Registration,
 	return a, tx.Commit(ctx)
 }
 
+// TakeOverIn hands an account whose address was never confirmed to whoever
+// has just proven it — an administrator who creates a seat for the address,
+// or the organisation's identity provider signing it in.
+//
+// A self-registration that was not confirmed proves nothing about who holds
+// the mailbox: anybody can register any address. Reusing such an account as
+// it stands would hand the seat to the password its registrant chose, not to
+// the person the seat is meant for. So the account is reset to the state a
+// freshly created one would have: the new password hash (sso.NoPassword for a
+// provider-only login), the address confirmed, and every credential the
+// registrant could still hold — sessions, API keys, device pairings, pending
+// confirmation and reset links — gone. A non-empty displayName replaces the
+// registrant's choice.
+//
+// It runs inside the caller's transaction, after the caller has locked the
+// row, so the take-over and the seat it is for commit together or not at all.
+func TakeOverIn(ctx context.Context, tx pgx.Tx, accountID uuid.UUID, passwordHash, displayName string) error {
+	if _, err := tx.Exec(ctx, `UPDATE accounts SET password_hash=$2, email_verified_at=now(),
+			display_name=COALESCE(NULLIF($3, ''), display_name)
+		WHERE id=$1`, accountID, passwordHash, strings.TrimSpace(displayName)); err != nil {
+		return err
+	}
+	// The seats still carry a copy of the hash from before accounts existed;
+	// it follows the account, as it does when SSO becomes required.
+	if _, err := tx.Exec(ctx, `UPDATE humans SET password_hash=$2 WHERE account_id=$1`,
+		accountID, passwordHash); err != nil {
+		return err
+	}
+	for _, q := range []string{
+		`DELETE FROM http_sessions WHERE account_id=$1`,
+		`DELETE FROM device_pairings WHERE account_id=$1`,
+		`DELETE FROM api_keys WHERE account_id=$1`,
+		`DELETE FROM account_tokens WHERE account_id=$1`,
+	} {
+		if _, err := tx.Exec(ctx, q, accountID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ByEmail reads an account by its address.
 func (s *Store) ByEmail(ctx context.Context, email string) (Account, error) {
 	var a Account

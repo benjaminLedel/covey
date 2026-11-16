@@ -548,6 +548,8 @@
       "originAgent": "utworzone przez {{slug}}",
       "originHeartbeat": "puls",
       "parentTask": "zadanie nadrzędne",
+      "redactedTitle": "Zadanie z rozmowy",
+      "redactedHint": "To zadanie pochodzi z rozmowy, w której nie uczestniczysz. Jego treść i wynik pozostają u uczestników rozmowy.",
       "cost": "Koszt",
       "costHint": "Ile dotąd kosztował przebieg tego zadania — z {{n}} pozycji",
       "costEntries": "z {{n}} pozycji",

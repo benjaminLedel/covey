@@ -885,6 +885,50 @@ func ParseAccess(content string) []SystemAccess {
 	return out
 }
 
+// PlatformSystem is the ACCESS.md system that gives an agent the platform's own
+// actions (covey/create_agent, covey/enable_target, covey/add_egress_host …).
+const PlatformSystem = "covey"
+
+// PlatformAccessAdded reports whether next gives the agent the system covey,
+// or a scope on it, that current does not already hold.
+//
+// Granting that system is a security decision in the same sense as a tool
+// allowlist or an egress host: an agent holding `covey agents:write` can
+// switch target systems on for the organisation and put hosts on a
+// colleague's allowlist. Every path that writes ACCESS.md on behalf of a person
+// asks this one question, so that none of them is the way around the others.
+// Narrowing, or saving an unchanged entry, is not a grant.
+func PlatformAccessAdded(current, next []SystemAccess) bool {
+	isPlatform := func(system string) bool {
+		return strings.EqualFold(strings.TrimSpace(system), PlatformSystem)
+	}
+	held := map[string]bool{}
+	hasEntry := false
+	for _, a := range current {
+		if !isPlatform(a.System) {
+			continue
+		}
+		hasEntry = true
+		for _, sc := range a.Scopes {
+			held[strings.ToLower(strings.TrimSpace(sc))] = true
+		}
+	}
+	for _, a := range next {
+		if !isPlatform(a.System) {
+			continue
+		}
+		if !hasEntry {
+			return true
+		}
+		for _, sc := range a.Scopes {
+			if !held[strings.ToLower(strings.TrimSpace(sc))] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func splitCSV(s string) []string {
 	var out []string
 	for _, part := range strings.Split(s, ",") {

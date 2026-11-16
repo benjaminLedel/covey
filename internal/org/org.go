@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"covey/internal/accounts"
 	"covey/internal/identity"
 )
 
@@ -37,6 +38,13 @@ var (
 	// platform role, belongs to more than this organisation; its owner changes
 	// the password (profile or reset mail), nobody on their behalf (#688).
 	ErrSharedLogin = errors.New("this login is shared with another organisation or holds a platform role; its owner changes the password through the profile or the reset mail")
+	// ErrUnconfirmedLogin: the address belongs to a self-registration that was
+	// never confirmed and already holds a seat elsewhere or a platform role.
+	// It cannot be taken over (that would set the password of a login beyond
+	// this organisation, see ErrSharedLogin) and it cannot be reused (its
+	// registrant never proved the address). Confirming the address, or an
+	// instance administrator, resolves it.
+	ErrUnconfirmedLogin = errors.New("this address belongs to an account that has not confirmed it and is in use beyond this organisation; it has to be confirmed before a seat can be created for it")
 )
 
 type Organization struct {
@@ -270,6 +278,10 @@ func (s *Store) SetPhoto(ctx context.Context, orgID, id uuid.UUID, photo *uuid.U
 // organisation B must not be able to set the password of somebody who works in
 // organisation A. That is why the password is not an update but only a
 // fallback for a login that does not exist yet.
+//
+// "Already has an account" means a CONFIRMED one. A self-registration whose
+// address was never confirmed is no evidence of who holds that mailbox, so it
+// is taken over rather than reused (loginFor).
 func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, displayName, role, passwordHash string, profile Profile) (Human, error) {
 	profile.Identities = NormalizeIdentities(profile.Identities)
 	profile.Custom = NormalizeCustom(profile.Custom)
@@ -282,17 +294,8 @@ func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, display
 	}
 	defer tx.Rollback(ctx)
 
-	var accountID uuid.UUID
-	err = tx.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, email).Scan(&accountID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		// The address counts as confirmed: it comes from an administrator, not
-		// from a self-registration nobody has checked.
-		accountID = uuid.New()
-		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
-			VALUES ($1,$2,$3,$4,now())`, accountID, email, passwordHash, displayName); err != nil {
-			return Human{}, err
-		}
-	} else if err != nil {
+	accountID, err := loginFor(ctx, tx, email, displayName, passwordHash)
+	if err != nil {
 		return Human{}, err
 	}
 
@@ -308,6 +311,48 @@ func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, display
 		return Human{}, err
 	}
 	return h, tx.Commit(ctx)
+}
+
+// loginFor finds or creates the login a seat created by an administrator hangs
+// off, inside the seat's transaction. email is already normalised.
+//
+// Three cases:
+//   - no account: one is created with the supplied password, and the address
+//     counts as confirmed — it comes from an administrator, not from a
+//     self-registration nobody has checked;
+//   - a confirmed account: reused as it is; its password stays (see CreateHuman);
+//   - an account whose address was never confirmed: its registrant has not
+//     shown that the address is theirs, so the account does not belong to
+//     them. Holding nothing else, it is taken over as if it were being
+//     created now (accounts.TakeOverIn); holding a seat elsewhere or a
+//     platform role, it is refused with ErrUnconfirmedLogin.
+func loginFor(ctx context.Context, tx pgx.Tx, email, displayName, passwordHash string) (uuid.UUID, error) {
+	var (
+		accountID        uuid.UUID
+		verified, shared bool
+	)
+	err := tx.QueryRow(ctx, `SELECT a.id, a.email_verified_at IS NOT NULL,
+			a.platform_role <> 'user' OR EXISTS (SELECT 1 FROM humans h WHERE h.account_id = a.id)
+		FROM accounts a WHERE a.email=$1 FOR UPDATE OF a`, email).Scan(&accountID, &verified, &shared)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		accountID = uuid.New()
+		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+			VALUES ($1,$2,$3,$4,now())`, accountID, email, passwordHash, displayName); err != nil {
+			return uuid.Nil, err
+		}
+		return accountID, nil
+	case err != nil:
+		return uuid.Nil, err
+	case verified:
+		return accountID, nil
+	case shared:
+		return uuid.Nil, ErrUnconfirmedLogin
+	}
+	if err := accounts.TakeOverIn(ctx, tx, accountID, passwordHash, displayName); err != nil {
+		return uuid.Nil, err
+	}
+	return accountID, nil
 }
 
 // AddMember gives an existing account a seat in an organisation — how the
@@ -670,18 +715,11 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 func createFirstAdmin(ctx context.Context, tx pgx.Tx, orgID uuid.UUID, adminEmail, adminName, adminPasswordHash string) error {
 	// The admin's login: an existing account keeps its password (the person
 	// already works somewhere and simply gains a seat), otherwise one is
-	// created — see CreateHuman for why the supplied password is only ever a
-	// fallback and never an update.
+	// created — see CreateHuman and loginFor for why the supplied password is
+	// only ever a fallback and never an update.
 	adminEmail = strings.ToLower(strings.TrimSpace(adminEmail))
-	var accountID uuid.UUID
-	err := tx.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, adminEmail).Scan(&accountID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		accountID = uuid.New()
-		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
-			VALUES ($1,$2,$3,$4,now())`, accountID, adminEmail, adminPasswordHash, adminName); err != nil {
-			return err
-		}
-	} else if err != nil {
+	accountID, err := loginFor(ctx, tx, adminEmail, adminName, adminPasswordHash)
+	if err != nil {
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)

@@ -26,8 +26,9 @@ import (
 // existing config versions carry them.
 
 // errNeedsSecurityRole: the principal wants to change something via text edit
-// that only security roles may change through the UI (tools, egress).
-var errNeedsSecurityRole = errors.New("only org_admin or security may change tool assignment and egress")
+// that only security roles may change through the UI (tools, egress), or give
+// the agent the system covey.
+var errNeedsSecurityRole = errors.New("only org_admin or security may change tool assignment and egress, or give an agent the system covey")
 
 // overlayLiveFiles turns a stored config version into the state that REALLY
 // RUNS: ACCESS.md and EGRESS.md are rendered out of the stores and overwrite
@@ -223,13 +224,27 @@ func parseEgressFile(content string) egressSpec {
 
 // prepareConfigApply validates ACCESS.md/EGRESS.md and returns the
 // write-through into the UI stores. Without a security role, text edits to
-// tools and egress are forbidden (the same RBAC as the tabs) — unchanged files
-// may be saved along at any time, though.
+// tools and egress are forbidden (the same RBAC as the tabs), and so is giving
+// the agent the system covey — unchanged files may be saved along at any time,
+// though.
 func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUID, files map[string]string, canSecurity bool) (func(context.Context) error, error) {
 	// If a file is missing from the request entirely, its area stays untouched —
 	// an omitted EGRESS.md means "no change", not "delete everything".
 	accessContent, hasAccess := files["ACCESS.md"]
 	egressContent, hasEgress := files["EGRESS.md"]
+
+	// Giving the agent the system covey (or a new scope on it) is checked
+	// apart from the stores below: it does not depend on the target store
+	// being wired, and it is the grant with which an agent changes egress
+	// and target activation itself.
+	platformAdded := false
+	if hasAccess {
+		current, err := s.Registry.Accesses(ctx, agentID)
+		if err != nil {
+			return nil, err
+		}
+		platformAdded = agents.PlatformAccessAdded(current, agents.ParseAccess(accessContent))
+	}
 
 	// Stores that are not wired up (e.g. test setups) → the area drops out.
 	if s.Targets == nil {
@@ -302,7 +317,7 @@ func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUI
 			toolsChanged = true
 		}
 	}
-	if (egressChanged || toolsChanged) && !canSecurity {
+	if (egressChanged || toolsChanged || platformAdded) && !canSecurity {
 		return nil, errNeedsSecurityRole
 	}
 

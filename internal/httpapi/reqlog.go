@@ -6,13 +6,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"covey/internal/accounts"
 	"covey/internal/agents"
+	"covey/internal/identity"
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 )
@@ -68,7 +71,7 @@ func (s *Server) logIncoming(next http.HandlerFunc) http.HandlerFunc {
 			Direction:  reqlog.DirectionIn,
 			System:     reqlog.SystemFromPath(r.URL.Path),
 			Method:     r.Method,
-			URL:        reqlog.RedactURL(r.URL),
+			URL:        reqlog.RedactURL(redactTokenPath(r.URL)),
 			Status:     rec.status,
 			DurationMS: time.Since(start).Milliseconds(),
 			ReqBytes:   int64(len(body)),
@@ -154,6 +157,44 @@ func noteWebhookAgent(r *http.Request, a agents.Agent) {
 	m.orgID, m.agentID = &orgID, &agentID
 }
 
+// noteIncomingOrg records the organisation a request was resolved to when
+// there is no agent behind it (a workflow's door, a Teams bot that has not
+// routed yet). An entry without an organisation is visible to the
+// installation's system_admin only, so every request that names a tenant's
+// address has to carry that tenant.
+func noteIncomingOrg(r *http.Request, orgID uuid.UUID) {
+	if m, _ := r.Context().Value(incomingMetaKey).(*incomingMeta); m != nil {
+		m.orgID = &orgID
+	}
+}
+
+// tokenPaths are the incoming routes whose last path segment is the bearer
+// secret itself. RedactURL only knows query parameters; these are cut here.
+var tokenPaths = []string{"/api/trigger/workflows/", "/api/trigger/"}
+
+// redactTokenPath replaces the token in a trigger URL's path, so that the log
+// keeps which door was knocked on but not the key.
+func redactTokenPath(u *url.URL) *url.URL {
+	if u == nil {
+		return nil
+	}
+	for _, prefix := range tokenPaths {
+		if rest, ok := strings.CutPrefix(u.Path, prefix); ok && rest != "" {
+			clone := *u
+			clone.Path = prefix + "***"
+			clone.RawPath = clone.Path // keeps "***" unescaped in String()
+			return &clone
+		}
+	}
+	return u
+}
+
+// reqlogScope is what the caller may see of the request log: its own
+// organisation's entries, and the unattributed ones only as system_admin.
+func reqlogScope(p identity.Principal) reqlogstore.Scope {
+	return reqlogstore.Scope{OrgID: p.OrgID, Unattributed: p.PlatformRole == accounts.RoleSystemAdmin}
+}
+
 // --- API: /api/v1/platform/requests ---
 
 // handleListRequests — GET /api/v1/platform/requests: the most recent requests,
@@ -180,12 +221,12 @@ func (s *Server) handleListRequests(w http.ResponseWriter, r *http.Request) {
 	f.BeforeID, _ = strconv.ParseInt(q.Get("before"), 10, 64)
 	f.Limit, _ = strconv.Atoi(q.Get("limit"))
 
-	entries, err := s.ReqLog.List(r.Context(), p.OrgID, f)
+	entries, err := s.ReqLog.List(r.Context(), reqlogScope(p), f)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	systems, err := s.ReqLog.Systems(r.Context(), p.OrgID)
+	systems, err := s.ReqLog.Systems(r.Context(), reqlogScope(p))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -212,7 +253,7 @@ func (s *Server) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	entry, err := s.ReqLog.Get(r.Context(), principalFrom(r).OrgID, id)
+	entry, err := s.ReqLog.Get(r.Context(), reqlogScope(principalFrom(r)), id)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -226,7 +267,7 @@ func (s *Server) handleClearRequests(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "request log is switched off")
 		return
 	}
-	n, err := s.ReqLog.Clear(r.Context(), principalFrom(r).OrgID)
+	n, err := s.ReqLog.Clear(r.Context(), reqlogScope(principalFrom(r)))
 	if err != nil {
 		mapErr(w, err)
 		return

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, type Principal } from "../api";
+import { api, istSystemAdmin, post, type Principal } from "../api";
 
 // Platform diagnostics: what a restart would check here, and which agent
 // configs have to catch up after an upgrade.
@@ -38,8 +38,10 @@ type AgentFindings = {
    heading — the same rule as for the audit. */
 export default function Diagnostics({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
-  // org_admin: the old name platform_admin has not been one since 0061.
-  const isAdmin = me.Role === "org_admin";
+  /* The doctor reads the whole installation, not this organisation, so it
+     is shown to whoever administers the installation. The config lint below
+     stays with the organisation. */
+  const isAdmin = istSystemAdmin(me);
 
   const qc = useQueryClient();
   /* The one line the platform cannot handle itself: whether the block

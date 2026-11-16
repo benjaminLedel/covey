@@ -203,3 +203,48 @@ func TestAbsoluterLinkWirdNichtVerfolgt(t *testing.T) {
 		t.Error("der Link fehlt in der Auflistung")
 	}
 }
+
+// The space gauge walks repos/ — a directory the agent controls. A repos that
+// is a link, relative or absolute, must not make it list and measure what lies
+// beside the home (on a runner: the homes of other agents).
+func TestUsageDoesNotFollowAReposLink(t *testing.T) {
+	for name, target := range map[string]func(home string) string{
+		"relative": func(string) string { return ".." },
+		"absolute": func(home string) string { return filepath.Dir(home) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs, home, _ := aufbau(t)
+			// A sibling home with a checkout, as a runner's homes directory has.
+			if err := os.MkdirAll(filepath.Join(filepath.Dir(home), "other-home", "repos"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			link(t, target(home), filepath.Join(home, "repos"))
+
+			u := fs.Usage()
+			if !u.Exists {
+				t.Fatal("the home reports that it does not exist")
+			}
+			if len(u.Checkouts) != 0 || u.CheckoutBytes != 0 {
+				t.Errorf("Usage followed repos out of the home: %+v (%d bytes)", u.Checkouts, u.CheckoutBytes)
+			}
+		})
+	}
+}
+
+// Inside a real repos/, a checkout that is a link out of the home is not
+// measured either.
+func TestUsageDoesNotMeasureACheckoutLink(t *testing.T) {
+	fs, home, geheimnis := aufbau(t)
+	if err := os.MkdirAll(filepath.Join(home, "repos", "real"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "repos", "real", "a"), []byte("12345"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link(t, filepath.Dir(geheimnis), filepath.Join(home, "repos", "outside"))
+
+	u := fs.Usage()
+	if len(u.Checkouts) != 1 || u.Checkouts[0].Name != "real" || u.CheckoutBytes != 5 {
+		t.Errorf("checkouts are %+v (%d bytes), expected only real/ with 5 bytes", u.Checkouts, u.CheckoutBytes)
+	}
+}

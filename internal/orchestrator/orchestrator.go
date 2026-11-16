@@ -868,6 +868,12 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+	// The URL is the organisation's; the request is the control plane's (#692).
+	cctx, err = orgURLContext(cctx, cred.BaseURL)
+	if err != nil {
+		o.Log.Warn("nur-wenn: check failed — firing anyway", "system", system, "kind", kind, "err", err)
+		return true, ""
+	}
 	// The work check is a target-system request made from the control plane —
 	// with an agent sink so it is attributable in the request log instead of
 	// anonymous.

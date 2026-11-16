@@ -142,6 +142,14 @@ func (s *Store) Verify(ctx context.Context, token string) (Account, error) {
 // Every other reset token of this account dies with it. A second, older link
 // lying in the same mailbox must not still be able to change the password
 // after the first one has.
+//
+// So does every credential the old password stood behind: browser sessions,
+// API keys and device pairings. A reset is how somebody gets an account back,
+// and from the inside nobody can tell a forgotten password from a stolen one.
+// A session or a key minted by whoever held the old password would otherwise
+// outlive the reset that was meant to lock them out. The price is that the
+// holder signs in again and re-issues the keys they still want, which is what
+// the key list is for.
 func (s *Store) ResetPassword(ctx context.Context, token, passwordHash string) (Account, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -163,6 +171,15 @@ func (s *Store) ResetPassword(ctx context.Context, token, passwordHash string) (
 		 WHERE account_id=$1 AND purpose=$2 AND used_at IS NULL`,
 		accountID, PurposeReset); err != nil {
 		return Account{}, err
+	}
+	for _, q := range []string{
+		`DELETE FROM http_sessions WHERE account_id=$1`,
+		`DELETE FROM device_pairings WHERE account_id=$1`,
+		`DELETE FROM api_keys WHERE account_id=$1`,
+	} {
+		if _, err := tx.Exec(ctx, q, accountID); err != nil {
+			return Account{}, err
+		}
 	}
 	acc, err := byID(ctx, tx, accountID)
 	if err != nil {

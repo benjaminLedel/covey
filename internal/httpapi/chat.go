@@ -109,6 +109,9 @@ type offenerVorgang struct {
 	Origin  string    `json:"origin"`
 	Created time.Time `json:"created_at"`
 	Updated time.Time `json:"updated_at"`
+	// Redacted: opened in a conversation the reader is not in, and shown
+	// without its title (conversationtasks.go).
+	Redacted bool `json:"redacted,omitempty"`
 }
 
 // chatMark is one emoji on one task, already grouped: wie oft, und ob ich
@@ -231,7 +234,7 @@ func (s *Server) handleThread(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	out.Tasks, err = s.offeneVorgaenge(r.Context(), id)
+	out.Tasks, err = s.offeneVorgaenge(r.Context(), id, s.gespraechsLeser(p))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -369,9 +372,9 @@ offeneVorgaenge sind die Vorgänge, die noch laufen — das, was nach einer
 * Tisch hat, ist der Grund, warum er auf das hier noch nicht gekommen ist. Die
 * Herkunft steht daneben, damit man das eigene wiedererkennt.
 */
-func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID) ([]offenerVorgang, error) {
+func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID, leser *gespraechsLeser) ([]offenerVorgang, error) {
 	rows, err := s.Pool.Query(ctx,
-		`SELECT id, title, state, origin, created_at, updated_at
+		`SELECT id, title, state, origin, created_at, updated_at, conversation_id
 		   FROM backlog_tasks
 		  WHERE agent_id=$1 AND archived_at IS NULL
 		    AND state IN ('open','in_progress','blocked')
@@ -383,14 +386,30 @@ func (s *Server) offeneVorgaenge(ctx context.Context, agentID uuid.UUID) ([]offe
 	}
 	defer rows.Close()
 	out := []offenerVorgang{}
+	var convs []*uuid.UUID
 	for rows.Next() {
 		var v offenerVorgang
-		if err := rows.Scan(&v.ID, &v.Title, &v.State, &v.Origin, &v.Created, &v.Updated); err != nil {
+		var conv *uuid.UUID
+		if err := rows.Scan(&v.ID, &v.Title, &v.State, &v.Origin, &v.Created, &v.Updated, &conv); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
+		convs = append(convs, conv)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	/* The backlog is shared, a conversation is not (conversationtasks.go):
+	   a task opened in somebody else's conversation shows here as a task,
+	   without its title. */
+	for i := range out {
+		if !leser.liest(ctx, convs[i]) {
+			out[i].Title = backlog.RedactedTitle
+			out[i].Redacted = true
+		}
+	}
+	return out, nil
 }
 
 // marksOf collects the reactions of every task in the thread and groups them
@@ -605,6 +624,12 @@ func sprecherVon(p identity.Principal) sprecher {
 	return sprecher{id: p.ID, email: p.Email, role: p.Role}
 }
 
+// als is the speaker as the principal the answer rules ask about
+// (darfAntworten): the triage acts on the backlog in their name.
+func (w sprecher) als(orgID uuid.UUID) identity.Principal {
+	return identity.Principal{OrgID: orgID, ID: w.id, Email: w.email, Role: w.role}
+}
+
 // angenommen is what became of a message: the message, the tasks opened
 // without triage, and whether a triage still owes it a decision.
 type angenommen struct {
@@ -737,7 +762,7 @@ func (s *Server) annehmen(ctx context.Context, conv chat.Conversation, wer sprec
 	if chat.SaidInCall(msg) && len(agenten) == 1 {
 		s.gesprochen.oeffnen(msg.ID, conv.ID)
 	}
-	go s.triageLauf(conv, agenten, msg, wer.email, lang)
+	go s.triageLauf(conv, agenten, msg, wer.als(conv.OrgID), lang)
 	for _, agentID := range agenten {
 		s.chatEreignis(conv.OrgID, agentID, conv.ID, "thinking", nil)
 	}
@@ -819,7 +844,7 @@ const triageLaufFrist = 90 * time.Second
  * Was er nicht darf, ist still enden: Eine angenommene Nachricht, zu der nie
  * etwas kommt, ist schlimmer als eine überflüssige Aufgabe.
  */
-func (s *Server) triageLauf(conv chat.Conversation, agenten []uuid.UUID, msg chat.Message, email, lang string) {
+func (s *Server) triageLauf(conv chat.Conversation, agenten []uuid.UUID, msg chat.Message, wer identity.Principal, lang string) {
 	ctx, abbrechen := context.WithTimeout(context.Background(), triageLaufFrist*time.Duration(len(agenten)))
 	defer abbrechen()
 	// The spoken reply streamed (#529) ends with the turn, its message written.
@@ -835,11 +860,11 @@ func (s *Server) triageLauf(conv chat.Conversation, agenten []uuid.UUID, msg cha
 	var ereignisse []ereignis
 	zustand := chat.StateDone
 	for _, agentID := range agenten {
-		entscheidung, offen, grund := s.triagieren(ctx, conv, agentID, msg, email)
+		entscheidung, offen, grund := s.triagieren(ctx, conv, agentID, msg, wer)
 		if a, err := s.Registry.Get(ctx, agentID); err == nil {
 			entscheidung = entscheidungFuer(a.Slug, entscheidung)
 		}
-		ergebnis, daten, err := s.entscheidungAnwenden(ctx, conv, agentID, msg, entscheidung, offen, email, lang)
+		ergebnis, daten, err := s.entscheidungAnwenden(ctx, conv, agentID, msg, entscheidung, offen, wer, lang)
 		/* Why there was no answer (#416): a triage that failed became a task in
 		   silence, and the reason stood only in the server log. It goes onto the
 		   task as a triage note — visible at the task, kept out of the thread. */
@@ -880,8 +905,10 @@ func (s *Server) entscheidungAnwenden(
 	msg chat.Message,
 	entscheidung chat.Entscheidung,
 	offen map[string]uuid.UUID,
-	email, lang string,
+	wer identity.Principal,
+	lang string,
 ) (string, map[string]string, error) {
+	email := wer.Email
 	/* A change to the agent's own configuration (#491): drafted and stored
 	   as a proposal a person accepts — offered only while the organisation
 	   has the trial on (triagieren turns it into a task otherwise). */
@@ -894,6 +921,15 @@ func (s *Server) entscheidungAnwenden(
 	   Antwort von Hand. */
 	if entscheidung.Aktion == chat.AktionNotiz {
 		ziel, bekannt := offen[entscheidung.Aufgabe]
+		/* Asked again here, not only when the list was built: the note
+		   answers the task in the writer's name, and the answer route asks
+		   the same (darfAntworten) — the task may have moved meanwhile, and
+		   a decision is never trusted for more than it was shown. */
+		if bekannt {
+			t, err := s.Backlog.Get(ctx, ziel)
+			bekannt = err == nil && t.AgentID == agentID &&
+				s.notizZiel(ctx, wer, s.imGespraechZeigbar(conv), t)
+		}
 		if !bekannt {
 			/* Eine Kennung, die es nicht gibt: Das Modell hat sich eine
 			   ausgedacht, und dann ist es eine neue Aufgabe — nie eine
@@ -1064,8 +1100,8 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 		if err != nil || m.AuthorID == nil {
 			continue
 		}
-		var email string
-		if err := s.Pool.QueryRow(ctx, `SELECT email FROM humans WHERE id = $1`, *m.AuthorID).Scan(&email); err != nil {
+		wer := identity.Principal{OrgID: conv.OrgID, ID: *m.AuthorID}
+		if err := s.Pool.QueryRow(ctx, `SELECT email, role FROM humans WHERE id = $1`, *m.AuthorID).Scan(&wer.Email, &wer.Role); err != nil {
 			continue
 		}
 		var bezug *chat.Message
@@ -1084,7 +1120,7 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 		s.Log.Info("finishing chat triage left over from a restart", "message", m.ID, "conversation", conv.ID)
 		/* The language of the request is gone with the restart; the brief
 		   frame then reads in English, which every playbook reads. */
-		go s.triageLauf(conv, agenten, m, email, "")
+		go s.triageLauf(conv, agenten, m, wer, "")
 	}
 }
 
@@ -1101,8 +1137,9 @@ func (s *Server) NachholenOffeneTriage(ctx context.Context) {
 // writes; a search reaches further into both. That is prompt context and not
 // tool calls: the turn is one JSON decision, and a backlog read costs no
 // credential and leaves nothing.
-func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID uuid.UUID, msg chat.Message, email string) (chat.Entscheidung, map[string]uuid.UUID, string) {
+func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID uuid.UUID, msg chat.Message, wer identity.Principal) (chat.Entscheidung, map[string]uuid.UUID, string) {
 	aufgabe := chat.Entscheidung{Aktion: chat.AktionAufgabe}
+	email := wer.Email
 
 	mode, err := s.Chat.Mode(ctx, conv.OrgID)
 	if err != nil || mode != chat.TriageOn {
@@ -1123,8 +1160,12 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 		s.Log.Warn("triage: the conversation could not be read — the message becomes a task", "agent", agentID, "err", err)
 		return aufgabe, nil, "the conversation could not be read: " + err.Error()
 	}
-	liste, nach := s.offeneAufgaben(ctx, agentID)
-	fertig := s.fertigeAufgaben(ctx, agentID)
+	/* What the turn is shown of the backlog it may say here, and a task
+	   it may write a note onto is one the writer may answer
+	   (conversationtasks.go). */
+	zeigbar := s.imGespraechZeigbar(conv)
+	liste, nach := s.offeneAufgaben(ctx, agentID, wer, zeigbar)
+	fertig := s.fertigeAufgaben(ctx, agentID, zeigbar)
 	rahmen := chat.Rahmen{
 		Rolle: s.rolleVon(ctx, agentID), Seele: s.seeleVon(ctx, agentID),
 		Gegenueber: s.gegenueberVon(ctx, conv.OrgID, email),
@@ -1171,7 +1212,7 @@ func (s *Server) triagieren(ctx context.Context, conv chat.Conversation, agentID
 	}
 	e, err := zug(nil)
 	if err == nil && e.Aktion == chat.AktionSuche {
-		treffer := s.suchen(ctx, agentID, conv.ID, organisation, e.Anfrage)
+		treffer := s.suchen(ctx, agentID, conv.ID, organisation, e.Anfrage, zeigbar)
 		e, err = zug(&chat.Suche{Anfrage: e.Anfrage, Treffer: treffer})
 		if err == nil && e.Aktion == chat.AktionSuche {
 			err = errors.New("the model asked to search a second time")
@@ -1277,7 +1318,12 @@ func entscheidungFuer(slug string, e chat.Entscheidung) chat.Entscheidung {
 // Zuordnung zurück und wird nicht aus dem Text wieder aufgelöst: Was das
 // Modell sagt, wird nie zu einer Kennung, die irgendwo hinzeigt, die es sich
 // nicht selbst hat zeigen lassen.
-func (s *Server) offeneAufgaben(ctx context.Context, agentID uuid.UUID) ([]chat.Offen, map[string]uuid.UUID) {
+//
+// Only tasks a note may go onto (notizZiel): one the writer may answer, whose
+// title may be said in this conversation. A note answers a parked task in the
+// writer's name, and the answer route refuses whoever darfAntworten refuses.
+func (s *Server) offeneAufgaben(ctx context.Context, agentID uuid.UUID, wer identity.Principal,
+	zeigbar func(context.Context, *uuid.UUID) bool) ([]chat.Offen, map[string]uuid.UUID) {
 	tasks, err := s.Backlog.ListByAgent(ctx, agentID, false)
 	if err != nil {
 		return nil, nil
@@ -1288,6 +1334,9 @@ func (s *Server) offeneAufgaben(ctx context.Context, agentID uuid.UUID) ([]chat.
 		switch t.State {
 		case backlog.StateOpen, backlog.StateInProgress, backlog.StateBlocked:
 		default:
+			continue
+		}
+		if !s.notizZiel(ctx, wer, zeigbar, t) {
 			continue
 		}
 		kurz := t.ID.String()[:4]
@@ -1322,24 +1371,43 @@ fertigeAufgaben ist der zweite Teil des eigenen Blicks: was zuletzt fertig
 * Das Archiv bleibt draußen: Was jemand weggelegt hat, ist aus dem Gespräch
 * heraus — dieselbe Grenze wie im Verlauf.
 */
-func (s *Server) fertigeAufgaben(ctx context.Context, agentID uuid.UUID) []chat.Fertig {
+//
+// Tasks from conversations whose content may not be said here are left out
+// (imGespraechZeigbar) before the limit, so that the five are five that count.
+func (s *Server) fertigeAufgaben(ctx context.Context, agentID uuid.UUID, zeigbar func(context.Context, *uuid.UUID) bool) []chat.Fertig {
 	rows, err := s.Pool.Query(ctx,
-		`SELECT title, state, coalesce(result,''), coalesce(error,''), updated_at
+		`SELECT title, state, coalesce(result,''), coalesce(error,''), updated_at, conversation_id
 		   FROM backlog_tasks
 		  WHERE agent_id=$1 AND state IN ('done','failed') AND archived_at IS NULL
-		  ORDER BY updated_at DESC LIMIT $2`, agentID, triageFertig)
+		  ORDER BY updated_at DESC LIMIT $2`, agentID, triageFertigFenster)
 	if err != nil {
 		return nil
 	}
 	defer rows.Close()
-	var out []chat.Fertig
+	type zeile struct {
+		f                chat.Fertig
+		ergebnis, fehler string
+		wann             time.Time
+		conv             *uuid.UUID
+	}
+	var zeilen []zeile
 	for rows.Next() {
-		var f chat.Fertig
-		var ergebnis, fehler string
-		var wann time.Time
-		if err := rows.Scan(&f.Titel, &f.Ausgang, &ergebnis, &fehler, &wann); err != nil {
-			return out
+		var z zeile
+		if err := rows.Scan(&z.f.Titel, &z.f.Ausgang, &z.ergebnis, &z.fehler, &z.wann, &z.conv); err != nil {
+			break
 		}
+		zeilen = append(zeilen, z)
+	}
+	rows.Close()
+	var out []chat.Fertig
+	for _, z := range zeilen {
+		if len(out) >= triageFertig {
+			break
+		}
+		if !zeigbar(ctx, z.conv) {
+			continue
+		}
+		f, ergebnis, fehler, wann := z.f, z.ergebnis, z.fehler, z.wann
 		f.Alter = alter(wann)
 		// A chat answer from a call keeps its spoken form in its result (#502).
 		f.Ergebnis, _, _ = chat.SplitSpoken(ergebnis)
@@ -1361,6 +1429,10 @@ func (s *Server) fertigeAufgaben(ctx context.Context, agentID uuid.UUID) []chat.
 // letzte Arbeitstag eines Agenten; mehr wäre ein Bericht, und ein Bericht
 // gehört in den Backlog, nicht in einen Prompt, der bei jeder Nachricht läuft.
 const triageFertig = 5
+
+// triageFertigFenster: how many finished tasks are read to find those five
+// among tasks from other conversations.
+const triageFertigFenster = 50
 
 // triageAufgaben: wie viele offene Vorgänge der Zug zu sehen bekommt. Ein
 // Agent mit zweihundert offenen Aufgaben hat ein anderes Problem als die

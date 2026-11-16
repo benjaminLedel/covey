@@ -73,6 +73,17 @@ type Filter struct {
 	Limit     int
 }
 
+// Scope says whose entries a reader sees and clears. An organisation sees its
+// own entries only. Entries without an organisation — a webhook to an unknown
+// address, a call the control plane makes for no tenant — belong to no tenant
+// and are shown to the installation's system_admin alone.
+type Scope struct {
+	OrgID uuid.UUID
+	// Unattributed adds the entries without an organisation. Set it only for
+	// a principal with platform_role system_admin.
+	Unattributed bool
+}
+
 // Store writes and reads the request log.
 type Store struct {
 	pool *pgxpool.Pool
@@ -179,9 +190,8 @@ func (s *Store) prune(ctx context.Context) {
 }
 
 // List returns entries, newest first, without bodies (those come with the
-// detail view). Visible are the entries of one's own organization plus those
-// without an organization reference — a rejected webhook has none.
-func (s *Store) List(ctx context.Context, orgID uuid.UUID, f Filter) ([]View, error) {
+// detail view), restricted to the scope.
+func (s *Store) List(ctx context.Context, sc Scope, f Filter) ([]View, error) {
 	if f.Limit <= 0 || f.Limit > 500 {
 		f.Limit = 100
 	}
@@ -189,7 +199,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID, f Filter) ([]View, er
 	             l.direction, l.system, l.method, l.url, l.status, l.duration_ms,
 	             l.req_bytes, l.resp_bytes, l.error, l.remote
 	      FROM request_log l LEFT JOIN agents a ON a.id = l.agent_id
-	      WHERE (l.org_id IS NULL OR l.org_id = $1)
+	      WHERE (l.org_id = $1 OR ($9 AND l.org_id IS NULL))
 	        AND ($2 = '' OR l.direction = $2)
 	        AND ($3 = '' OR l.system = $3)
 	        AND ($4::uuid IS NULL OR l.agent_id = $4)
@@ -197,8 +207,8 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID, f Filter) ([]View, er
 	        AND ($6 = '' OR l.url ILIKE '%' || $6 || '%' OR l.error ILIKE '%' || $6 || '%')
 	        AND ($7 = 0 OR l.id < $7)
 	      ORDER BY l.id DESC LIMIT $8`
-	rows, err := s.pool.Query(ctx, q, orgID, f.Direction, f.System, f.AgentID,
-		f.OnlyBad, strings.TrimSpace(f.Query), f.BeforeID, f.Limit)
+	rows, err := s.pool.Query(ctx, q, sc.OrgID, f.Direction, f.System, f.AgentID,
+		f.OnlyBad, strings.TrimSpace(f.Query), f.BeforeID, f.Limit, sc.Unattributed)
 	if err != nil {
 		return nil, err
 	}
@@ -216,14 +226,14 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID, f Filter) ([]View, er
 	return out, rows.Err()
 }
 
-// Get returns an entry including bodies, org-scoped like List.
-func (s *Store) Get(ctx context.Context, orgID uuid.UUID, id int64) (View, error) {
+// Get returns an entry including bodies, scoped like List.
+func (s *Store) Get(ctx context.Context, sc Scope, id int64) (View, error) {
 	var v View
 	err := s.pool.QueryRow(ctx, `SELECT l.id, l.created_at, l.org_id, l.agent_id, COALESCE(a.slug,''), l.task_id,
 	        l.direction, l.system, l.method, l.url, l.status, l.duration_ms,
 	        l.req_bytes, l.resp_bytes, l.error, l.remote, l.req_body, l.resp_body
 	      FROM request_log l LEFT JOIN agents a ON a.id = l.agent_id
-	      WHERE l.id = $2 AND (l.org_id IS NULL OR l.org_id = $1)`, orgID, id).
+	      WHERE l.id = $2 AND (l.org_id = $1 OR ($3 AND l.org_id IS NULL))`, sc.OrgID, id, sc.Unattributed).
 		Scan(&v.ID, &v.CreatedAt, &v.OrgID, &v.AgentID, &v.AgentSlug, &v.TaskID,
 			&v.Direction, &v.System, &v.Method, &v.URL, &v.Status, &v.DurationMS,
 			&v.ReqBytes, &v.RespBytes, &v.Error, &v.Remote, &v.ReqBody, &v.RespBody)
@@ -234,9 +244,10 @@ func (s *Store) Get(ctx context.Context, orgID uuid.UUID, id int64) (View, error
 
 // Systems returns the target-system names occurring in the log — the UI derives
 // its filter from that instead of keeping a list of its own.
-func (s *Store) Systems(ctx context.Context, orgID uuid.UUID) ([]string, error) {
+func (s *Store) Systems(ctx context.Context, sc Scope) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT system FROM request_log
-		WHERE (org_id IS NULL OR org_id = $1) AND system <> '' ORDER BY system`, orgID)
+		WHERE (org_id = $1 OR ($2 AND org_id IS NULL)) AND system <> '' ORDER BY system`,
+		sc.OrgID, sc.Unattributed)
 	if err != nil {
 		return nil, err
 	}
@@ -252,10 +263,11 @@ func (s *Store) Systems(ctx context.Context, orgID uuid.UUID) ([]string, error) 
 	return out, rows.Err()
 }
 
-// Clear empties the organization's log (including the entries without an org
-// reference).
-func (s *Store) Clear(ctx context.Context, orgID uuid.UUID) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM request_log WHERE org_id IS NULL OR org_id = $1`, orgID)
+// Clear empties the log within the scope: the organisation's entries, and the
+// ones without an organisation only when the scope includes them.
+func (s *Store) Clear(ctx context.Context, sc Scope) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM request_log
+		WHERE org_id = $1 OR ($2 AND org_id IS NULL)`, sc.OrgID, sc.Unattributed)
 	return tag.RowsAffected(), err
 }
 
