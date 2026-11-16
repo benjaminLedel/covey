@@ -60,6 +60,24 @@ type coveyOp struct {
 	// (spec/21). An organisation can forbid the subject outright as well;
 	// looser than this is not possible.
 	AlwaysApprove bool
+	// SecurityOwned: the op changes state whose HTTP route is reserved for
+	// org_admin and security (egress allowlists, the organisation's target
+	// activation). An approval for it is therefore decided only by those
+	// roles — otherwise a require_approval rule would hand the decision to
+	// whoever can task the agent, which is the role the route keeps out.
+	SecurityOwned bool
+}
+
+// SecurityOwnedApproval reports whether an approval with this action asks
+// for a change only org_admin or security may make directly, so that only
+// they may decide it (handleDecideApproval).
+func SecurityOwnedApproval(action string) bool {
+	for _, op := range coveyOps {
+		if op.SecurityOwned && (action == op.Subject || strings.HasPrefix(action, op.Subject+":")) {
+			return true
+		}
+	}
+	return false
 }
 
 // coveyOps are the ops and their subjects. Everything an agent may do towards
@@ -75,8 +93,8 @@ var coveyOps = map[string]coveyOp{
 	// organisation has not switched on yet, and a host on its egress allowlist.
 	// Without them the People department drafts an ACCESS.md that names a
 	// system nobody enabled and hands the rest back to a human as a checklist.
-	"enable_target":   {Subject: "covey:enable_target", Scopes: []string{scopeWrite}},
-	"add_egress_host": {Subject: "covey:add_egress_host", Scopes: []string{scopeWrite}},
+	"enable_target":   {Subject: "covey:enable_target", Scopes: []string{scopeWrite}, SecurityOwned: true},
+	"add_egress_host": {Subject: "covey:add_egress_host", Scopes: []string{scopeWrite}, SecurityOwned: true},
 	// To READ a colleague's config both sides are needed: whoever drafts, to hit
 	// the house style, and whoever reviews, to know what he
 	// judges (spec/21).

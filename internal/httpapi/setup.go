@@ -24,6 +24,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/daemon"
+	"covey/internal/identity"
 	"covey/internal/llm"
 )
 
@@ -212,6 +213,18 @@ func (s *Server) handleSetupPeople(w http.ResponseWriter, r *http.Request) {
 
 	if existing, err := s.Registry.GetBySlug(ctx, p.OrgID, peopleSlug); err == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"agent": existing, "existed": true})
+		return
+	}
+
+	// The People department ships with `- system: covey scope: agents:write`,
+	// and that grant is a security role's (spec/02, spec/20): with it an agent
+	// switches target systems on and widens colleagues' egress. A People
+	// department without it could not draft anybody, so it is not created in
+	// a reduced form — the seat that runs setup in a new organisation is its
+	// org_admin, and anyone else is told who can do it.
+	if p.Role != identity.RoleOrgAdmin && p.Role != identity.RoleSecurity {
+		writeErr(w, http.StatusForbidden,
+			"the People department holds the system covey — only org_admin or security may create it")
 		return
 	}
 

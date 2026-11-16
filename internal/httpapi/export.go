@@ -628,9 +628,10 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// RBAC as at the individual endpoints: guard rails, egress and tool
-	// allowlists are only changed by security roles — being contained in the
-	// bundle means 403 for other roles, not silent skipping.
+	// RBAC as at the individual endpoints: guard rails, egress, tool
+	// allowlists and the system covey are only granted by security roles —
+	// being contained in the bundle means 403 for other roles, not silent
+	// skipping.
 	canSecurity := p.Role == identity.RoleOrgAdmin || p.Role == identity.RoleSecurity
 	if !canSecurity {
 		var restricted []string
@@ -641,11 +642,16 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			len(parseEgressFile(b.Files["EGRESS.md"]).Hosts) > 0 {
 			restricted = append(restricted, "egress")
 		}
-		for _, acc := range agents.ParseAccess(b.Files["ACCESS.md"]) {
+		access := agents.ParseAccess(b.Files["ACCESS.md"])
+		for _, acc := range access {
 			if len(acc.Tools) > 0 {
 				restricted = append(restricted, "tool-allowlists")
 				break
 			}
+		}
+		// A new agent holds nothing yet, so any covey entry is a grant.
+		if agents.PlatformAccessAdded(nil, access) {
+			restricted = append(restricted, "the system covey")
 		}
 		if len(restricted) > 0 {
 			writeErr(w, http.StatusForbidden, "bundle contains "+strings.Join(restricted, ", ")+" — import only with org_admin or security")

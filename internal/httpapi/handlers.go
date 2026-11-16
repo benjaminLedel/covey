@@ -1640,6 +1640,23 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "field approve (true|false) missing")
 		return
 	}
+	// An approval for a change whose own route is org_admin/security only
+	// (an egress host, a target system switched on) is decided by those
+	// roles too. The route below is open to the manage roles, and without
+	// this the seat the direct route refuses could approve its agent's
+	// request instead (spec/06).
+	if p.Role != identity.RoleOrgAdmin && p.Role != identity.RoleSecurity {
+		pending, err := s.Obs.GetApproval(r.Context(), p.OrgID, id)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		if orchestrator.SecurityOwnedApproval(pending.Action) {
+			writeErr(w, http.StatusForbidden,
+				pending.Action+" changes what only org_admin or security may change — only they may decide it")
+			return
+		}
+	}
 	appr, err := s.Obs.DecideApproval(r.Context(), p.OrgID, id, *in.Approve, &p.ID)
 	if err != nil {
 		mapErr(w, err)
