@@ -1302,7 +1302,9 @@
     "removeTitle": "从组织中移除",
     "removeHint": "此人将立即失去对本组织的访问权限。",
     "openOrgChart": "在组织架构图中查看",
-    "current": "当前"
+    "current": "当前",
+    "accessDesc": "此人在该组织中可以做什么。",
+    "profileDesc": "代理对此人的了解，以便找对人。"
   },
   "runtimes": {
     "title": "引擎",
@@ -2131,7 +2133,9 @@
       "ops": "平台",
       "opsHint": "消失的 Runner、被目标系统拒绝或即将被拒绝的凭据，以及其他运维应当知道的事情。",
       "instanceOff": "已由管理员为整个安装关闭。"
-    }
+    },
+    "developer": "开发者",
+    "developerDesc": "API 密钥和用于 Claude Code 的 covey 技能。"
   },
   "profile": {
     "noProfile": "没有保存档案。",
@@ -2147,7 +2151,6 @@
     "save": "保存",
     "identities": "其他系统中的登录名",
     "identitiesHint": "让代理能在那里识别此人并给其分配工作。只填写此人实际使用的系统。",
-    "identitiesCount": "已填写 {{filled}}/{{total}}",
     "saved": "已保存。"
   },
   "help": {

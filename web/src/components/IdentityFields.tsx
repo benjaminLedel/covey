@@ -6,11 +6,9 @@ import { TargetIcon } from "./TargetIcon";
 export default function IdentityFields({
   value,
   onChange,
-  open,
 }: {
   value: Record<string, string>;
   onChange: (v: Record<string, string>) => void;
-  open?: boolean;
 }) {
   const { t } = useTranslation();
   const targets = useQuery({
@@ -36,14 +34,10 @@ export default function IdentityFields({
   /* One line per system: icon and name on the left, the login on the right
      (#743). A wrapping row of labelled boxes looked like a form to fill in
      completely; most people need one or two of them. */
-  const filled = [...platforms.keys()].filter((s) => value[s]?.trim()).length;
   return (
-    <details className="identity-box" open={open}>
-      <summary>
-        <span className="text-sm font-medium">{t("profile.identities")}</span>
-        <span className="muted text-xs">{t("profile.identitiesCount", { filled, total: platforms.size })}</span>
-      </summary>
-      <p className="muted text-xs mt-1 mb-2">{t("profile.identitiesHint")}</p>
+    <div className="identity-block">
+      <h3 className="ps-subtitle">{t("profile.identities")}</h3>
+      <p className="ps-hint mb-2">{t("profile.identitiesHint")}</p>
       <div className="identity-list">
         {[...platforms].map(([system, p]) => (
           <label className="identity-row" key={system}>
@@ -60,6 +54,6 @@ export default function IdentityFields({
           </label>
         ))}
       </div>
-    </details>
+    </div>
   );
 }

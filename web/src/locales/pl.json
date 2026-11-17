@@ -1302,7 +1302,9 @@
     "removeTitle": "Usuń z organizacji",
     "removeHint": "Ta osoba od razu traci dostęp do tej organizacji.",
     "openOrgChart": "Zobacz w schemacie organizacyjnym",
-    "current": "Obecna"
+    "current": "Obecna",
+    "accessDesc": "Co ta osoba może robić w tej organizacji.",
+    "profileDesc": "Co agenci wiedzą o tej osobie, by zwracać się do właściwej."
   },
   "runtimes": {
     "title": "Silniki",
@@ -2131,7 +2133,9 @@
       "ops": "Platforma",
       "opsHint": "Runner, który znika, poświadczenie, które system docelowy odrzuca lub wkrótce odrzuci, i inne rzeczy, o których powinna wiedzieć obsługa.",
       "instanceOff": "Wyłączone dla całej instalacji przez administratora."
-    }
+    },
+    "developer": "Dla programistów",
+    "developerDesc": "Klucze API i skill covey dla Claude Code."
   },
   "profile": {
     "noProfile": "Nie zapisano profilu.",
@@ -2147,7 +2151,6 @@
     "save": "Zapisz",
     "identities": "Loginy w innych systemach",
     "identitiesHint": "Aby agenci rozpoznawali tę osobę i mogli przydzielać jej pracę. Wypełnij tylko tam, gdzie pracuje.",
-    "identitiesCount": "Uzupełniono {{filled}} z {{total}}",
     "saved": "Zapisano."
   },
   "help": {

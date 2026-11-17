@@ -1302,7 +1302,9 @@
     "removeTitle": "組織から削除",
     "removeHint": "その人はこの組織へのアクセスをすぐに失います。",
     "openOrgChart": "組織図で見る",
-    "current": "現在"
+    "current": "現在",
+    "accessDesc": "この組織でこの人ができること。",
+    "profileDesc": "エージェントが適切な相手に頼めるよう、この人について知っていること。"
   },
   "runtimes": {
     "title": "エンジン",
@@ -2131,7 +2133,9 @@
       "ops": "プラットフォーム",
       "opsHint": "消えたランナー、対象システムが拒否した（または間もなく拒否する）認証情報、その他運用が知っておくべきこと。",
       "instanceOff": "管理者によってこのインストール全体で無効にされています。"
-    }
+    },
+    "developer": "開発者向け",
+    "developerDesc": "API キーと Claude Code 用の covey スキル。"
   },
   "profile": {
     "noProfile": "プロフィールは登録されていません。",
@@ -2147,7 +2151,6 @@
     "save": "保存",
     "identities": "他のシステムのログイン",
     "identitiesHint": "エージェントがその人を認識し、仕事を割り当てられるようにします。実際に使うシステムだけ入力してください。",
-    "identitiesCount": "{{total}} 件中 {{filled}} 件入力済み",
     "saved": "保存しました。"
   },
   "help": {

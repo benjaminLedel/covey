@@ -7,6 +7,7 @@ import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
 import ChoiceList from "../components/ChoiceList";
+import Section from "../components/Section";
 import { NavIcon } from "../components/navicons";
 
 export default function PersonPage({ me }: { me: Principal }) {
@@ -41,89 +42,85 @@ export default function PersonPage({ me }: { me: Principal }) {
   const isSelf = h.id === me.ID;
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <div className="text-sm secondary mb-3">
-        <Link to={fromMembers ? "/administration/members" : "/org"} style={{ color: "inherit" }}>
-          {fromMembers ? t("nav.members") : t("person.breadcrumb")}
-        </Link>{" "}
-        / <b style={{ color: "var(--text-primary)", fontWeight: 500 }}>{h.display_name}</b>
-      </div>
+    <div className="person-page">
+      <Link to={fromMembers ? "/administration/members" : "/org"} className="ps-back">
+        <span aria-hidden="true">‹</span> {fromMembers ? t("nav.members") : t("person.breadcrumb")}
+      </Link>
 
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <header className="ps-header">
         {isSelf ? (
           <OwnPhoto human={h} />
         ) : (
-          <Avatar name={h.display_name} size={44} human photo={photoUrl(h.id, h.photo_id)} />
+          <Avatar name={h.display_name} size={56} human photo={photoUrl(h.id, h.photo_id)} />
         )}
-        <div>
-          <h1 className="text-[22px] m-0">
+        <div className="min-w-0">
+          <h1 className="ps-name">
             {h.display_name}
-            {isSelf && <span className="muted text-sm"> {t("person.self")}</span>}
+            {isSelf && <span className="ps-self"> {t("person.self")}</span>}
           </h1>
-          <div className="muted text-xs">
-            {h.job_title ? `${h.job_title} · ` : ""}
-            {h.email}
-          </div>
+          <p className="ps-meta">
+            {[h.job_title, t(`role.${h.role}`, h.role), h.email].filter(Boolean).join(" · ")}
+          </p>
         </div>
-        <span className="ntag" style={{ marginLeft: "auto" }}>
-          {t(`role.${h.role}`, h.role)}
-        </span>
-      </div>
+      </header>
 
-      {isAdmin && <AccessCard human={h} isSelf={isSelf} />}
+      {/* One's own role and password are not changed here — the header names
+          the role, the password sits with the account settings below. */}
+      {isAdmin && !isSelf && <AccessSection human={h} isSelf={isSelf} />}
 
-      <div className="card mb-4">
-        <div className="text-sm font-medium mb-2">{t("person.profile")}</div>
+      <Section title={t("person.profile")} desc={t("person.profileDesc")}>
         <ProfileForm human={h} endpoint={isAdmin ? `/users/${h.id}` : "/auth/me"} readOnly={!isAdmin && !isSelf} />
-        {!isAdmin && !isSelf && (
-          <p className="muted text-xs mt-2 mb-0">{t("person.readOnlyHint")}</p>
-        )}
-      </div>
+        {!isAdmin && !isSelf && <p className="ps-note">{t("person.readOnlyHint")}</p>}
+      </Section>
 
-      <div className="card mb-4">
-        <div className="flex items-baseline justify-between mb-2">
-          <div className="text-sm font-medium">{t("person.orgChart")}</div>
-          <Link to="/org" className="text-xs">{t("person.openOrgChart")}</Link>
-        </div>
-        <div className="text-xs">
-          <div className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>{t("person.reportsTo")}</span>
-            {manager ? <PersonLink human={manager} /> : <span className="muted">{t("person.nobody")}</span>}
+      <Section
+        title={t("person.orgChart")}
+        action={
+          <Link to="/org" className="ps-link">
+            {t("person.openOrgChart")}
+          </Link>
+        }
+      >
+        <dl className="ps-dl">
+          <div>
+            <dt>{t("person.reportsTo")}</dt>
+            <dd>{manager ? <PersonLink human={manager} /> : <span className="muted">{t("person.nobody")}</span>}</dd>
           </div>
-          <div className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>{t("person.directReports")}</span>
-            {reports.length === 0 ? (
-              <span className="muted">{t("person.noDirect")}</span>
-            ) : (
-              <span className="flex gap-2 flex-wrap">
-                {reports.map((r) => (
-                  <PersonLink key={r.id} human={r} />
-                ))}
-              </span>
-            )}
+          <div>
+            <dt>{t("person.directReports")}</dt>
+            <dd>
+              {reports.length === 0 ? (
+                <span className="muted">{t("person.noDirect")}</span>
+              ) : (
+                <span className="flex gap-3 flex-wrap">
+                  {reports.map((r) => (
+                    <PersonLink key={r.id} human={r} />
+                  ))}
+                </span>
+              )}
+            </dd>
           </div>
-          <div className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>{t("person.supervisedAgents")}</span>
-            {ownAgents.length === 0 ? (
-              <span className="muted">{t("person.noAgents")}</span>
-            ) : (
-              <span className="flex gap-2 flex-wrap items-center">
-                {ownAgents.map((a) => (
-                  <Link key={a.id} to={`/agents/${a.id}`}>
-                    {a.display_name}
-                    <span
-                      className={`badge state st-${a.killed ? "killed" : a.status}`}
-                      style={{ marginLeft: 4 }}
-                    >
-                      {t(`status.${a.killed ? "killed" : a.status}`, a.killed ? "killed" : a.status)}
-                    </span>
-                  </Link>
-                ))}
-              </span>
-            )}
+          <div>
+            <dt>{t("person.supervisedAgents")}</dt>
+            <dd>
+              {ownAgents.length === 0 ? (
+                <span className="muted">{t("person.noAgents")}</span>
+              ) : (
+                <span className="flex gap-3 flex-wrap items-center">
+                  {ownAgents.map((a) => (
+                    <Link key={a.id} to={`/agents/${a.id}`} className="inline-flex items-center gap-1.5">
+                      {a.display_name}
+                      <span className={`badge state st-${a.killed ? "killed" : a.status}`}>
+                        {t(`status.${a.killed ? "killed" : a.status}`, a.killed ? "killed" : a.status)}
+                      </span>
+                    </Link>
+                  ))}
+                </span>
+              )}
+            </dd>
           </div>
-        </div>
-      </div>
+        </dl>
+      </Section>
 
       {isSelf && <AccountSettings me={me} />}
     </div>
@@ -135,7 +132,7 @@ export default function PersonPage({ me }: { me: Principal }) {
    on the first wrong click of a select, and remove a person on one click.
    One's own role is not changed here; that keeps an admin from locking
    themselves out by accident (the server keeps the last admin anyway). */
-function AccessCard({ human, isSelf }: { human: Human; isSelf: boolean }) {
+function AccessSection({ human, isSelf }: { human: Human; isSelf: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -169,130 +166,128 @@ function AccessCard({ human, isSelf }: { human: Human; isSelf: boolean }) {
     },
   });
   const error = saveRole.error ?? savePassword.error ?? remove.error;
-
   const roleChoices = ROLES.map((r) => ({ value: r, label: t(`role.${r}`, r), desc: t(`users.roleDesc.${r}`) }));
 
   return (
-    <div className="card mb-4 access-card">
-      <div className="text-sm font-medium mb-1">{t("person.access")}</div>
-
-      <div className={`access-row${mode === "role" ? " editing" : ""}`}>
-        <div className="flex-1 min-w-0">
-          <div className="muted text-xs">{t("users.role")}</div>
-          <div className="text-sm font-medium">{t(`role.${human.role}`, human.role)}</div>
-          <div className="muted text-xs">{isSelf ? t("person.ownRole") : t(`users.roleDesc.${human.role}`, "")}</div>
-        </div>
-        {!isSelf && mode !== "role" && (
-          <button className="btn sm" onClick={() => setMode("role")}>
-            <NavIcon name="edit" />
-            {t("person.roleChange")}
-          </button>
-        )}
-      </div>
-      {mode === "role" && (
-        <form
-          className="edit-panel"
-          onSubmit={(e) => {
-            e.preventDefault();
-            saveRole.mutate();
-          }}
-        >
-          <ChoiceList
-            name="role"
-            legend={t("users.role")}
-            value={role}
-            onChange={setRole}
-            choices={roleChoices}
-            current={human.role}
-            currentLabel={t("person.current")}
-          />
-          <div className="edit-panel-foot">
-            <span className="muted text-xs mr-auto">{t("person.roleHint")}</span>
-            <button type="button" className="btn" onClick={close}>
-              {t("users.cancel")}
-            </button>
-            <button className="btn primary" disabled={role === human.role || saveRole.isPending}>
-              <NavIcon name="check" />
-              {t("person.roleSave")}
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className={`access-row${mode === "password" ? " editing" : ""}`}>
-        <div className="flex-1 min-w-0">
-          <div className="muted text-xs">{t("person.passwordTitle")}</div>
-          <div className="muted text-xs">{isSelf ? t("person.ownPassword") : t("person.passwordHint")}</div>
-        </div>
-        {!isSelf && mode !== "password" && (
-          <button className="btn sm" onClick={() => setMode("password")}>
-            <NavIcon name="key" />
-            {t("users.passwordReset")}
-          </button>
-        )}
-      </div>
-      {mode === "password" && (
-        <form
-          className="edit-panel"
-          onSubmit={(e) => {
-            e.preventDefault();
-            savePassword.mutate();
-          }}
-        >
-          <label htmlFor="new-password">{t("users.newPasswordLabel")}</label>
-          <input
-            id="new-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            minLength={8}
-            required
-            autoFocus
-            autoComplete="new-password"
-          />
-          <div className="edit-panel-foot">
-            <button type="button" className="btn" onClick={close}>
-              {t("users.cancel")}
-            </button>
-            <button className="btn primary" disabled={password.length < 8 || savePassword.isPending}>
-              <NavIcon name="check" />
-              {t("users.setPassword")}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {!isSelf && (
-        <div className={`access-row${mode === "remove" ? " editing" : ""}`}>
-          <div className="flex-1 min-w-0">
-            <div className="muted text-xs">{t("person.removeTitle")}</div>
-            <div className="muted text-xs">{t("person.removeHint")}</div>
-          </div>
-          {mode !== "remove" && (
-            <button className="btn sm quiet danger" onClick={() => setMode("remove")}>
-              <NavIcon name="trash" />
-              {t("users.delete")}
+    <Section title={t("person.access")} desc={t("person.accessDesc")}>
+      <div className="ps-rows">
+        <div className="ps-row">
+          <span className="ps-label">{t("users.role")}</span>
+          <span className="ps-value">
+            <span className="ps-strong">{t(`role.${human.role}`, human.role)}</span>
+            <span className="ps-hint">{isSelf ? t("person.ownRole") : t(`users.roleDesc.${human.role}`, "")}</span>
+          </span>
+          {!isSelf && mode !== "role" && (
+            <button className="btn sm" onClick={() => setMode("role")}>
+              <NavIcon name="edit" />
+              {t("person.roleChange")}
             </button>
           )}
         </div>
-      )}
-      {mode === "remove" && (
-        <div className="edit-panel danger" role="alertdialog" aria-label={t("person.removeTitle")}>
-          <div className="text-sm font-medium">{t("users.confirmDelete", { name: human.display_name })}</div>
-          <div className="muted text-xs">{t("person.removeHint")}</div>
-          <div className="edit-panel-foot">
-            <button className="btn" onClick={close} autoFocus>
-              {t("users.cancel")}
+        {mode === "role" && (
+          <form
+            className="edit-panel ps-indent"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveRole.mutate();
+            }}
+          >
+            <ChoiceList
+              name="role"
+              legend={t("users.role")}
+              value={role}
+              onChange={setRole}
+              choices={roleChoices}
+              current={human.role}
+              currentLabel={t("person.current")}
+            />
+            <span className="ps-hint mt-1">{t("person.roleHint")}</span>
+            <div className="edit-panel-foot">
+              <button type="button" className="btn" onClick={close}>
+                {t("users.cancel")}
+              </button>
+              <button className="btn primary" disabled={role === human.role || saveRole.isPending}>
+                <NavIcon name="check" />
+                {t("person.roleSave")}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="ps-row">
+          <span className="ps-label">{t("person.passwordTitle")}</span>
+          <span className="ps-value">
+            <span className="ps-hint">{isSelf ? t("person.ownPassword") : t("person.passwordHint")}</span>
+          </span>
+          {!isSelf && mode !== "password" && (
+            <button className="btn sm" onClick={() => setMode("password")}>
+              <NavIcon name="key" />
+              {t("users.passwordReset")}
             </button>
-            <button className="btn danger solid" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              <NavIcon name="trash" />
-              {t("users.delete")}
-            </button>
-          </div>
+          )}
         </div>
-      )}
+        {mode === "password" && (
+          <form
+            className="edit-panel ps-indent"
+            onSubmit={(e) => {
+              e.preventDefault();
+              savePassword.mutate();
+            }}
+          >
+            <label htmlFor="new-password">{t("users.newPasswordLabel")}</label>
+            <input
+              id="new-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
+              autoFocus
+              autoComplete="new-password"
+            />
+            <div className="edit-panel-foot">
+              <button type="button" className="btn" onClick={close}>
+                {t("users.cancel")}
+              </button>
+              <button className="btn primary" disabled={password.length < 8 || savePassword.isPending}>
+                <NavIcon name="check" />
+                {t("users.setPassword")}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {!isSelf && (
+          <div className="ps-row wide">
+            <span className="ps-value">
+              <span className="ps-strong">{t("person.removeTitle")}</span>
+              <span className="ps-hint">{t("person.removeHint")}</span>
+            </span>
+            {mode !== "remove" && (
+              <button className="btn sm quiet danger" onClick={() => setMode("remove")}>
+                <NavIcon name="trash" />
+                {t("users.delete")}
+              </button>
+            )}
+          </div>
+        )}
+        {mode === "remove" && (
+          <div className="edit-panel danger" role="alertdialog" aria-label={t("person.removeTitle")}>
+            <span className="ps-strong">{t("users.confirmDelete", { name: human.display_name })}</span>
+            <div className="edit-panel-foot">
+              <button className="btn" onClick={close} autoFocus>
+                {t("users.cancel")}
+              </button>
+              <button className="btn danger solid" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                <NavIcon name="trash" />
+                {t("users.delete")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       {error && <p className="danger-text text-xs mt-2 mb-0">{(error as Error).message}</p>}
-    </div>
+    </Section>
   );
 }
 
@@ -312,7 +307,7 @@ function OwnPhoto({ human }: { human: Human }) {
   const remove = useMutation({ mutationFn: deletePhoto, onSuccess: done });
   const busy = upload.isPending || remove.isPending;
   return (
-    <div className="flex items-center gap-2">
+    <div className="ps-photo">
       <button
         type="button"
         className="avatar-pick"
@@ -321,7 +316,7 @@ function OwnPhoto({ human }: { human: Human }) {
         title={t("person.photoChange")}
         aria-label={t("person.photoChange")}
       >
-        <Avatar name={human.display_name} size={44} human photo={photoUrl(human.id, human.photo_id)} />
+        <Avatar name={human.display_name} size={56} human photo={photoUrl(human.id, human.photo_id)} />
       </button>
       <input
         ref={input}
@@ -336,7 +331,7 @@ function OwnPhoto({ human }: { human: Human }) {
         }}
       />
       {human.photo_id && (
-        <button type="button" className="btn sm" onClick={() => remove.mutate()} disabled={busy}>
+        <button type="button" className="ps-photo-remove" onClick={() => remove.mutate()} disabled={busy}>
           {t("person.photoRemove")}
         </button>
       )}

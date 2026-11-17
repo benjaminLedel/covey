@@ -121,11 +121,11 @@ export default function MobilePairing({ bare = false }: { bare?: boolean }) {
   const notHttps = window.location.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(window.location.hostname);
 
   return (
-    <div className={bare ? "" : "card mt-4"}>
+    <section className={bare ? "" : "ps"}>
       {!bare && (
         <>
-          <span className="text-sm font-medium">{t("account.pairing.title")}</span>
-          <p className="muted text-xs mt-1 mb-3" style={{ maxWidth: 640 }}>{t("account.pairing.intro")}</p>
+          <h2 className="ps-title">{t("account.pairing.title")}</h2>
+          <p className="ps-desc">{t("account.pairing.intro")}</p>
         </>
       )}
       {macApp && !bare && (
@@ -187,6 +187,6 @@ export default function MobilePairing({ bare = false }: { bare?: boolean }) {
           </button>
         </div>
       )}
-    </div>
+    </section>
   );
 }

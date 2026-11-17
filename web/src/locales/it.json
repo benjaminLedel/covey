@@ -1302,7 +1302,9 @@
     "removeTitle": "Rimuovi dall'organizzazione",
     "removeHint": "La persona perde subito l'accesso a questa organizzazione.",
     "openOrgChart": "Vedi nell'organigramma",
-    "current": "Attuale"
+    "current": "Attuale",
+    "accessDesc": "Cosa può fare questa persona in questa organizzazione.",
+    "profileDesc": "Cosa sanno gli agenti di questa persona, per rivolgersi a quella giusta."
   },
   "runtimes": {
     "title": "Motori",
@@ -2131,7 +2133,9 @@
       "ops": "Piattaforma",
       "opsHint": "Un runner che scompare, una credenziale che un sistema di destinazione rifiuta o sta per rifiutare, e altre cose che l'esercizio dovrebbe sapere.",
       "instanceOff": "Spento per l'intera installazione dall'amministratore."
-    }
+    },
+    "developer": "Per sviluppatori",
+    "developerDesc": "Chiavi API e la skill covey per Claude Code."
   },
   "profile": {
     "noProfile": "Nessun profilo memorizzato.",
@@ -2147,7 +2151,6 @@
     "save": "Salva",
     "identities": "Accessi in altri sistemi",
     "identitiesHint": "Così gli agenti riconoscono la persona e possono assegnarle lavoro. Compila solo dove lavora.",
-    "identitiesCount": "{{filled}} di {{total}} compilati",
     "saved": "Salvato."
   },
   "help": {

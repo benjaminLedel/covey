@@ -1302,7 +1302,9 @@
     "removeTitle": "Uit de organisatie verwijderen",
     "removeHint": "De persoon verliest meteen de toegang tot deze organisatie.",
     "openOrgChart": "Bekijken in het organigram",
-    "current": "Huidig"
+    "current": "Huidig",
+    "accessDesc": "Wat deze persoon in deze organisatie mag.",
+    "profileDesc": "Wat agents over deze persoon weten, zodat ze de juiste aanspreken."
   },
   "runtimes": {
     "title": "Engines",
@@ -2131,7 +2133,9 @@
       "ops": "Platform",
       "opsHint": "Een runner die verdwijnt, een toegang die een doelsysteem weigert of binnenkort weigert, en andere dingen die het beheer moet weten.",
       "instanceOff": "Door de beheerder voor de hele installatie uitgeschakeld."
-    }
+    },
+    "developer": "Voor ontwikkelaars",
+    "developerDesc": "API-sleutels en de covey-skill voor Claude Code."
   },
   "profile": {
     "noProfile": "Geen profiel opgeslagen.",
@@ -2147,7 +2151,6 @@
     "save": "Opslaan",
     "identities": "Logins in andere systemen",
     "identitiesHint": "Zodat agents de persoon daar herkennen en werk kunnen toewijzen. Alleen invullen waar die werkt.",
-    "identitiesCount": "{{filled}} van {{total}} ingevuld",
     "saved": "Opgeslagen."
   },
   "help": {

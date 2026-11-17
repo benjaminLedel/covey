@@ -1302,7 +1302,9 @@
     "removeTitle": "Remove from the organization",
     "removeHint": "The person loses access to this organization at once.",
     "openOrgChart": "View in org chart",
-    "current": "Current"
+    "current": "Current",
+    "accessDesc": "What this person may do in this organization.",
+    "profileDesc": "What agents know about this person, so they turn to the right one."
   },
   "runtimes": {
     "title": "Engines",
@@ -2131,7 +2133,9 @@
       "ops": "Platform",
       "opsHint": "A runner that leaves, a credential a target system refuses or is about to, and other things the operation should know.",
       "instanceOff": "Switched off for this whole installation by its administrator."
-    }
+    },
+    "developer": "For developers",
+    "developerDesc": "API keys and the covey skill for Claude Code."
   },
   "profile": {
     "noProfile": "No profile stored.",
@@ -2147,7 +2151,6 @@
     "save": "Save",
     "identities": "Logins in other systems",
     "identitiesHint": "So agents recognise the person there and can assign them work. Fill in only where they work.",
-    "identitiesCount": "{{filled}} of {{total}} filled in",
     "saved": "Saved."
   },
   "help": {

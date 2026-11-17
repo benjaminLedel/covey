@@ -1302,7 +1302,9 @@
     "removeTitle": "Aus der Organisation entfernen",
     "removeHint": "Die Person verliert sofort den Zugang zu dieser Organisation.",
     "openOrgChart": "Im Organigramm ansehen",
-    "current": "Aktuell"
+    "current": "Aktuell",
+    "accessDesc": "Was die Person in dieser Organisation darf.",
+    "profileDesc": "Was Agenten über die Person wissen, um sie richtig anzusprechen."
   },
   "runtimes": {
     "title": "Engines",
@@ -2131,7 +2133,9 @@
       "ops": "Plattform",
       "opsHint": "Ein Runner, der verschwindet, ein Zugang, den ein Zielsystem abweist oder bald abweisen wird, und anderes, was der Betrieb wissen sollte.",
       "instanceOff": "Vom Administrator für die ganze Installation abgeschaltet."
-    }
+    },
+    "developer": "Für Entwickler",
+    "developerDesc": "API-Schlüssel und der covey-Skill für Claude Code."
   },
   "profile": {
     "noProfile": "Kein Profil hinterlegt.",
@@ -2147,7 +2151,6 @@
     "save": "Speichern",
     "identities": "Anmeldungen in anderen Systemen",
     "identitiesHint": "Damit Agenten die Person dort erkennen und ihr etwas zuweisen können. Nur ausfüllen, wo sie arbeitet.",
-    "identitiesCount": "{{filled}} von {{total}} hinterlegt",
     "saved": "Gespeichert."
   },
   "help": {

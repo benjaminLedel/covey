@@ -64,14 +64,14 @@ export default function ProfileForm({
     const filled = rows.filter(([, v]) => v);
     if (filled.length === 0) return <p className="muted text-xs m-0">{t("profile.noProfile")}</p>;
     return (
-      <div className="text-xs">
+      <dl className="ps-dl">
         {filled.map(([label, value]) => (
-          <div key={label} className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>{label}</span>
-            <span>{value}</span>
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
           </div>
         ))}
-      </div>
+      </dl>
     );
   }
 
@@ -92,7 +92,7 @@ export default function ProfileForm({
         save.mutate();
       }}
     >
-      <div className="field-grid">
+      <div className="field-grid two">
         <div>
           <label htmlFor="pf-job">{t("profile.jobTitle")}</label>
           <input id="pf-job" value={p.job_title} onChange={(e) => setP({ ...p, job_title: e.target.value })} placeholder={t("profile.jobTitlePlaceholder")} />
@@ -120,7 +120,7 @@ export default function ProfileForm({
             onChange={(e) => setP({ ...p, responsibilities: e.target.value })}
             placeholder={t("profile.responsibilitiesPlaceholder")}
           />
-          <p className="muted text-xs mt-1 mb-0">{t("profile.responsibilitiesHint")}</p>
+          <p className="ps-hint mt-1 mb-0">{t("profile.responsibilitiesHint")}</p>
         </div>
       </div>
 

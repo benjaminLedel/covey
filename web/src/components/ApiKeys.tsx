@@ -93,9 +93,9 @@ export default function ApiKeys() {
   const expired = (k: ApiKey) => k.expires_at !== null && new Date(k.expires_at) < new Date();
 
   return (
-    <div className="card mt-4">
-      <span className="text-sm font-medium">{t("account.apiKeys.title")}</span>
-      <p className="muted text-xs mt-1 mb-3">{t("account.apiKeys.intro")}</p>
+    <section className="ps">
+      <h2 className="ps-title">{t("account.apiKeys.title")}</h2>
+      <p className="ps-desc">{t("account.apiKeys.intro")}</p>
 
       {error && <p className="danger-text text-xs mb-2">{error}</p>}
 
@@ -213,6 +213,6 @@ export default function ApiKeys() {
       ))}
 
       <p className="muted text-xs mt-3 mb-0">{t("account.apiKeys.limits")}</p>
-    </div>
+    </section>
   );
 }

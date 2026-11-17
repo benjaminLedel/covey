@@ -1302,7 +1302,9 @@
     "removeTitle": "Remover da organização",
     "removeHint": "A pessoa perde de imediato o acesso a esta organização.",
     "openOrgChart": "Ver no organigrama",
-    "current": "Atual"
+    "current": "Atual",
+    "accessDesc": "O que esta pessoa pode fazer nesta organização.",
+    "profileDesc": "O que os agentes sabem sobre esta pessoa, para recorrer à pessoa certa."
   },
   "runtimes": {
     "title": "Motores",
@@ -2131,7 +2133,9 @@
       "ops": "Plataforma",
       "opsHint": "Um runner que desaparece, uma credencial que um sistema de destino recusa ou está prestes a recusar, e outras coisas que a operação deve saber.",
       "instanceOff": "Desligado para toda esta instalação pelo administrador."
-    }
+    },
+    "developer": "Para desenvolvedores",
+    "developerDesc": "Chaves de API e a skill do covey para o Claude Code."
   },
   "profile": {
     "noProfile": "Nenhum perfil guardado.",
@@ -2147,7 +2151,6 @@
     "save": "Guardar",
     "identities": "Logins em outros sistemas",
     "identitiesHint": "Para que os agentes reconheçam a pessoa e possam atribuir-lhe trabalho. Preencha apenas onde ela trabalha.",
-    "identitiesCount": "{{filled}} de {{total}} preenchidos",
     "saved": "Salvo."
   },
   "help": {
