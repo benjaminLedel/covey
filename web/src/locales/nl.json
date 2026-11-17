@@ -580,8 +580,8 @@
       "emptyAll": "Nog geen opname."
     },
     "heartbeat": {
-      "desc": "Terugkerende taken uit HEARTBEAT.md (tabblad Config). Het controlevlak maakt achterstallige runs automatisch als backlogtaken aan — de tijdlijn toont de komende 24 uur. Tijden zijn servertijd.",
-      "noHeartbeats": "Geen hartslagen vastgelegd. Voeg in het tabblad Config een bestand HEARTBEAT.md toe, bijv. - alle: 30m titel: Postvak nakijken aufgabe: … .",
+      "desc": "Terugkerende taken uit HEARTBEAT.md (tabblad Gedrag). Het controlevlak maakt achterstallige runs automatisch als backlogtaken aan — de tijdlijn toont de komende 24 uur. Tijden zijn servertijd.",
+      "noHeartbeats": "Geen hartslagen vastgelegd. Voeg in het tabblad Gedrag een bestand HEARTBEAT.md toe, bijv. - alle: 30m titel: Postvak nakijken aufgabe: … .",
       "taskOpen": "Taak open",
       "taskOpenHint": "De taak van de vorige run is nog niet af — tot dan wordt er geen nieuwe run aangemaakt.",
       "lastRun": "laatste run {{delta}} geleden",
@@ -620,14 +620,11 @@
       "templateName": "Naam van het sjabloon",
       "templateDesc": "Beschrijving (optioneel)",
       "saveBtn": "Opslaan",
-      "exportBundle": "Als bundel exporteren",
-      "importBundle": "Bundel importeren (alleen config)",
-      "importConfirm": "De config van deze agent overschrijven met die uit de bundel? Alleen de configuratiebestanden worden toegepast (als nieuwe versie) — profielgegevens, geheimen en vangrails blijven ongewijzigd.",
+      "exportBundle": "Exporteren",
+      "importBundle": "Importeren",
+      "importConfirm": "De configuratie van deze agent vervangen door die uit het bestand? Ze wordt als nieuwe versie opgeslagen; profiel, inloggegevens en regels blijven ongewijzigd.",
       "importInvalidJson": "Ongeldige JSON — geen geldige bundel.",
-      "newVersion": "Nieuwe versie opslaan",
       "cancel": "Annuleren",
-      "versionInfo": "Config as code: elke wijziging maakt een nieuwe versie{{version}}.",
-      "currentVersion": " — huidig v{{v}}",
       "assist": {
         "title": "AI-assistent",
         "hint": "Beschrijf wat de agent zou moeten doen of wat er niet klopt aan zijn gedrag. De assistent stelt configuratiewijzigingen als concept voor — ze gelden pas als u een nieuwe versie opslaat.",
@@ -637,6 +634,55 @@
         "apply": "Toepassen op {{file}}",
         "applied": "toegepast",
         "reset": "Nieuw gesprek"
+      },
+      "intro": "Wat de agent vóór elk werk leest. Elke wijziging wordt als nieuwe versie opgeslagen.",
+      "versionNow": "Huidige versie: {{v}}.",
+      "doc": {
+        "soul": {
+          "title": "Rol en opdracht",
+          "desc": "Wie de agent is, wat hij doet en hoe hij klinkt.",
+          "placeholder": "Wie ben je, wat is je opdracht, hoe spreek je, waar liggen je grenzen?"
+        },
+        "playbooks": {
+          "title": "Werkwijze",
+          "desc": "Hoe hij typische taken stap voor stap afhandelt.",
+          "placeholder": "## Een verzoek afhandelen\n1. …"
+        },
+        "capabilities": {
+          "title": "Verantwoordelijkheden",
+          "desc": "Waarvoor hij verantwoordelijk is – en uitdrukkelijk niet.",
+          "placeholder": "- Verantwoordelijk voor …\n- Niet verantwoordelijk voor …"
+        },
+        "org": {
+          "title": "Contactpersonen",
+          "desc": "Bij wie hij terechtkan als iets onduidelijk is.",
+          "placeholder": "Vragen over facturen: boekhouding …"
+        },
+        "heartbeat": {
+          "title": "Terugkerende taken",
+          "desc": "Wat hij uit zichzelf regelmatig doet – één blok per taak met alle: of täglich:.",
+          "placeholder": "- alle: 30m\n  titel: Inbox doornemen\n  aufgabe: …"
+        }
+      },
+      "edit": "Bewerken",
+      "add": "Toevoegen",
+      "done": "Klaar",
+      "changed": "gewijzigd",
+      "more": "Meer bestanden",
+      "moreDesc": "Als tekst, meestal op hun eigen pagina beheerd: {{files}}",
+      "openThere": "Daar openen",
+      "unsavedTitle": "Niet-opgeslagen wijzigingen",
+      "discard": "Verwerpen",
+      "saveVersion": "Opslaan als versie {{v}}",
+      "share": "Sjabloon en delen",
+      "shareDesc": "De configuratie opslaan als sjabloon voor nieuwe agents of als bestand doorgeven.",
+      "importOverwrite": "Overschrijven",
+      "where": {
+        "access": "Toegang tot gekoppelde systemen, beheerd onder ‘Tools & Skills’. Een wijziging hier werkt daar door en vereist de beveiligingsrol.",
+        "egress": "Internettoegang, beheerd onder ‘Internettoegang’. Een wijziging hier werkt daar door en vereist de beveiligingsrol.",
+        "kpis": "Kengetallen voor het werkdossier. De agent ziet ze zelf niet.",
+        "tone": "Toon en stijl waaraan zijn teksten worden gemeten.",
+        "other": "Nog een bestand van de configuratie."
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "Hoe diep hij wordt opgenomen, wat hij mag uitgeven, en wat u bij twijfel exporteert."
       },
       "recordingRetention": "Transcript bewaren (dagen)",
-      "recordingRetentionHint": "Leeg = zoals de organisatie. Een getal verlengt alleen; korter dan de organisatie kan niet. 0 = voor altijd."
+      "recordingRetentionHint": "Leeg = zoals de organisatie. Een getal verlengt alleen; korter dan de organisatie kan niet. 0 = voor altijd.",
+      "subSchedule": "Planning",
+      "subTrigger": "Triggers",
+      "subBehaviour": "Gedrag",
+      "subEgress": "Internettoegang",
+      "subSecrets": "Inloggegevens"
     },
     "skills": {
       "desc": "De vaardigheden die deze agent heeft — de eigen plus die uit de bibliotheek zijn gekoppeld. Precies deze lijst wordt voor elke run in zijn home geschreven; van elk item blijft alleen de beschrijving permanent in de context.",

@@ -241,7 +241,18 @@ export function Markdown({
          read as a second "1.". */
       const start = isOl ? Number(/^\s*(\d+)\./.exec(line)![1]) : 1;
       while (i < lines.length && (isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/).test(lines[i])) {
-        const item = lines[i].replace(isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/, "");
+        let item = lines[i].replace(isUl ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/, "");
+        /* A hard-wrapped item: the indented line below it continues the item
+           (#745). Without this it fell out of the list as a paragraph of its
+           own — "1. Do the work … and" / "write it down." on two blocks. */
+        while (
+          i + 1 < lines.length &&
+          /^\s+\S/.test(lines[i + 1]) &&
+          !/^\s*([-*]|\d+\.)\s+/.test(lines[i + 1])
+        ) {
+          i++;
+          item += " " + lines[i].trim();
+        }
         /* A task item ("- [ ] …", "- [x] …"): a meeting summary's action items
            are a checklist (#342). A real checkbox, read-only — the state is
            the model's report, not something to tick here. */

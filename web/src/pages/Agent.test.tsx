@@ -139,11 +139,11 @@ describe("Rollen", () => {
 // space — the redirect is behaviour, not a detail.
 describe("Umleitung alter Reiter-Links", () => {
   const fälle: Array<[string, string]> = [
-    ["heartbeat", "Heartbeat"],
-    ["config", "Config"],
-    ["secrets", "Secrets"],
-    ["egress", "Egress"],
-    ["webhook", "Webhook"],
+    ["heartbeat", "Zeitplan"],
+    ["config", "Verhalten"],
+    ["secrets", "Zugangsdaten"],
+    ["egress", "Internetzugriff"],
+    ["webhook", "Auslöser"],
   ];
   for (const [alt, unterpunkt] of fälle) {
     it(`?tab=${alt} landet unter Einstellungen → ${unterpunkt}`, async () => {
