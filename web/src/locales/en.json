@@ -2908,9 +2908,9 @@
     "sucheMarkieren": "pick a colleague",
     "ungelesen": "{{count}} unread messages",
     "ungelesen_one": "One unread message",
-    "ungelesenTitel": "Unread",
     "bereiche": "Areas",
-    "gestopptHinweis": "{{name}} is stopped. While the kill switch is on, {{name}} takes no messages."
+    "gestopptHinweis": "{{name}} is stopped. While the kill switch is on, {{name}} takes no messages.",
+    "zuletzt": "Recent"
   },
   "mobile": {
     "verbindenTitel": "Where is your covey?",

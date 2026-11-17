@@ -286,16 +286,21 @@ class _TeamSpaceState extends State<TeamSpace> {
               d.caseRef.toLowerCase().contains(q),
         )
         .toList();
-    // Who has something unread comes first, the newest on top; then the
-    // rest by name.
-    // Who has something unread stands in a section of its own above the
-    // departments, newest first (#383), and leaves its department's list
-    // until it has been read.
+    // When one last wrote with whom (#747): the colleagues with the newest
+    // exchange stand in "Recent" above the departments, newest first, with
+    // their last line and its time — and everyone with something unread,
+    // however old (#383). They leave their department's list meanwhile.
     int unread(Agent a) => _threads[a.id]?.unread ?? 0;
+    DateTime? lastAt(Agent a) => _threads[a.id]?.lastAt;
     final visible = data.agents.where((a) => a.isColleague && matches(a)).toList();
-    final fresh = visible.where((a) => unread(a) > 0).toList()
-      ..sort((a, b) => (_threads[b.id]!.lastAt ?? DateTime(0)).compareTo(_threads[a.id]!.lastAt ?? DateTime(0)));
-    final colleagues = visible.where((a) => unread(a) == 0).toList()
+    final byRecency = visible.where((a) => lastAt(a) != null).toList()
+      ..sort((a, b) => lastAt(b)!.compareTo(lastAt(a)!));
+    final recent = [
+      for (var i = 0; i < byRecency.length; i++)
+        if (i < _recentRows || unread(byRecency[i]) > 0) byRecency[i],
+    ];
+    final inRecent = {for (final a in recent) a.id};
+    final colleagues = visible.where((a) => !inRecent.contains(a.id)).toList()
       ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     final known = {for (final d in data.departments) d.id};
     final groups = [
@@ -394,7 +399,10 @@ class _TeamSpaceState extends State<TeamSpace> {
           ),
       ],
       if (q.isEmpty && visible.isEmpty) SliverToBoxAdapter(child: EmptyNote(context.t('chat.noAgents'))),
-      for (final g in [if (fresh.isNotEmpty) (name: context.t('team.ungelesenTitel'), members: fresh), ...groups]) ...[
+      for (final g in [
+        if (recent.isNotEmpty) (name: context.t('team.zuletzt'), members: recent, lines: true),
+        for (final g in groups) (name: g.name, members: g.members, lines: false),
+      ]) ...[
         SliverToBoxAdapter(child: SectionTitle(g.name)),
         SliverToBoxAdapter(
           child: InsetGroup(
@@ -403,6 +411,7 @@ class _TeamSpaceState extends State<TeamSpace> {
                 _AgentRow(
                   agent: a,
                   thread: _threads[a.id],
+                  showLine: g.lines,
                   onTap: !open
                       ? null
                       : () =>
@@ -469,11 +478,14 @@ class _WaitCard extends StatelessWidget {
 /// ways — the name in bold, the newest line as its subtitle with its time,
 /// and a count — so that it does not rest on colour alone (spec/27).
 class _AgentRow extends StatelessWidget {
-  const _AgentRow({required this.agent, required this.thread, required this.onTap});
+  const _AgentRow({required this.agent, required this.thread, required this.onTap, this.showLine = false});
 
   final Agent agent;
   final ThreadState? thread;
   final VoidCallback? onTap;
+
+  /// Under "Recent" the subtitle is the last thing said, not the role.
+  final bool showLine;
 
   @override
   Widget build(BuildContext context) {
@@ -484,11 +496,27 @@ class _AgentRow extends StatelessWidget {
     final status = Text(context.t('status.${a.killed ? 'killed' : a.status}'), style: context.type.labelSmall);
     final role = a.jobTitle.isEmpty ? a.slug : a.jobTitle;
     if (n == 0) {
+      // Read, but there was an exchange: its time above the state (#747).
+      final at = thread?.lastAt;
+      final line = thread?.lastText ?? '';
       return GroupRow(
         leading: Face(slug: a.slug, state: state, size: 36),
         title: a.displayName,
-        subtitle: role,
-        trailing: status,
+        subtitle: showLine && line.isNotEmpty ? line : role,
+        trailing: at == null
+            ? status
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _when(context, at),
+                    style: context.type.labelSmall?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                  ),
+                  const SizedBox(height: 4),
+                  status,
+                ],
+              ),
         onTap: onTap,
       );
     }
@@ -551,6 +579,9 @@ class _ConversationRow extends StatelessWidget {
     );
   }
 }
+
+/// How many colleagues "Recent" holds besides the unread ones (#747).
+const _recentRows = 6;
 
 /// Today the time, this week the day, before that the date.
 String _when(BuildContext context, DateTime at) {

@@ -2908,9 +2908,9 @@
     "sucheMarkieren": "相手を選ぶ",
     "ungelesen": "未読メッセージ {{count}} 件",
     "ungelesen_one": "未読メッセージ {{count}} 件",
-    "ungelesenTitel": "未読",
     "bereiche": "エリア",
-    "gestopptHinweis": "{{name}} は停止中です。緊急停止が有効な間、{{name}} はメッセージを受け付けません。"
+    "gestopptHinweis": "{{name}} は停止中です。緊急停止が有効な間、{{name}} はメッセージを受け付けません。",
+    "zuletzt": "最近"
   },
   "mobile": {
     "verbindenTitel": "あなたの covey はどこですか？",

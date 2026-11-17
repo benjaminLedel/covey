@@ -2908,9 +2908,9 @@
     "sucheMarkieren": "elegir colega",
     "ungelesen": "{{count}} mensajes sin leer",
     "ungelesen_one": "Un mensaje sin leer",
-    "ungelesenTitel": "Sin leer",
     "bereiche": "Áreas",
-    "gestopptHinweis": "{{name}} está detenido. Mientras la parada de emergencia esté activa, {{name}} no acepta mensajes."
+    "gestopptHinweis": "{{name}} está detenido. Mientras la parada de emergencia esté activa, {{name}} no acepta mensajes.",
+    "zuletzt": "Recientes"
   },
   "mobile": {
     "verbindenTitel": "¿Dónde está su covey?",

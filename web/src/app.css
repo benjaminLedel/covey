@@ -2322,6 +2322,9 @@
    Organigramm mit deutschen Rollennamen. */
 .tm-kollege-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; }
 .tm-kollege-wort { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* When the last message was (#747): at the end of the name row, quiet. */
+.tm-kollege-zeit { margin-left: auto; flex: none; padding-left: 6px; font-size: 11.5px; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tm-kollege.neu .tm-kollege-zeit { color: var(--text-accent); }
 /* Wer wartet, trägt die Marke am Namen. Sie ist ein Punkt in der Warnfarbe —
    und weil eine Farbe allein keine Aussage ist, trägt sie einen Titel und ein
    Label für alles, was nicht sieht. */

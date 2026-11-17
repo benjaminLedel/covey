@@ -2908,9 +2908,9 @@
     "sucheMarkieren": "wybierz osobę",
     "ungelesen": "Nieprzeczytane wiadomości: {{count}}",
     "ungelesen_one": "Jedna nieprzeczytana wiadomość",
-    "ungelesenTitel": "Nieprzeczytane",
     "bereiche": "Obszary",
-    "gestopptHinweis": "{{name}} jest zatrzymany. Dopóki działa wyłącznik awaryjny, {{name}} nie przyjmuje wiadomości."
+    "gestopptHinweis": "{{name}} jest zatrzymany. Dopóki działa wyłącznik awaryjny, {{name}} nie przyjmuje wiadomości.",
+    "zuletzt": "Ostatnie"
   },
   "mobile": {
     "verbindenTitel": "Gdzie jest Państwa covey?",

@@ -2908,9 +2908,9 @@
     "sucheMarkieren": "Kollegen markieren",
     "ungelesen": "{{count}} ungelesene Nachrichten",
     "ungelesen_one": "Eine ungelesene Nachricht",
-    "ungelesenTitel": "Ungelesen",
     "bereiche": "Bereiche",
-    "gestopptHinweis": "{{name}} ist gestoppt. Solange der Notaus steht, nimmt {{name}} keine Nachrichten an."
+    "gestopptHinweis": "{{name}} ist gestoppt. Solange der Notaus steht, nimmt {{name}} keine Nachrichten an.",
+    "zuletzt": "Zuletzt"
   },
   "mobile": {
     "verbindenTitel": "Wo ist Ihr covey?",

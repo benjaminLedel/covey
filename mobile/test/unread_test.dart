@@ -120,9 +120,9 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^2 ungelesene Nachrichten')), findsOneWidget);
     semantics.dispose();
     expect(find.text('Support'), findsOneWidget, reason: 'a colleague with nothing unread keeps the plain row');
-    // Above the departments, in a section of its own (#383).
+    // Above the departments, under "Recent" (#383, #747).
     expect(
-      tester.getTopLeft(find.text('Ungelesen')).dy,
+      tester.getTopLeft(find.text('Zuletzt')).dy,
       lessThan(tester.getTopLeft(find.text('Buchhaltung')).dy),
       reason: 'unread stands above the departments',
     );
@@ -135,7 +135,10 @@ void main() {
     await _settle(tester);
     expect(readAt, '2026-09-26T10:15:00.000Z', reason: 'read up to the newest entry shown');
     expect(find.text('2'), findsNothing, reason: 'the badge is gone once the thread was read');
-    expect(find.text('Ungelesen'), findsNothing, reason: 'once read, Bea goes back to the department');
+    // Read, Bea stays under "Recent" with the time of the last exchange
+    // (#747) — when one last wrote with someone does not depend on unread.
+    expect(find.text('Zuletzt'), findsOneWidget, reason: 'a read thread stays among the recent ones');
+    expect(tester.getTopLeft(find.text('Bea').first).dy, lessThan(tester.getTopLeft(find.text('Buchhaltung')).dy));
     await tester.pumpWidget(const SizedBox());
   });
 }

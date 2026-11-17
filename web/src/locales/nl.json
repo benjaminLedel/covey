@@ -2908,9 +2908,9 @@
     "sucheMarkieren": "collega kiezen",
     "ungelesen": "{{count}} ongelezen berichten",
     "ungelesen_one": "Eén ongelezen bericht",
-    "ungelesenTitel": "Ongelezen",
     "bereiche": "Onderdelen",
-    "gestopptHinweis": "{{name}} is gestopt. Zolang de noodstop actief is, neemt {{name}} geen berichten aan."
+    "gestopptHinweis": "{{name}} is gestopt. Zolang de noodstop actief is, neemt {{name}} geen berichten aan.",
+    "zuletzt": "Recent"
   },
   "mobile": {
     "verbindenTitel": "Waar is uw covey?",
