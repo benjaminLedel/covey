@@ -64,12 +64,12 @@
     "templates": "模板",
     "org": "组织架构",
     "costs": "成本",
-    "setup": "初始设置",
-    "control": "监督",
-    "guardrails": "护栏",
-    "secrets": "密钥",
-    "targets": "目标系统",
-    "egress": "出站网络",
+    "setup": "工具",
+    "control": "安全",
+    "guardrails": "规则",
+    "secrets": "凭据",
+    "targets": "已连接系统",
+    "egress": "互联网访问",
     "platform": "平台",
     "users": "用户",
     "organizations": "组织",
@@ -77,20 +77,21 @@
     "logout": "退出登录",
     "userMenu": "用户菜单",
     "profile": "个人资料与设置",
-    "audit": "审计",
-    "requests": "请求",
+    "audit": "记录",
+    "requests": "通信",
     "skills": "技能",
     "voices": "文风",
     "setupPage": "初始设置",
     "inbox": "收件箱",
-    "administrationSection": "管理",
-    "administration": "组织",
+    "administrationSection": "组织",
+    "administration": "设置",
     "approvals": "审批",
     "infrastructure": "基础设施",
     "apps": "covey 应用",
     "helpShort": "帮助",
     "menu": "菜单",
-    "workflows": "工作流"
+    "workflows": "工作流",
+    "members": "成员"
   },
   "costs": {
     "title": "成本与令牌",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "审计",
+    "title": "记录",
     "count": "{{count}} 条记录",
     "lead": "人对平台做了什么——与展示智能体的记录相对应。这里保存谁在何时动了什么；内容有意不收录，否则密钥的值也会进来。",
     "searchPlaceholder": "搜索（路径、人员、方法）",
@@ -1037,8 +1038,8 @@
     "appliedAs": "已作为版本 {{v}} 应用"
   },
   "guardrails": {
-    "title": "护栏",
-    "subtitle": "集中执行，默认拒绝",
+    "title": "规则",
+    "subtitle": "适用于所有智能体、且无法绕过的限制",
     "desc": "规则在运行时之外生效——在代理层和工具层。范围更窄的规则可以收得更紧；全局的禁止规则永远不能被放松。暂停的规则会保留，但不生效。",
     "noneByDefault": "没有定义规则——默认情况下代理层仍然是默认拒绝。",
     "paused": "已暂停",
@@ -1279,17 +1280,31 @@
     "breadcrumb": "组织架构",
     "self": "— 你",
     "profile": "档案",
-    "orgChart": "在组织架构中",
+    "orgChart": "在组织架构图中",
     "reportsTo": "上报给",
     "nobody": "无",
     "directReports": "直接下属",
     "noDirect": "无",
     "supervisedAgents": "所负责的智能体",
     "noAgents": "无",
-    "readOnlyHint": "其他人的档案由管理员在“用户”里管理。",
+    "readOnlyHint": "其他人的资料由管理员在“成员”中维护。",
     "photoChange": "更换照片",
     "photoRemove": "删除照片",
-    "photoFailed": "无法保存照片。支持不超过 12 MB 的 JPEG 和 PNG。"
+    "photoFailed": "无法保存照片。支持不超过 12 MB 的 JPEG 和 PNG。",
+    "access": "角色与访问",
+    "roleChange": "更改",
+    "roleSave": "保存角色",
+    "roleHint": "新角色立即生效，包括正在进行的会话。",
+    "ownRole": "自己的角色需由另一位管理员更改。",
+    "passwordTitle": "密码",
+    "passwordHint": "设置新密码会让此人在所有地方退出登录。",
+    "ownPassword": "在下方更改您自己的密码。",
+    "removeTitle": "从组织中移除",
+    "removeHint": "此人将立即失去对本组织的访问权限。",
+    "openOrgChart": "在组织架构图中查看",
+    "current": "当前",
+    "accessDesc": "此人在该组织中可以做什么。",
+    "profileDesc": "代理对此人的了解，以便找对人。"
   },
   "runtimes": {
     "title": "引擎",
@@ -1367,8 +1382,8 @@
     }
   },
   "secrets": {
-    "title": "密钥",
-    "subtitle": "在 Postgres 中以 AES-GCM 加密",
+    "title": "凭据",
+    "subtitle": "智能体用来登录的密码和密钥 — 加密保存",
     "noAccess": "你的角色（{{role}}）没有密钥库的权限。",
     "desc": "密钥一开始是普通变量（服务器名、URL），仍然可读。请把令牌和口令标记为敏感——之后其值只能写入，再也无法通过 API 读取；只有开头几个字符留作辨认。",
     "key": "键",
@@ -1741,7 +1756,7 @@
     "importSkipped": "已略过：{{what}}"
   },
   "targets": {
-    "title": "目标系统",
+    "title": "已连接系统",
     "subtitle": "你的智能体在什么里面干活——来自商店、你自己接入的，或是 covey 自带的",
     "desc": "目标系统就是插件。大多数从商店里取：一个目录，从中安装，不用部署，也不用等 covey 的新版本。只有真正需要代码的才编译在内：REST 之外的协议、OAuth 流程、沙箱内部的工作。自己的 REST 系统可以作为 JSON 清单接进来。",
     "noAccess": "你的角色（{{role}}）可以查看目标系统，但不能管理。",
@@ -1844,8 +1859,8 @@
     "kindWasm": "代码（wasm）"
   },
   "egress": {
-    "title": "出站网络",
-    "subtitle": "沙箱的出站流量",
+    "title": "互联网访问",
+    "subtitle": "智能体可以访问哪些互联网地址",
     "overview": "总览",
     "templates": "模板",
     "allowed24h": "放行，最近 24 小时",
@@ -1929,8 +1944,8 @@
     }
   },
   "requests": {
-    "title": "请求",
-    "subtitle": "边界上的 HTTP 流量",
+    "title": "通信",
+    "subtitle": "covey 与已连接系统之间往来的内容",
     "intro": "目标系统插件发出的每一个请求（出站），以及 covey 收到的每一个 webhook（入站）——包括被拒绝的。记录显示智能体做了什么；这里显示线上实际走过的东西。这是保留期很短的诊断数据，不是审计轨迹。凭据会被遮蔽，正文会被截断。",
     "disabled": "请求日志已关闭",
     "disabledHint": "用 COVEY_REQUEST_LOG=true（默认值）打开，并重启进程。",
@@ -2005,21 +2020,33 @@
   },
   "users": {
     "title": "用户",
-    "subtitle": "本组织的人员与角色（RBAC）",
-    "desc": "角色对正在进行的会话立即生效。重置密码会让该用户在所有地方退出登录。组织里最后一位 org admin 不能被删除，也不能被降级。",
+    "desc": "谁在本组织工作，以及每个人可以做什么。角色更改立即生效。",
     "noAccess": "你的角色（{{role}}）没有用户管理的权限。",
     "email": "邮箱",
     "name": "姓名",
     "role": "角色",
     "password": "密码（至少 8 位）",
-    "create": "创建",
+    "create": "添加",
     "profileHint": "职务、各平台上的身份和职责范围，在创建之后于该人的档案页面里管理。",
-    "passwordReset": "密码",
-    "delete": "删除",
+    "passwordReset": "重置密码",
+    "delete": "移除",
     "cantDeleteSelf": "无法删除你自己的账户",
     "self": "— 你",
     "newPasswordLabel": "新密码（至少 8 位）——会让该用户在所有地方退出登录",
-    "setPassword": "设置"
+    "setPassword": "设置",
+    "add": "添加成员",
+    "cancel": "取消",
+    "count": "{{count}} 人",
+    "count_one": "{{count}} 人",
+    "confirmDelete": "确定移除 {{name}}？",
+    "rolesHelp": "各角色可以做什么？",
+    "roleDesc": {
+      "org_admin": "管理组织：成员、设置和所有智能体。",
+      "agent_owner": "招聘智能体、配置它们并与它们协作。",
+      "security": "制定规则和互联网访问，可以停止智能体并给予批准。",
+      "auditor": "查看记录和工作记录，不做任何更改。",
+      "controlling": "查看成本和用量。"
+    }
   },
   "account": {
     "title": "账户",
@@ -2106,7 +2133,9 @@
       "ops": "平台",
       "opsHint": "消失的 Runner、被目标系统拒绝或即将被拒绝的凭据，以及其他运维应当知道的事情。",
       "instanceOff": "已由管理员为整个安装关闭。"
-    }
+    },
+    "developer": "开发者",
+    "developerDesc": "API 密钥和用于 Claude Code 的 covey 技能。"
   },
   "profile": {
     "noProfile": "没有保存档案。",
@@ -2114,12 +2143,15 @@
     "phone": "电话",
     "responsibilities": "职责范围（智能体可见）",
     "responsibilitiesPlaceholder": "例如 测试 educa 项目里的缺陷修复",
-    "responsibilitiesHint": "档案和职责会作为团队名录进入智能体的提示——好让例如 GitLab 机器人知道该把待测的问题指派给谁。",
+    "responsibilitiesHint": "代理会看到职位和职责，从而知道什么事该找谁。",
     "identityLabel": "在 {{system}} 上的身份",
     "identityPlaceholder": "系统中的用户名／登录名",
     "noTargets": "还没有启用任何目标系统——等“目标系统”里有一个处于启用状态，就可以管理各平台身份了。",
     "jobTitlePlaceholder": "例如 QA 工程师",
-    "save": "保存"
+    "save": "保存",
+    "identities": "其他系统中的登录名",
+    "identitiesHint": "让代理能在那里识别此人并给其分配工作。只填写此人实际使用的系统。",
+    "saved": "已保存。"
   },
   "help": {
     "title": "帮助",
@@ -2317,19 +2349,24 @@
     "failed": "这份需求失败了。"
   },
   "administration": {
-    "title": "管理",
+    "title": "组织",
     "subtitle": "本组织",
-    "tabProfile": "资料",
-    "tabMembers": "成员与角色",
+    "tabProfile": "常规",
+    "tabMembers": "成员",
     "tabUsage": "用量",
-    "tabAudit": "审计",
-    "profileDesc": "本组织的基础资料。描述和平台仓库在组织架构页面上也有——同一份存储，第二个入口。",
+    "profileDesc": "您的组织是谁，以及它如何与智能体协作。",
     "usageDesc": "本组织用掉了多少。将来用来对照这些数字的配额，目前还不存在。",
     "members": "成员",
     "agents": "智能体",
     "agentsActive": "其中忙碌",
     "cost30d": "成本（30 天）",
-    "tabDiagnostics": "诊断"
+    "tabDiagnostics": "诊断",
+    "tabSignIn": "登录",
+    "groupCompany": "公司",
+    "groupWork": "协作",
+    "groupVoice": "语言与语音",
+    "advanced": "高级",
+    "advancedDesc": "很少用到的技术设置。"
   },
   "platform": {
     "seatAddPick": "添加到组织…",
@@ -2341,7 +2378,7 @@
     "tabAccounts": "账户",
     "tabSettings": "设置",
     "tabWaitlist": "候补名单",
-    "accountsDesc": "这套安装里的每一个登录。右侧的级别属于实例；下面的角色各属于一个组织，并在那里分派。",
+    "accountsDesc": "本安装中的每个登录账号。点击可展开账号：所在组织及其角色，以及是否可以管理本安装。",
     "noAccounts": "还没有账户。",
     "you": "— 你",
     "unverified": "未验证",
@@ -2461,7 +2498,19 @@
     },
     "deleteAccount": "删除账号",
     "deleteAccountConfirm_one": "要永久删除 {{email}} 及其席位吗？此操作无法撤销。",
-    "deleteAccountConfirm_other": "要永久删除 {{email}} 及其 {{count}} 个席位吗？此操作无法撤销。"
+    "deleteAccountConfirm_other": "要永久删除 {{email}} 及其 {{count}} 个席位吗？此操作无法撤销。",
+    "accountsSearch": "搜索姓名、邮箱或组织",
+    "accountsCount": "{{count}} 个账号",
+    "accountsCount_one": "{{count}} 个账号",
+    "detailOrgs": "组织",
+    "detailInstance": "本安装",
+    "levelHint": "系统管理员管理整个安装及其所有组织。",
+    "seatRemoveConfirm": "从 {{org}} 中移除？",
+    "seatAddButton": "添加到组织",
+    "deleteHint": "删除该登录账号及其所有组织席位。无法撤销。",
+    "levelDescUser": "在该账户所属的组织中工作。",
+    "levelDescAdmin": "管理整个安装及其所有组织。",
+    "seatOrgLabel": "组织"
   },
   "catalog": {
     "loading": "正在加载目录 …",

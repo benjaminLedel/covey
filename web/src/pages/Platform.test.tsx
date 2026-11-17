@@ -62,17 +62,37 @@ describe("Plattform-Panel", () => {
     renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
 
     expect(await screen.findByText("Betreiberin")).toBeInTheDocument();
-    // The instance level stands in the row of the account …
-    const ebenen = screen.getAllByRole("combobox");
-    expect((ebenen[0] as HTMLSelectElement).value).toBe("system_admin");
-    // … the organisation role below it, at the seat, as a field of its own (#262).
-    expect(screen.getByText("Northgate")).toBeInTheDocument();
-    expect((ebenen[1] as HTMLSelectElement).value).toBe("org_admin");
+    // The list only shows (#743): the seat with its role, the instance level
+    // as a tag — and nothing that changes either on one click.
+    expect(screen.getByText("Northgate · Org-Admin")).toBeInTheDocument();
+    expect(screen.getByText("System-Admin")).toBeInTheDocument();
+    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
 
     // An account without a seat is not an error, but the state after someone
     // registered themselves — and it has to be readable as such.
     expect(screen.getByText("in keiner Organisation")).toBeInTheDocument();
     expect(screen.getByText("nie angemeldet")).toBeInTheDocument();
+
+    // Opened, the two levels stand under headings of their own.
+    await userEvent.click(screen.getByText("Betreiberin"));
+    const detail = document.querySelector(".account-detail") as HTMLElement;
+    expect(detail).toHaveTextContent("Organisationen");
+    expect(detail).toHaveTextContent("Diese Installation");
+  });
+
+  it("ändert eine Rolle erst nach Ändern und Speichern", async () => {
+    const { calls } = mockFetch({
+      ...routen,
+      "PATCH /api/v1/platform/orgs/22222222-2222-2222-2222-222222222222/members/33333333-3333-3333-3333-333333333333": {},
+    });
+    renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
+
+    await userEvent.click(await screen.findByText("Betreiberin"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Ändern" })[0]);
+    await userEvent.click(screen.getByRole("radio", { name: /Auditor/ }));
+    expect(calls.some((c) => c.startsWith("PATCH"))).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(calls).toContain("PATCH /api/v1/platform/orgs/22222222-2222-2222-2222-222222222222/members/33333333-3333-3333-3333-333333333333");
   });
 
   it("gibt einem Konto einen Sitz in einer weiteren Organisation (#262)", async () => {
@@ -87,15 +107,15 @@ describe("Plattform-Panel", () => {
     });
     renderWithProviders(<Platform me={systemadmin} />, { route: "/platform/accounts", path: "/platform/*" });
 
-    expect(await screen.findByText("Betreiberin")).toBeInTheDocument();
-    // Offered only where the account has no seat yet: the operator is missing
-    // Southfield, the new account is missing both.
-    const auswahl = await screen.findAllByDisplayValue("Einer Organisation hinzufügen …");
-    expect(auswahl).toHaveLength(2);
-    expect(Array.from((auswahl[0] as HTMLSelectElement).options).map((o) => o.text)).not.toContain("Northgate");
+    // Offered only where the account has no seat yet: the operator already
+    // sits in Northgate.
+    await userEvent.click(await screen.findByText("Betreiberin"));
+    await userEvent.click(screen.getByRole("button", { name: "Zu einer Organisation hinzufügen" }));
+    const auswahl = screen.getByDisplayValue("Einer Organisation hinzufügen …") as HTMLSelectElement;
+    expect(Array.from(auswahl.options).map((o) => o.text)).not.toContain("Northgate");
 
-    await userEvent.selectOptions(auswahl[1], "55555555-5555-5555-5555-555555555555");
-    await userEvent.click(screen.getAllByRole("button", { name: "Hinzufügen" })[1]);
+    await userEvent.selectOptions(auswahl, "55555555-5555-5555-5555-555555555555");
+    await userEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     expect(calls).toContain("POST /api/v1/platform/orgs/55555555-5555-5555-5555-555555555555/members");
   });
 

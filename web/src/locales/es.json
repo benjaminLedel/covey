@@ -64,12 +64,12 @@
     "templates": "Plantillas",
     "org": "Organigrama",
     "costs": "Costes",
-    "setup": "Configuración",
-    "control": "Supervisión",
-    "guardrails": "Barreras",
-    "secrets": "Secretos",
-    "targets": "Sistemas de destino",
-    "egress": "Salida de red",
+    "setup": "Herramientas",
+    "control": "Seguridad",
+    "guardrails": "Reglas",
+    "secrets": "Credenciales",
+    "targets": "Sistemas conectados",
+    "egress": "Acceso a internet",
     "platform": "Plataforma",
     "users": "Usuarios",
     "organizations": "Organizaciones",
@@ -77,20 +77,21 @@
     "logout": "Cerrar sesión",
     "userMenu": "Menú de usuario",
     "profile": "Perfil y ajustes",
-    "audit": "Auditoría",
-    "requests": "Peticiones",
+    "audit": "Registro",
+    "requests": "Tráfico",
     "skills": "Habilidades",
     "voices": "Voces",
     "setupPage": "Configuración",
     "inbox": "Bandeja de entrada",
-    "administrationSection": "Administración",
-    "administration": "Organización",
+    "administrationSection": "Organización",
+    "administration": "Ajustes",
     "approvals": "Aprobaciones",
     "infrastructure": "Infraestructura",
     "apps": "App de covey",
     "helpShort": "Ayuda",
     "menu": "Menú",
-    "workflows": "Flujos de trabajo"
+    "workflows": "Flujos de trabajo",
+    "members": "Miembros"
   },
   "costs": {
     "title": "Coste y tokens",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Auditoría",
+    "title": "Registro",
     "count": "{{count}} entradas",
     "lead": "Lo que las personas hicieron con la plataforma: la contraparte de la grabación, que muestra a los agentes. Recoge quién tocó qué y cuándo; los contenidos faltan a propósito, porque acabarían recogiendo valores secretos.",
     "searchPlaceholder": "Buscar (ruta, persona, método)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Aplicada como versión {{v}}"
   },
   "guardrails": {
-    "title": "Barreras",
-    "subtitle": "impuestas de forma central, fail-closed",
+    "title": "Reglas",
+    "subtitle": "Límites que valen para todos los agentes — y que no pueden saltarse",
     "desc": "Las reglas rigen fuera del motor: en el intermediario y en la capa de herramientas. Un alcance más estrecho puede endurecerlas; una regla global de denegación nunca se puede aflojar. Las reglas en pausa se conservan pero no rigen.",
     "noneByDefault": "No hay reglas definidas: por defecto el intermediario sigue en fail-closed.",
     "paused": "en pausa",
@@ -1286,10 +1287,24 @@
     "noDirect": "ninguna",
     "supervisedAgents": "agentes supervisados",
     "noAgents": "ninguno",
-    "readOnlyHint": "Los perfiles de otras personas los gestiona un administrador en \"Usuarios\".",
+    "readOnlyHint": "Los perfiles de otras personas los mantiene la administración en «Miembros».",
     "photoChange": "Cambiar foto",
     "photoRemove": "Quitar foto",
-    "photoFailed": "No se pudo guardar la foto. Se admiten JPEG y PNG de hasta 12 MB."
+    "photoFailed": "No se pudo guardar la foto. Se admiten JPEG y PNG de hasta 12 MB.",
+    "access": "Rol y acceso",
+    "roleChange": "Cambiar",
+    "roleSave": "Guardar rol",
+    "roleHint": "El nuevo rol se aplica al instante, también en las sesiones abiertas.",
+    "ownRole": "Su propio rol lo cambia otra persona administradora.",
+    "passwordTitle": "Contraseña",
+    "passwordHint": "Una contraseña nueva cierra la sesión de la persona en todas partes.",
+    "ownPassword": "Cambie su propia contraseña más abajo.",
+    "removeTitle": "Quitar de la organización",
+    "removeHint": "La persona pierde al instante el acceso a esta organización.",
+    "openOrgChart": "Ver en el organigrama",
+    "current": "Actual",
+    "accessDesc": "Lo que esta persona puede hacer en esta organización.",
+    "profileDesc": "Lo que los agentes saben de esta persona para dirigirse a la adecuada."
   },
   "runtimes": {
     "title": "Motores",
@@ -1367,8 +1382,8 @@
     }
   },
   "secrets": {
-    "title": "Secretos",
-    "subtitle": "cifrados con AES-GCM en Postgres",
+    "title": "Credenciales",
+    "subtitle": "Contraseñas y claves con las que sus agentes inician sesión — guardadas cifradas",
     "noAccess": "Tu rol ({{role}}) no tiene acceso al almacén de secretos.",
     "desc": "Los secretos empiezan como variables normales (nombres de servidor, URLs) y siguen siendo legibles. Marca como sensibles los tokens y contraseñas: entonces el valor es de solo escritura y nunca vuelve a leerse por la API; solo los primeros caracteres sirven de pista para reconocerlo.",
     "key": "Clave",
@@ -1741,7 +1756,7 @@
     "importSkipped": "omitido: {{what}}"
   },
   "targets": {
-    "title": "Sistemas de destino",
+    "title": "Sistemas conectados",
     "subtitle": "Aquello en lo que trabajan tus agentes: de la tienda, conectado por ti o incluido con covey",
     "desc": "Los sistemas de destino son plugins. La mayoría los sacas de la tienda: un catálogo desde el que instalas, sin despliegue y sin una versión nueva de covey. Solo lo que necesita código de verdad va compilado dentro: protocolos más allá de REST, flujos OAuth, trabajo dentro del entorno aislado. Un sistema REST propio lo conectas como un manifiesto JSON.",
     "noAccess": "Tu rol ({{role}}) puede ver los sistemas de destino, pero no gestionarlos.",
@@ -1844,8 +1859,8 @@
     "kindWasm": "Código (wasm)"
   },
   "egress": {
-    "title": "Salida de red",
-    "subtitle": "Salida de red de los entornos aislados",
+    "title": "Acceso a internet",
+    "subtitle": "A qué direcciones de internet pueden llegar los agentes",
     "overview": "Vista general",
     "templates": "Plantillas",
     "allowed24h": "permitidas, últimas 24 h",
@@ -1929,8 +1944,8 @@
     }
   },
   "requests": {
-    "title": "Peticiones",
-    "subtitle": "Tráfico HTTP en los bordes",
+    "title": "Tráfico",
+    "subtitle": "Lo que se intercambió entre covey y los sistemas conectados",
     "intro": "Cada petición que hace un plugin de sistema de destino (saliente) y cada webhook que recibe covey (entrante), incluidas las rechazadas. La grabación muestra QUÉ hizo un agente; esto muestra lo que realmente pasó por el cable. Son datos de diagnóstico con retención corta, no una pista de auditoría. Las credenciales se ocultan y los cuerpos se recortan.",
     "disabled": "El registro de peticiones está apagado",
     "disabledHint": "Actívalo con COVEY_REQUEST_LOG=true (el valor por defecto) y reinicia el proceso.",
@@ -2005,21 +2020,33 @@
   },
   "users": {
     "title": "Usuarios",
-    "subtitle": "Personas y roles de esta organización (RBAC)",
-    "desc": "Los roles surten efecto de inmediato en las sesiones activas. Restablecer la contraseña cierra la sesión del usuario en todas partes. El último org admin de una organización no se puede eliminar ni degradar.",
+    "desc": "Quién trabaja en esta organización y qué puede hacer cada persona. Un cambio de rol se aplica al instante.",
     "noAccess": "Tu rol ({{role}}) no tiene acceso a la gestión de usuarios.",
     "email": "Correo",
     "name": "Nombre",
     "role": "Rol",
     "password": "Contraseña (mín. 8 caracteres)",
-    "create": "Crear",
+    "create": "Añadir",
     "profileHint": "El puesto, las identidades en las plataformas y las responsabilidades se gestionan en la página de perfil de la persona una vez creada.",
-    "passwordReset": "Contraseña",
-    "delete": "Eliminar",
+    "passwordReset": "Restablecer contraseña",
+    "delete": "Quitar",
     "cantDeleteSelf": "Tu propia cuenta no se puede eliminar",
     "self": "— Tú",
     "newPasswordLabel": "Contraseña nueva (mín. 8 caracteres): cierra la sesión del usuario en todas partes",
-    "setPassword": "Establecer"
+    "setPassword": "Establecer",
+    "add": "Añadir persona",
+    "cancel": "Cancelar",
+    "count": "{{count}} personas",
+    "count_one": "Una persona",
+    "confirmDelete": "¿Quitar de verdad a {{name}}?",
+    "rolesHelp": "¿Qué puede hacer cada rol?",
+    "roleDesc": {
+      "org_admin": "Gestiona la organización: miembros, ajustes y todos los agentes.",
+      "agent_owner": "Contrata agentes, los configura y trabaja con ellos.",
+      "security": "Fija reglas y acceso a internet, puede detener agentes y conceder aprobaciones.",
+      "auditor": "Lee el registro y los informes de trabajo, sin cambiar nada.",
+      "controlling": "Ve costes y consumo."
+    }
   },
   "account": {
     "title": "Cuenta",
@@ -2106,7 +2133,9 @@
       "ops": "Plataforma",
       "opsHint": "Un runner que desaparece, una credencial que un sistema de destino rechaza o está a punto de rechazar, y otras cosas que la operación debería saber.",
       "instanceOff": "Desactivado para toda esta instalación por su administrador."
-    }
+    },
+    "developer": "Para desarrolladores",
+    "developerDesc": "Claves de API y la skill de covey para Claude Code."
   },
   "profile": {
     "noProfile": "No hay perfil guardado.",
@@ -2114,12 +2143,15 @@
     "phone": "Teléfono",
     "responsibilities": "Responsabilidades (visibles para los agentes)",
     "responsibilitiesPlaceholder": "p. ej. prueba correcciones de errores en el proyecto educa",
-    "responsibilitiesHint": "El perfil y las responsabilidades entran como directorio del equipo en los prompts de los agentes, para que, por ejemplo, el bot de GitLab sepa a quién asignar una incidencia para que la pruebe.",
+    "responsibilitiesHint": "Los agentes ven el puesto y las responsabilidades, y así saben a quién acudir para qué.",
     "identityLabel": "Identidad en {{system}}",
     "identityPlaceholder": "Usuario / login en el sistema",
     "noTargets": "No hay sistemas de destino activados: las identidades de plataforma se podrán gestionar cuando haya un sistema activo en «Sistemas de destino».",
     "jobTitlePlaceholder": "p. ej. Ingeniera de QA",
-    "save": "Guardar"
+    "save": "Guardar",
+    "identities": "Inicios de sesión en otros sistemas",
+    "identitiesHint": "Para que los agentes reconozcan a la persona allí y puedan asignarle trabajo. Rellene solo donde trabaja.",
+    "saved": "Guardado."
   },
   "help": {
     "title": "Ayuda",
@@ -2317,19 +2349,24 @@
     "failed": "El encargo ha fallado."
   },
   "administration": {
-    "title": "Administración",
+    "title": "Organización",
     "subtitle": "Esta organización",
-    "tabProfile": "Perfil",
-    "tabMembers": "Miembros y roles",
+    "tabProfile": "General",
+    "tabMembers": "Miembros",
     "tabUsage": "Uso",
-    "tabAudit": "Auditoría",
-    "profileDesc": "Los datos maestros de esta organización. La descripción y el repositorio de la plataforma también están en el organigrama: mismo almacén, segunda puerta.",
+    "profileDesc": "Quién es su organización y cómo trabaja con sus agentes.",
     "usageDesc": "Lo que usa esta organización. Las cuotas con las que algún día se contrastarán estas cifras todavía no existen.",
     "members": "Miembros",
     "agents": "Agentes",
     "agentsActive": "de ellos ocupados",
     "cost30d": "Coste (30 días)",
-    "tabDiagnostics": "Diagnóstico"
+    "tabDiagnostics": "Diagnóstico",
+    "tabSignIn": "Inicio de sesión",
+    "groupCompany": "Empresa",
+    "groupWork": "Colaboración",
+    "groupVoice": "Idioma y voz",
+    "advanced": "Avanzado",
+    "advancedDesc": "Ajustes técnicos que rara vez hacen falta."
   },
   "platform": {
     "seatAddPick": "Añadir a una organización…",
@@ -2341,7 +2378,7 @@
     "tabAccounts": "Cuentas",
     "tabSettings": "Ajustes",
     "tabWaitlist": "Lista de espera",
-    "accountsDesc": "Todos los accesos de esta instalación. El nivel de la derecha pertenece a la instancia; los roles de debajo pertenecen cada uno a una organización y se reparten allí.",
+    "accountsDesc": "Cada inicio de sesión de esta instalación. Un clic abre una cuenta: sus organizaciones con el rol en cada una, y si puede administrar la instalación.",
     "noAccounts": "Todavía no hay cuentas.",
     "you": "— tú",
     "unverified": "sin verificar",
@@ -2461,7 +2498,19 @@
     },
     "deleteAccount": "Eliminar cuenta",
     "deleteAccountConfirm_one": "¿Eliminar {{email}} definitivamente, con su puesto? No se puede deshacer.",
-    "deleteAccountConfirm_other": "¿Eliminar {{email}} definitivamente, con sus {{count}} puestos? No se puede deshacer."
+    "deleteAccountConfirm_other": "¿Eliminar {{email}} definitivamente, con sus {{count}} puestos? No se puede deshacer.",
+    "accountsSearch": "Buscar nombre, correo u organización",
+    "accountsCount": "{{count}} cuentas",
+    "accountsCount_one": "Una cuenta",
+    "detailOrgs": "Organizaciones",
+    "detailInstance": "Esta instalación",
+    "levelHint": "Quien administra el sistema gestiona toda la instalación con todas las organizaciones.",
+    "seatRemoveConfirm": "¿Quitar de {{org}}?",
+    "seatAddButton": "Añadir a una organización",
+    "deleteHint": "Elimina el inicio de sesión con todas sus organizaciones. No se puede deshacer.",
+    "levelDescUser": "Trabaja en las organizaciones de las que la cuenta es miembro.",
+    "levelDescAdmin": "Administra toda la instalación con todas las organizaciones.",
+    "seatOrgLabel": "Organización"
   },
   "catalog": {
     "loading": "Cargando el catálogo …",

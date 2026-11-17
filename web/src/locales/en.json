@@ -64,12 +64,12 @@
     "templates": "Templates",
     "org": "Org Chart",
     "costs": "Costs",
-    "setup": "Setup",
-    "control": "Oversight",
-    "guardrails": "Guard Rails",
-    "secrets": "Secrets",
-    "targets": "Target Systems",
-    "egress": "Egress",
+    "setup": "Tools",
+    "control": "Security",
+    "guardrails": "Rules",
+    "secrets": "Credentials",
+    "targets": "Connected systems",
+    "egress": "Internet access",
     "platform": "Platform",
     "users": "Users",
     "organizations": "Organizations",
@@ -77,20 +77,21 @@
     "logout": "Sign out",
     "userMenu": "User menu",
     "profile": "Profile & Settings",
-    "audit": "Audit",
-    "requests": "Requests",
+    "audit": "Activity log",
+    "requests": "Traffic",
     "skills": "Skills",
     "voices": "Voices",
     "setupPage": "Setup",
     "inbox": "Inbox",
-    "administrationSection": "Administration",
-    "administration": "Organization",
+    "administrationSection": "Organization",
+    "administration": "Settings",
     "approvals": "Approvals",
     "infrastructure": "Infrastructure",
     "apps": "covey app",
     "helpShort": "Help",
     "menu": "Menu",
-    "workflows": "Workflows"
+    "workflows": "Workflows",
+    "members": "Members"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Audit",
+    "title": "Activity log",
     "count": "{{count}} entries",
     "lead": "What humans did to the platform — the counterpart to the recording, which shows the agents. It holds who touched what and when; payloads are deliberately absent, since secret values would end up in them.",
     "searchPlaceholder": "Search (path, person, method)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Applied as version {{v}}"
   },
   "guardrails": {
-    "title": "Guard Rails",
-    "subtitle": "centrally enforced, fail-closed",
+    "title": "Rules",
+    "subtitle": "Limits that apply to every agent — and that they cannot get around",
     "desc": "Rules apply outside the runtime — at the broker and in the tool layer. A narrower scope can tighten rules; a global deny rule can never be loosened. Paused rules are preserved but don't apply.",
     "noneByDefault": "No rules defined — default is still fail-closed at the broker.",
     "paused": "paused",
@@ -1286,10 +1287,24 @@
     "noDirect": "none",
     "supervisedAgents": "supervised agents",
     "noAgents": "none",
-    "readOnlyHint": "Other people's profiles are managed by an admin under \"Users\".",
+    "readOnlyHint": "Other people's profiles are maintained by an admin under “Members”.",
     "photoChange": "Change photo",
     "photoRemove": "Remove photo",
-    "photoFailed": "The photo could not be saved. JPEG and PNG up to 12 MB are allowed."
+    "photoFailed": "The photo could not be saved. JPEG and PNG up to 12 MB are allowed.",
+    "access": "Role and access",
+    "roleChange": "Change",
+    "roleSave": "Save role",
+    "roleHint": "The new role applies at once, including sessions that are running right now.",
+    "ownRole": "Your own role is changed by another admin.",
+    "passwordTitle": "Password",
+    "passwordHint": "A new password signs the person out everywhere.",
+    "ownPassword": "Change your own password further down.",
+    "removeTitle": "Remove from the organization",
+    "removeHint": "The person loses access to this organization at once.",
+    "openOrgChart": "View in org chart",
+    "current": "Current",
+    "accessDesc": "What this person may do in this organization.",
+    "profileDesc": "What agents know about this person, so they turn to the right one."
   },
   "runtimes": {
     "title": "Engines",
@@ -1367,8 +1382,8 @@
     }
   },
   "secrets": {
-    "title": "Secrets",
-    "subtitle": "AES-GCM-encrypted in Postgres",
+    "title": "Credentials",
+    "subtitle": "Passwords and keys your agents sign in with — stored encrypted",
     "noAccess": "Your role ({{role}}) does not have access to the secret store.",
     "desc": "Secrets start out as plain variables (server names, URLs) and remain readable. Mark tokens and passwords as sensitive — then the value is write-only and never readable again via the API; only the first characters serve as a recognition hint.",
     "key": "Key",
@@ -1741,7 +1756,7 @@
     "importSkipped": "left out: {{what}}"
   },
   "targets": {
-    "title": "Target Systems",
+    "title": "Connected systems",
     "subtitle": "What your agents work in — from the store, connected yourself, or shipped with covey",
     "desc": "Target systems are plugins. Most of them you get from the store: a catalogue you install from, without a deploy and without a new covey release. Only what genuinely needs code ships compiled in — protocols beyond REST, OAuth flows, work inside the sandbox. A REST system of your own you connect as a JSON manifest.",
     "noAccess": "Your role ({{role}}) can view target systems but not manage them.",
@@ -1844,8 +1859,8 @@
     "kindWasm": "Code (wasm)"
   },
   "egress": {
-    "title": "Egress",
-    "subtitle": "Network egress of sandboxes",
+    "title": "Internet access",
+    "subtitle": "Which addresses agents may reach on the internet",
     "overview": "Overview",
     "templates": "Templates",
     "allowed24h": "allowed, last 24 h",
@@ -1929,8 +1944,8 @@
     }
   },
   "requests": {
-    "title": "Requests",
-    "subtitle": "HTTP traffic at the edges",
+    "title": "Traffic",
+    "subtitle": "What went back and forth between covey and the connected systems",
     "intro": "Every request a target-system plugin makes (outbound) and every webhook covey receives (inbound) — including the rejected ones. The recording shows WHAT an agent did; this shows what actually went over the wire. Diagnostic data with short retention, not an audit trail. Credentials are redacted, bodies truncated.",
     "disabled": "Request log is switched off",
     "disabledHint": "Enable with COVEY_REQUEST_LOG=true (the default) and restart the process.",
@@ -2005,21 +2020,33 @@
   },
   "users": {
     "title": "Users",
-    "subtitle": "People & roles of this organization (RBAC)",
-    "desc": "Roles take effect immediately on active sessions. A password reset logs the user out everywhere. The last org admin of an organization cannot be deleted or demoted.",
+    "desc": "Who works in this organization and what each person may do. A changed role applies at once.",
     "noAccess": "Your role ({{role}}) does not have access to user management.",
     "email": "Email",
     "name": "Name",
     "role": "Role",
     "password": "Password (min. 8 characters)",
-    "create": "Create",
+    "create": "Add",
     "profileHint": "Job title, platform identities and responsibilities are managed on the person's profile page after creation.",
-    "passwordReset": "Password",
-    "delete": "Delete",
+    "passwordReset": "Reset password",
+    "delete": "Remove",
     "cantDeleteSelf": "Your own account cannot be deleted",
     "self": "— You",
     "newPasswordLabel": "New password (min. 8 characters) — logs the user out everywhere",
-    "setPassword": "Set"
+    "setPassword": "Set",
+    "add": "Add person",
+    "cancel": "Cancel",
+    "count": "{{count}} people",
+    "count_one": "One person",
+    "confirmDelete": "Really remove {{name}}?",
+    "rolesHelp": "What can each role do?",
+    "roleDesc": {
+      "org_admin": "Runs the organization: members, settings and every agent.",
+      "agent_owner": "Hires agents, sets them up and works with them.",
+      "security": "Sets rules and internet access, can stop agents and grant approvals.",
+      "auditor": "Reads the activity log and work records, changes nothing.",
+      "controlling": "Sees costs and usage."
+    }
   },
   "account": {
     "title": "Account",
@@ -2106,7 +2133,9 @@
       "ops": "Platform",
       "opsHint": "A runner that leaves, a credential a target system refuses or is about to, and other things the operation should know.",
       "instanceOff": "Switched off for this whole installation by its administrator."
-    }
+    },
+    "developer": "For developers",
+    "developerDesc": "API keys and the covey skill for Claude Code."
   },
   "profile": {
     "noProfile": "No profile stored.",
@@ -2114,12 +2143,15 @@
     "phone": "Phone",
     "responsibilities": "Responsibilities (visible to agents)",
     "responsibilitiesPlaceholder": "e.g. tests bug fixes in project educa",
-    "responsibilitiesHint": "Profile and responsibilities go as a team directory into agent prompts — so e.g. the GitLab bot knows whom to assign an issue for testing.",
+    "responsibilitiesHint": "Agents see the job title and responsibilities, so they know whom to turn to for what.",
     "identityLabel": "{{system}} identity",
     "identityPlaceholder": "Username / login in the system",
     "noTargets": "No target systems activated — platform identities can be managed once a system is active under \"Target Systems\".",
     "jobTitlePlaceholder": "e.g. QA Engineer",
-    "save": "Save"
+    "save": "Save",
+    "identities": "Logins in other systems",
+    "identitiesHint": "So agents recognise the person there and can assign them work. Fill in only where they work.",
+    "saved": "Saved."
   },
   "help": {
     "title": "Help",
@@ -2317,19 +2349,24 @@
     "failed": "The brief failed."
   },
   "administration": {
-    "title": "Administration",
+    "title": "Organization",
     "subtitle": "This organization",
-    "tabProfile": "Profile",
-    "tabMembers": "Members & roles",
+    "tabProfile": "General",
+    "tabMembers": "Members",
     "tabUsage": "Usage",
-    "tabAudit": "Audit",
-    "profileDesc": "This organization's master data. Description and platform repository also sit on the org chart — same store, second way in.",
+    "profileDesc": "Who your organization is and how it works with its agents.",
     "usageDesc": "What this organization uses. The quotas these numbers will one day be checked against do not exist yet.",
     "members": "Members",
     "agents": "Agents",
     "agentsActive": "of them busy",
     "cost30d": "Cost (30 days)",
-    "tabDiagnostics": "Diagnostics"
+    "tabDiagnostics": "Diagnostics",
+    "tabSignIn": "Sign-in",
+    "groupCompany": "Company",
+    "groupWork": "Working together",
+    "groupVoice": "Language and voice",
+    "advanced": "Advanced",
+    "advancedDesc": "Technical settings you will rarely need."
   },
   "platform": {
     "seatAddPick": "Add to an organization…",
@@ -2341,7 +2378,7 @@
     "tabAccounts": "Accounts",
     "tabSettings": "Settings",
     "tabWaitlist": "Waitlist",
-    "accountsDesc": "Every login of this installation. The level on the right belongs to the instance; the roles below it belong to one organization each and are handed out there.",
+    "accountsDesc": "Every sign-in of this installation. Click an account to open it: its organizations with the role there, and whether it may run the installation.",
     "noAccounts": "No accounts yet.",
     "you": "— you",
     "unverified": "unverified",
@@ -2461,7 +2498,19 @@
     },
     "deleteAccount": "Delete account",
     "deleteAccountConfirm_one": "Delete {{email}} for good, with its seat? This cannot be undone.",
-    "deleteAccountConfirm_other": "Delete {{email}} for good, with its {{count}} seats? This cannot be undone."
+    "deleteAccountConfirm_other": "Delete {{email}} for good, with its {{count}} seats? This cannot be undone.",
+    "accountsSearch": "Search name, email or organization",
+    "accountsCount": "{{count}} accounts",
+    "accountsCount_one": "One account",
+    "detailOrgs": "Organizations",
+    "detailInstance": "This installation",
+    "levelHint": "System admins run the whole installation with every organization.",
+    "seatRemoveConfirm": "Remove from {{org}}?",
+    "seatAddButton": "Add to an organization",
+    "deleteHint": "Deletes the sign-in along with every organization seat. Cannot be undone.",
+    "levelDescUser": "Works in the organizations the account is a member of.",
+    "levelDescAdmin": "Runs the whole installation with every organization.",
+    "seatOrgLabel": "Organization"
   },
   "catalog": {
     "loading": "Loading the catalogue …",

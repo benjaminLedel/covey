@@ -64,12 +64,12 @@
     "templates": "テンプレート",
     "org": "組織図",
     "costs": "コスト",
-    "setup": "セットアップ",
-    "control": "監督",
-    "guardrails": "ガードレール",
-    "secrets": "シークレット",
-    "targets": "対象システム",
-    "egress": "外向き通信",
+    "setup": "ツール",
+    "control": "セキュリティ",
+    "guardrails": "ルール",
+    "secrets": "認証情報",
+    "targets": "接続済みシステム",
+    "egress": "インターネット接続",
     "platform": "プラットフォーム",
     "users": "ユーザー",
     "organizations": "組織",
@@ -77,20 +77,21 @@
     "logout": "ログアウト",
     "userMenu": "ユーザーメニュー",
     "profile": "プロフィールと設定",
-    "audit": "監査",
-    "requests": "リクエスト",
+    "audit": "記録",
+    "requests": "通信",
     "skills": "スキル",
     "voices": "ボイス",
     "setupPage": "セットアップ",
     "inbox": "受信箱",
-    "administrationSection": "管理",
-    "administration": "組織",
+    "administrationSection": "組織",
+    "administration": "設定",
     "approvals": "承認",
     "infrastructure": "インフラ",
     "apps": "covey アプリ",
     "helpShort": "ヘルプ",
     "menu": "メニュー",
-    "workflows": "ワークフロー"
+    "workflows": "ワークフロー",
+    "members": "メンバー"
   },
   "costs": {
     "title": "コストとトークン",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "監査",
+    "title": "記録",
     "count": "{{count}} 件",
     "lead": "人がプラットフォームに対して行ったこと。エージェントの側を示す記録の対になるものです。誰が何にいつ触れたかが残ります。中身は意図的に含めていません。含めれば秘密の値までそこに入ってしまうからです。",
     "searchPlaceholder": "検索（パス、人、メソッド）",
@@ -1037,8 +1038,8 @@
     "appliedAs": "バージョン {{v}} として適用しました"
   },
   "guardrails": {
-    "title": "ガードレール",
-    "subtitle": "中央で強制、フェイルクローズド",
+    "title": "ルール",
+    "subtitle": "すべてのエージェントに適用され、回避できない制限",
     "desc": "ルールはランタイムの外側で効きます。ブローカーと、ツールの層です。範囲を狭めればルールは厳しくできますが、全体に効く禁止ルールを緩めることはできません。一時停止したルールは残りますが効きません。",
     "noneByDefault": "ルールは定義されていません。それでも既定ではブローカーはフェイルクローズドのままです。",
     "paused": "一時停止",
@@ -1286,10 +1287,24 @@
     "noDirect": "なし",
     "supervisedAgents": "担当しているエージェント",
     "noAgents": "なし",
-    "readOnlyHint": "他の人のプロフィールは、管理者が「ユーザー」で管理します。",
+    "readOnlyHint": "他の人のプロフィールは管理者が「メンバー」で管理します。",
     "photoChange": "写真を変更",
     "photoRemove": "写真を削除",
-    "photoFailed": "写真を保存できませんでした。12 MB までの JPEG と PNG に対応しています。"
+    "photoFailed": "写真を保存できませんでした。12 MB までの JPEG と PNG に対応しています。",
+    "access": "ロールとアクセス",
+    "roleChange": "変更",
+    "roleSave": "ロールを保存",
+    "roleHint": "新しいロールは実行中のセッションも含め、すぐに反映されます。",
+    "ownRole": "自分のロールは別の管理者が変更します。",
+    "passwordTitle": "パスワード",
+    "passwordHint": "新しいパスワードを設定すると、その人はすべての場所でサインアウトされます。",
+    "ownPassword": "自分のパスワードは下で変更できます。",
+    "removeTitle": "組織から削除",
+    "removeHint": "その人はこの組織へのアクセスをすぐに失います。",
+    "openOrgChart": "組織図で見る",
+    "current": "現在",
+    "accessDesc": "この組織でこの人ができること。",
+    "profileDesc": "エージェントが適切な相手に頼めるよう、この人について知っていること。"
   },
   "runtimes": {
     "title": "エンジン",
@@ -1367,8 +1382,8 @@
     }
   },
   "secrets": {
-    "title": "シークレット",
-    "subtitle": "Postgres 内で AES-GCM 暗号化",
+    "title": "認証情報",
+    "subtitle": "エージェントがログインに使うパスワードとキー — 暗号化して保存",
     "noAccess": "あなたの役割（{{role}}）にはシークレット保管庫の権限がありません。",
     "desc": "シークレットは最初、ふつうの変数（サーバー名、URL）として読み取れます。トークンやパスワードは機微として印を付けてください。すると値は書き込み専用となり、API から二度と読み取れません。見分けのために先頭の数文字だけが残ります。",
     "key": "キー",
@@ -1741,7 +1756,7 @@
     "importSkipped": "除外: {{what}}"
   },
   "targets": {
-    "title": "対象システム",
+    "title": "接続済みシステム",
     "subtitle": "エージェントが働く先 — ストアから、自分でつないだもの、あるいは covey に同梱のもの",
     "desc": "対象システムはプラグインです。多くはストアから手に入ります。デプロイも covey の新しいリリースもなしにインストールできるカタログです。本当にコードが要るものだけが組み込まれています。REST を超えるプロトコル、OAuth のやり取り、サンドボックス内での作業などです。自前の REST システムは JSON マニフェストとしてつなぎます。",
     "noAccess": "あなたの役割（{{role}}）では対象システムを閲覧できますが、管理はできません。",
@@ -1844,8 +1859,8 @@
     "kindWasm": "コード（wasm）"
   },
   "egress": {
-    "title": "外向き通信",
-    "subtitle": "サンドボックスの外向き通信",
+    "title": "インターネット接続",
+    "subtitle": "エージェントがアクセスできるインターネット上のアドレス",
     "overview": "概要",
     "templates": "テンプレート",
     "allowed24h": "許可、直近 24 時間",
@@ -1929,8 +1944,8 @@
     }
   },
   "requests": {
-    "title": "リクエスト",
-    "subtitle": "境界での HTTP 通信",
+    "title": "通信",
+    "subtitle": "covey と接続済みシステムの間でやり取りされた内容",
     "intro": "対象システムのプラグインが送るすべてのリクエスト（外向き）と、covey が受け取るすべての Webhook（内向き）です。拒否されたものも含みます。記録はエージェントが「何をしたか」を示し、こちらは実際に線の上を何が流れたかを示します。監査証跡ではなく、保持期間の短い診断データです。資格情報は伏せられ、本文は切り詰められます。",
     "disabled": "リクエストログは無効です",
     "disabledHint": "COVEY_REQUEST_LOG=true（既定値）で有効にし、プロセスを再起動してください。",
@@ -2005,21 +2020,33 @@
   },
   "users": {
     "title": "ユーザー",
-    "subtitle": "この組織の人と役割（RBAC）",
-    "desc": "役割は稼働中のセッションにもすぐ反映されます。パスワードの再設定は、そのユーザーをすべての場所からログアウトさせます。組織で最後の org admin は削除も降格もできません。",
+    "desc": "この組織で働く人と、それぞれができること。ロールの変更はすぐに反映されます。",
     "noAccess": "あなたの役割（{{role}}）にはユーザー管理の権限がありません。",
     "email": "メールアドレス",
     "name": "名前",
     "role": "役割",
     "password": "パスワード（8 文字以上）",
-    "create": "作成",
+    "create": "追加",
     "profileHint": "肩書き、各プラットフォームでの識別子、担当範囲は、作成後にその人のプロフィールページで管理します。",
-    "passwordReset": "パスワード",
+    "passwordReset": "パスワードをリセット",
     "delete": "削除",
     "cantDeleteSelf": "自分のアカウントは削除できません",
     "self": "— あなた",
     "newPasswordLabel": "新しいパスワード（8 文字以上）— そのユーザーをすべての場所からログアウトさせます",
-    "setPassword": "設定"
+    "setPassword": "設定",
+    "add": "メンバーを追加",
+    "cancel": "キャンセル",
+    "count": "{{count}} 人",
+    "count_one": "{{count}} 人",
+    "confirmDelete": "{{name}} を本当に削除しますか？",
+    "rolesHelp": "各ロールでできること",
+    "roleDesc": {
+      "org_admin": "組織を管理します：メンバー、設定、すべてのエージェント。",
+      "agent_owner": "エージェントを採用し、設定し、一緒に働きます。",
+      "security": "ルールとインターネット接続を決め、エージェントの停止や承認ができます。",
+      "auditor": "記録と作業記録を閲覧します。変更はしません。",
+      "controlling": "コストと利用状況を確認します。"
+    }
   },
   "account": {
     "title": "アカウント",
@@ -2106,7 +2133,9 @@
       "ops": "プラットフォーム",
       "opsHint": "消えたランナー、対象システムが拒否した（または間もなく拒否する）認証情報、その他運用が知っておくべきこと。",
       "instanceOff": "管理者によってこのインストール全体で無効にされています。"
-    }
+    },
+    "developer": "開発者向け",
+    "developerDesc": "API キーと Claude Code 用の covey スキル。"
   },
   "profile": {
     "noProfile": "プロフィールは登録されていません。",
@@ -2114,12 +2143,15 @@
     "phone": "電話",
     "responsibilities": "担当範囲（エージェントから見えます）",
     "responsibilitiesPlaceholder": "例: プロジェクト educa の不具合修正をテストする",
-    "responsibilitiesHint": "プロフィールと担当範囲は、チーム名簿としてエージェントのプロンプトに入ります。たとえば GitLab のボットが、テストのために誰へ課題を割り当てればよいか分かるようになります。",
+    "responsibilitiesHint": "エージェントは役職と担当を見て、何を誰に頼むべきかを判断します。",
     "identityLabel": "{{system}} での識別子",
     "identityPlaceholder": "そのシステムでのユーザー名 / ログイン名",
     "noTargets": "有効な対象システムがありません。「対象システム」でいずれかが有効になると、各プラットフォームの識別子を管理できます。",
     "jobTitlePlaceholder": "例: QA エンジニア",
-    "save": "保存"
+    "save": "保存",
+    "identities": "他のシステムのログイン",
+    "identitiesHint": "エージェントがその人を認識し、仕事を割り当てられるようにします。実際に使うシステムだけ入力してください。",
+    "saved": "保存しました。"
   },
   "help": {
     "title": "ヘルプ",
@@ -2317,19 +2349,24 @@
     "failed": "依頼は失敗しました。"
   },
   "administration": {
-    "title": "管理",
+    "title": "組織",
     "subtitle": "この組織",
-    "tabProfile": "プロフィール",
-    "tabMembers": "メンバーと役割",
+    "tabProfile": "一般",
+    "tabMembers": "メンバー",
     "tabUsage": "利用状況",
-    "tabAudit": "監査",
-    "profileDesc": "この組織の基本情報です。説明とプラットフォームのリポジトリは組織図にもあります。同じ保管先への、二つ目の入り口です。",
+    "profileDesc": "組織の概要と、エージェントとの働き方。",
     "usageDesc": "この組織が使っている量です。いつかこの数字と突き合わせることになる上限は、まだ存在しません。",
     "members": "メンバー",
     "agents": "エージェント",
     "agentsActive": "うち稼働中",
     "cost30d": "コスト（30 日）",
-    "tabDiagnostics": "診断"
+    "tabDiagnostics": "診断",
+    "tabSignIn": "サインイン",
+    "groupCompany": "会社",
+    "groupWork": "共同作業",
+    "groupVoice": "言語と音声",
+    "advanced": "詳細設定",
+    "advancedDesc": "めったに使わない技術的な設定。"
   },
   "platform": {
     "seatAddPick": "組織に追加…",
@@ -2341,7 +2378,7 @@
     "tabAccounts": "アカウント",
     "tabSettings": "設定",
     "tabWaitlist": "ウェイトリスト",
-    "accountsDesc": "このインストールのすべてのログインです。右側の区分はインスタンスに属し、その下の役割はそれぞれ一つの組織に属し、そこで与えられます。",
+    "accountsDesc": "このインストールのすべてのサインイン。クリックするとアカウントが開き、所属する組織とそこでのロール、インストールを管理できるかどうかが表示されます。",
     "noAccounts": "アカウントはまだありません。",
     "you": "— あなた",
     "unverified": "未確認",
@@ -2461,7 +2498,19 @@
     },
     "deleteAccount": "アカウントを削除",
     "deleteAccountConfirm_one": "{{email}} を席ごと完全に削除しますか?元に戻せません。",
-    "deleteAccountConfirm_other": "{{email}} を {{count}} 件の席ごと完全に削除しますか?元に戻せません。"
+    "deleteAccountConfirm_other": "{{email}} を {{count}} 件の席ごと完全に削除しますか?元に戻せません。",
+    "accountsSearch": "名前、メール、組織で検索",
+    "accountsCount": "{{count}} 件のアカウント",
+    "accountsCount_one": "{{count}} 件のアカウント",
+    "detailOrgs": "組織",
+    "detailInstance": "このインストール",
+    "levelHint": "システム管理者はすべての組織を含むインストール全体を管理します。",
+    "seatRemoveConfirm": "{{org}} から削除しますか？",
+    "seatAddButton": "組織に追加",
+    "deleteHint": "サインインとすべての組織の所属を削除します。元に戻せません。",
+    "levelDescUser": "アカウントが所属する組織で作業します。",
+    "levelDescAdmin": "すべての組織を含むインストール全体を管理します。",
+    "seatOrgLabel": "組織"
   },
   "catalog": {
     "loading": "カタログを読み込んでいます …",

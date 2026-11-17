@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, put, type Principal } from "../api";
 import ApiKeys from "./ApiKeys";
+import { NavIcon } from "./navicons";
+import Section from "./Section";
 import MobilePairing from "./MobilePairing";
 import ThemeSwitch from "./ThemeSwitch";
 import { LANG_LIST, istLang, ladeSprache, merkeSprache } from "../i18n";
@@ -77,156 +79,157 @@ export default function AccountSettings({ me }: { me: Principal }) {
 
   return (
     <>
-      <h2 className="text-sm secondary mt-6 mb-2">{t("account.title")}</h2>
-      {note && <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>{note}</p>}
-
-      <form
-        className="card mb-4 flex gap-3 items-end flex-wrap"
-        onSubmit={(e) => {
-          e.preventDefault();
-          saveName.mutate();
-        }}
-      >
-        <div className="flex-1 min-w-52">
-          <label>{t("account.displayName")}</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-        </div>
-        <button className="btn primary" disabled={saveName.isPending || name.trim() === me.DisplayName}>
-          {t("account.save")}
-        </button>
-      </form>
-
-      {/* Language and appearance (#432): here with the other settings of the
-          account, not in the menu at the foot, where they were the rarest
-          concerns among the things one reaches for. Both are kept in this
-          browser. */}
-      <div className="card mb-4 flex gap-3 items-end flex-wrap">
-        <div className="min-w-52">
-          <label htmlFor="account-lang">{t("lang.label")}</label>
-          <select
-            id="account-lang"
-            value={istLang(i18n.language) ? i18n.language : "en"}
-            onChange={(e) => {
-              const lang = e.target.value;
-              if (!istLang(lang)) return;
-              merkeSprache(lang);
-              void ladeSprache(lang);
-            }}
-          >
-            {LANG_LIST.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.flag} {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="min-w-52">
-          <label htmlFor="account-theme">{t("theme.label")}</label>
-          <ThemeSwitch id="account-theme" />
-        </div>
-      </div>
-
-      <form
-        className="card mb-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          savePw.mutate();
-        }}
-      >
-        <div className="flex gap-3 items-end flex-wrap">
-          <div className="flex-1 min-w-44">
-            <label>{t("account.currentPassword")}</label>
-            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} autoComplete="current-password" required />
+      <Section title={t("account.title")} desc={note || undefined}>
+        <form
+          className="field-grid two"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveName.mutate();
+          }}
+        >
+          <div className="field-wide flex gap-2 items-end">
+            <div className="flex-1 min-w-0">
+              <label htmlFor="account-name">{t("account.displayName")}</label>
+              <input id="account-name" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <button className="btn primary" disabled={saveName.isPending || name.trim() === me.DisplayName}>
+              {t("account.save")}
+            </button>
           </div>
-          <div className="flex-1 min-w-44">
-            <label>{t("account.newPassword")}</label>
-            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" minLength={8} required />
+          {/* Language and appearance (#432): here with the other settings of
+              the account, not in the menu at the foot. Both are kept in this
+              browser. */}
+          <div>
+            <label htmlFor="account-lang">{t("lang.label")}</label>
+            <select
+              id="account-lang"
+              value={istLang(i18n.language) ? i18n.language : "en"}
+              onChange={(e) => {
+                const lang = e.target.value;
+                if (!istLang(lang)) return;
+                merkeSprache(lang);
+                void ladeSprache(lang);
+              }}
+            >
+              {LANG_LIST.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.flag} {l.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <button className="btn primary" disabled={savePw.isPending}>
-            {t("account.changePassword")}
-          </button>
-        </div>
-        <p className="muted text-xs mt-2 mb-0">
-          {t("account.passwordHint")}
-        </p>
-      </form>
+          <div>
+            <label htmlFor="account-theme">{t("theme.label")}</label>
+            <ThemeSwitch id="account-theme" />
+          </div>
+        </form>
+      </Section>
 
-      <div className="card">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-sm font-medium">{t("account.sessions")}</span>
-          <span className="spacer flex-1" />
-          {others > 0 && (
+      <Section title={t("person.passwordTitle")} desc={t("account.passwordHint")}>
+        <form
+          className="field-grid two"
+          onSubmit={(e) => {
+            e.preventDefault();
+            savePw.mutate();
+          }}
+        >
+          <div>
+            <label htmlFor="pw-current">{t("account.currentPassword")}</label>
+            <input id="pw-current" type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} autoComplete="current-password" required />
+          </div>
+          <div>
+            <label htmlFor="pw-new">{t("account.newPassword")}</label>
+            <input id="pw-new" type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" minLength={8} required />
+          </div>
+          <div className="field-wide flex justify-end">
+            <button className="btn primary" disabled={savePw.isPending || !currentPw || newPw.length < 8}>
+              {t("account.changePassword")}
+            </button>
+          </div>
+        </form>
+      </Section>
+
+      <Section
+        title={t("account.sessions")}
+        action={
+          others > 0 && (
             <button className="btn sm" onClick={() => revokeOthers.mutate()} disabled={revokeOthers.isPending}>
+              <NavIcon name="logout" />
               {t("account.revokeOthers")}
             </button>
-          )}
-        </div>
-        {(sessions.data ?? []).map((s, i) => (
-          <div key={i} className="flex items-center gap-3 text-xs py-1" style={{ borderTop: i > 0 ? "0.5px solid var(--border)" : "none" }}>
-            <span>{t("account.loggedIn", { date: new Date(s.created_at).toLocaleString(locale) })}</span>
-            <span className="muted">{t("account.expiresAt", { date: new Date(s.expires_at).toLocaleString(locale) })}</span>
-            {s.current && <span className="badge st-done">{t("account.currentSession")}</span>}
-          </div>
-        ))}
-        {sessions.data?.length === 0 && <p className="muted text-xs m-0">{t("account.noSessions")}</p>}
-      </div>
-
-      <div className="card mt-4">
-        <div className="text-sm font-medium mb-1">{t("account.notify.title")}</div>
-        <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>{t("account.notify.desc")}</p>
-        {NOTIFY_CLASSES.map((c) => {
-          const instanceOff = notify.data?.disabled?.includes(c) ?? false;
-          return (
-            <label
-              key={c}
-              className="flex items-start gap-3 py-1 text-xs"
-              style={{ cursor: instanceOff ? "default" : "pointer", opacity: instanceOff ? 0.55 : 1 }}
-            >
-              <input
-                type="checkbox"
-                checked={!instanceOff && (notify.data?.prefs?.[c] ?? false)}
-                disabled={instanceOff || notify.isLoading || setNotify.isPending}
-                onChange={(e) => setNotify.mutate({ [c]: e.target.checked })}
-                style={{ width: "auto", marginTop: 2 }}
-              />
-              <span>
-                <span className="text-sm">{t(`account.notify.${c}`)}</span>
-                <span className="muted block">
-                  {instanceOff ? t("account.notify.instanceOff") : t(`account.notify.${c}Hint`)}
-                </span>
+          )
+        }
+      >
+        <div className="ps-rows">
+          {(sessions.data ?? []).map((s, i) => (
+            <div key={i} className="ps-row wide">
+              <span className="ps-value">
+                <span>{t("account.loggedIn", { date: new Date(s.created_at).toLocaleString(locale) })}</span>
+                <span className="ps-hint">{t("account.expiresAt", { date: new Date(s.expires_at).toLocaleString(locale) })}</span>
               </span>
-            </label>
-          );
-        })}
-      </div>
-
-      {/* Before the key list: pairing is how most keys should reach a phone,
-          and the key it creates appears in the list right below. */}
-      <MobilePairing />
-      <ApiKeys />
-
-      <div className="card mt-4">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-sm font-medium">{t("account.skill.title")}</span>
-          <span className="spacer flex-1" />
-          <a className="btn sm primary" href="/api/v1/skills/covey-agent.zip" download="covey-agent-skill.zip">
-            {t("account.skill.download")}
-          </a>
+              {s.current && <span className="ntag">{t("account.currentSession")}</span>}
+            </div>
+          ))}
         </div>
-        <p className="muted text-xs mt-0 mb-3">{t("account.skill.intro")}</p>
-        <p className="text-xs mb-2">{t("account.skill.downloadHint")}</p>
-        <pre className="mono text-[12px]" style={{ background: "var(--surface-2, rgba(0,0,0,.05))", padding: "6px 10px", borderRadius: 6, overflowX: "auto", margin: "4px 0" }}>
-{`unzip covey-agent-skill.zip -d ~/.claude/skills/`}
-        </pre>
-        <p className="muted text-xs mt-3 mb-1">{t("account.skill.repoNote")}</p>
-        <ol className="text-xs" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-          <li>{t("account.skill.step1")}</li>
-          <li>
-            {t("account.skill.step3")} <span className="mono text-[12px]">/covey-agent</span>
-          </li>
-        </ol>
-        <p className="muted text-xs mt-2 mb-0">{t("account.skill.hint")}</p>
-      </div>
+        {sessions.data?.length === 0 && <p className="ps-hint m-0">{t("account.noSessions")}</p>}
+      </Section>
+
+      <Section title={t("account.notify.title")} desc={t("account.notify.desc")}>
+        <div className="ps-rows">
+          {NOTIFY_CLASSES.map((c) => {
+            const instanceOff = notify.data?.disabled?.includes(c) ?? false;
+            return (
+              <label key={c} className={`ps-check${instanceOff ? " off" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={!instanceOff && (notify.data?.prefs?.[c] ?? false)}
+                  disabled={instanceOff || notify.isLoading || setNotify.isPending}
+                  onChange={(e) => setNotify.mutate({ [c]: e.target.checked })}
+                />
+                <span className="ps-value">
+                  <span>{t(`account.notify.${c}`)}</span>
+                  <span className="ps-hint">
+                    {instanceOff ? t("account.notify.instanceOff") : t(`account.notify.${c}Hint`)}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </Section>
+
+      <MobilePairing />
+
+      {/* API keys and the Claude Code skill are for people who script
+          against covey — folded away so the page reads as an account page,
+          not a developer console. */}
+      <details className="ps-advanced">
+        <summary>
+          <span className="ps-title">{t("account.developer")}</span>
+          <span className="ps-hint">{t("account.developerDesc")}</span>
+        </summary>
+        <ApiKeys />
+        <Section
+          title={t("account.skill.title")}
+          desc={t("account.skill.intro")}
+          action={
+            <a className="btn sm" href="/api/v1/skills/covey-agent.zip" download="covey-agent-skill.zip">
+              {t("account.skill.download")}
+            </a>
+          }
+        >
+          <p className="text-sm mb-2 mt-0">{t("account.skill.downloadHint")}</p>
+          <pre className="ps-code">{`unzip covey-agent-skill.zip -d ~/.claude/skills/`}</pre>
+          <p className="ps-hint mt-3 mb-1">{t("account.skill.repoNote")}</p>
+          <ol className="text-sm" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+            <li>{t("account.skill.step1")}</li>
+            <li>
+              {t("account.skill.step3")} <code>/covey-agent</code>
+            </li>
+          </ol>
+          <p className="ps-hint mt-2 mb-0">{t("account.skill.hint")}</p>
+        </Section>
+      </details>
     </>
   );
 }

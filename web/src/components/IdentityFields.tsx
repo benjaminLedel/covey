@@ -28,28 +28,32 @@ export default function IdentityFields({
   }
 
   if (platforms.size === 0) {
-    return (
-      <p className="muted text-xs m-0">
-        {t("profile.noTargets")}
-      </p>
-    );
+    return <p className="muted text-xs m-0">{t("profile.noTargets")}</p>;
   }
 
+  /* One line per system: icon and name on the left, the login on the right
+     (#743). A wrapping row of labelled boxes looked like a form to fill in
+     completely; most people need one or two of them. */
   return (
-    <>
-      {[...platforms].map(([system, p]) => (
-        <div className="min-w-40" key={system}>
-          <label className="flex items-center gap-1.5">
-            <TargetIcon name={system} kind={p.kind} category={p.category} size={14} />
-            {t("profile.identityLabel", { system: p.label })}
+    <div className="identity-block">
+      <h3 className="ps-subtitle">{t("profile.identities")}</h3>
+      <p className="ps-hint mb-2">{t("profile.identitiesHint")}</p>
+      <div className="identity-list">
+        {[...platforms].map(([system, p]) => (
+          <label className="identity-row" key={system}>
+            <span className="identity-name">
+              <TargetIcon name={system} kind={p.kind} category={p.category} size={16} />
+              {p.label}
+            </span>
+            <input
+              value={value[system] ?? ""}
+              onChange={(e) => onChange({ ...value, [system]: e.target.value })}
+              placeholder={t("profile.identityPlaceholder")}
+              aria-label={t("profile.identityLabel", { system: p.label })}
+            />
           </label>
-          <input
-            value={value[system] ?? ""}
-            onChange={(e) => onChange({ ...value, [system]: e.target.value })}
-            placeholder={t("profile.identityPlaceholder")}
-          />
-        </div>
-      ))}
-    </>
+        ))}
+      </div>
+    </div>
   );
 }

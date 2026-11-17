@@ -105,7 +105,7 @@ describe("Quelltext dieser Plattform", () => {
     renderWithProviders(<PlatformRepo />);
 
     expect(await screen.findByText(/Es wird nichts eingereicht/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Secrets" })).toHaveAttribute("href", "/secrets");
+    expect(screen.getByRole("link", { name: "Zugangsdaten" })).toHaveAttribute("href", "/secrets");
   });
 
   it("sagt, wenn das Zielsystem der Organisation nicht mehr freigeschaltet ist", async () => {
@@ -160,7 +160,7 @@ describe("Antwort oder Aufgabe", () => {
     renderWithProviders(<TriageSettings />);
 
     expect(await screen.findByText(/Control Plane hat keinen Modellzugang/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Secrets" })).toHaveAttribute("href", "/secrets");
+    expect(screen.getByRole("link", { name: "Zugangsdaten" })).toHaveAttribute("href", "/secrets");
     expect(screen.getByRole("link", { name: "Infrastruktur" })).toHaveAttribute("href", "/infrastructure");
     expect(screen.getByRole("combobox")).toBeDisabled();
   });

@@ -409,32 +409,6 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.nav-sec.toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: color 0.12s;
-}
-.nav-sec.toggle:hover:not(:disabled) { color: var(--text-secondary); }
-.nav-sec.toggle:disabled { cursor: default; }
-.nav-sec.toggle .ic {
-  width: 12px;
-  height: 12px;
-  margin-left: auto;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform 0.15s;
-}
-
 /* Fuß der Sidebar: Nutzer + Aktionen, leicht und ohne Kasten — nur eine
    Haarlinie trennt den Fuß von der Navigation. */
 .side-foot {
@@ -4862,3 +4836,199 @@ a.tm-file:hover { background: var(--tint); }
 .tm-vorschlag-knoepfe { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tm-vorschlag-stand { margin: 0; font-size: 12px; color: var(--text-muted); }
 .tm-vorschlag.st-rejected .tm-vorschlag-titel { text-decoration: line-through; color: var(--text-muted); }
+
+/* Settings grouped under headings (#743) — the administration's general tab. */
+.settings-group {
+  margin: 26px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.settings-group:first-of-type { margin-top: 8px; }
+.settings-advanced { margin-top: 26px; }
+.settings-advanced > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  list-style: none;
+}
+.settings-advanced > summary::-webkit-details-marker { display: none; }
+.settings-advanced > summary::before {
+  content: "›";
+  display: inline-block;
+  width: 1em;
+  transition: transform 0.15s;
+}
+.settings-advanced[open] > summary::before { transform: rotate(90deg); }
+
+/* What each role may do — the members tab (#743). */
+.role-help { margin: 0; display: grid; gap: 6px; font-size: 12.5px; }
+.role-help > div { display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+.role-help dt { font-weight: 500; }
+.role-help dd { margin: 0; }
+@media (max-width: 560px) { .role-help > div { grid-template-columns: 1fr; gap: 0; } }
+
+/* The members as one list, not a stack of cards (#743). */
+.member-list { padding: 0; overflow: hidden; }
+.member-row { padding: 11px 15px; }
+.member-row + .member-row { border-top: 1px solid var(--border); }
+.member-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.member-link:hover { background: var(--surface-1); }
+.member-chev { color: var(--text-muted); font-size: 18px; line-height: 1; }
+
+/* Role and access on a person's page (#743). */
+.access-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.access-row + .access-row, .seat + .seat { border-top: 1px solid var(--border); }
+.access-row.editing { padding-bottom: 6px; }
+.edit-panel + .access-row { border-top: 1px solid var(--border); }
+
+/* Icons on buttons, and the two quieter button kinds the access rows use. */
+.btn .ic { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.btn.sm { gap: 5px; }
+.btn.quiet { border-color: transparent; color: var(--text-secondary); }
+.btn.quiet:hover { background: color-mix(in srgb, currentColor 8%, transparent); color: var(--text-primary); }
+.btn.quiet.danger { color: var(--text-secondary); }
+.btn.quiet.danger:hover { color: var(--text-danger); background: var(--danger-tint); }
+.btn.danger.solid { background: var(--text-danger); border-color: transparent; color: var(--surface-2); }
+.btn.danger.solid:hover { opacity: 0.9; background: var(--text-danger); }
+
+/* The step that opens under a row: choose, then save or cancel. A tinted
+   ground, no frame — it belongs to the row above it, it is not a new box. */
+.edit-panel {
+  margin: 2px 0 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  display: grid;
+  gap: 6px;
+}
+.edit-panel.danger { background: var(--danger-tint); }
+.edit-panel input, .edit-panel select { max-width: 420px; }
+.edit-panel-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.account-detail .edit-panel { background: var(--surface-2); }
+
+/* Choices as a plain list: a dot, a name, one sentence. Rows divided by
+   hairlines; the chosen one carries the accent dot and a faint ground. */
+.choice-list { border: 0; margin: 0; padding: 0; display: grid; }
+.choice {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 9px 10px;
+  margin: 0 -10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.choice:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+.choice input { position: absolute; opacity: 0; pointer-events: none; }
+.choice-dot { flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--border-strong); background: var(--surface-2); transition: border-color 0.12s; }
+.choice.on .choice-dot { border-color: var(--accent-solid); background: radial-gradient(circle, var(--accent-solid) 0 4px, var(--surface-2) 4.5px); }
+.choice:has(input:focus-visible) { outline: 2px solid var(--text-accent); outline-offset: -2px; }
+.choice-label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+.choice-now { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.choice-now::before { content: "· "; }
+.choice-desc { display: block; font-size: 12.5px; color: var(--text-secondary); margin-top: 1px; line-height: 1.45; }
+
+/* Platform accounts (#743): a scannable list, one account open at a time. */
+.account-head { width: 100%; background: none; border: 0; font: inherit; cursor: pointer; flex-wrap: wrap; }
+.account + .account { border-top: 1px solid var(--border); }
+.account .member-row + .member-row { border-top: 0; }
+.account.open .account-head { background: var(--surface-1); }
+.account-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; max-width: 50%; }
+.account-seat { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+.account-last { min-width: 110px; text-align: right; }
+.account-detail { padding: 8px 15px 14px 15px; background: var(--surface-1); }
+.account-section { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
+@media (max-width: 720px) { .account-chips { max-width: 100%; justify-content: flex-start; } .account-last { text-align: left; } }
+
+/* A person's page and one's own account (#743): one column of sections,
+   divided by hairlines — no cards, nothing nested deeper than a row. */
+.person-page { max-width: 760px; }
+.ps-back { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); text-decoration: none; margin-bottom: 18px; }
+.ps-back:hover { color: var(--text-primary); }
+.ps-header { display: flex; align-items: center; gap: 16px; padding-bottom: 28px; }
+.ps-name { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
+.ps-self { font-size: 14px; font-weight: 400; color: var(--text-muted); }
+.ps-meta { margin: 4px 0 0; font-size: 13.5px; color: var(--text-secondary); }
+
+.ps { border-top: 1px solid var(--border); padding: 26px 0 30px; }
+.ps-headline { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; }
+.ps-title { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary); }
+.ps-subtitle { font-size: 13.5px; font-weight: 600; margin: 0 0 2px; }
+.ps-desc { margin: 2px 0 16px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); max-width: 62ch; }
+.ps-headline + .ps-rows, .ps-headline + .ps-dl, .ps-headline + form { margin-top: 12px; }
+.ps-link { font-size: 13px; }
+.ps-note { margin: 12px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.ps-hint { display: block; font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
+.ps-strong { display: block; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+
+/* Rows: label, value, action — the same three columns down the page. */
+.ps-rows { display: grid; }
+.ps-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  min-height: 44px;
+}
+.ps-row.wide { grid-template-columns: minmax(0, 1fr) auto; }
+.ps-rows > .ps-row + .ps-row, .ps-rows > .edit-panel + .ps-row, .ps-rows > .ps-check + .ps-check { border-top: 1px solid var(--border); }
+.ps-label { font-size: 13px; color: var(--text-secondary); }
+.ps-value { min-width: 0; display: grid; gap: 1px; font-size: 14px; }
+.ps-indent { margin-left: 166px; }
+
+.ps-check { display: flex; align-items: flex-start; gap: 12px; padding: 11px 0; margin: 0; cursor: pointer; }
+.ps-check input { width: auto; margin-top: 3px; accent-color: var(--accent-solid); }
+.ps-check.off { cursor: default; opacity: 0.55; }
+
+.ps-dl { margin: 0; display: grid; }
+.ps-dl > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; padding: 9px 0; font-size: 14px; }
+.ps-dl > div + div { border-top: 1px solid var(--border); }
+.ps-dl dt { color: var(--text-secondary); font-size: 13px; }
+.ps-dl dt::first-letter { text-transform: uppercase; }
+.ps-dl dd { margin: 0; min-width: 0; }
+
+.ps-code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-1); padding: 8px 12px; border-radius: 8px; overflow-x: auto; margin: 4px 0; }
+
+.ps-advanced { border-top: 1px solid var(--border); }
+.ps-advanced > summary { list-style: none; cursor: pointer; padding: 22px 0; display: grid; gap: 2px; }
+.ps-advanced > summary::-webkit-details-marker { display: none; }
+.ps-advanced > summary .ps-title::after { content: "›"; display: inline-block; margin-left: 8px; color: var(--text-muted); transition: transform 0.15s; }
+.ps-advanced[open] > summary .ps-title::after { transform: rotate(90deg); }
+
+/* The profile form: the few fields that describe a person in a grid, the
+   logins in other systems as a plain list below. */
+.profile-form { display: grid; gap: 22px; }
+.profile-form .edit-panel-foot { margin-top: 0; }
+.field-grid { display: grid; gap: 14px 16px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.field-grid .field-wide { grid-column: 1 / -1; }
+.field-grid input, .field-grid textarea, .field-grid select { max-width: none; }
+.field-grid textarea { width: 100%; resize: vertical; min-height: 60px; }
+.identity-list { display: grid; }
+.identity-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 16px; padding: 7px 0; margin: 0; font-size: 13.5px; }
+.identity-row + .identity-row { border-top: 1px solid var(--border); }
+.identity-name { display: flex; align-items: center; gap: 8px; color: var(--text-primary); }
+.identity-row input { max-width: 380px; }
+
+@media (max-width: 640px) {
+  .ps-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .ps-row > .ps-label { grid-column: 1 / -1; margin-bottom: -10px; }
+  .ps-indent { margin-left: 0; }
+  .ps-dl > div, .identity-row { grid-template-columns: 1fr; gap: 2px; }
+}
+.ps-photo { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ps-photo-remove { background: none; border: 0; padding: 0; font: inherit; font-size: 11.5px; color: var(--text-muted); cursor: pointer; }
+.ps-photo-remove:hover { color: var(--text-danger); }
+@media (min-width: 641px) { .field-grid.two { grid-template-columns: 1fr 1fr; } }

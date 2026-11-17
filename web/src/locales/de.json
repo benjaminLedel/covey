@@ -64,12 +64,12 @@
     "templates": "Vorlagen",
     "org": "Organigramm",
     "costs": "Kosten",
-    "setup": "Einrichtung",
-    "control": "Aufsicht",
-    "guardrails": "Guard-Rails",
-    "secrets": "Secrets",
-    "targets": "Zielsysteme",
-    "egress": "Egress",
+    "setup": "Werkzeuge",
+    "control": "Sicherheit",
+    "guardrails": "Regeln",
+    "secrets": "Zugangsdaten",
+    "targets": "Angebundene Systeme",
+    "egress": "Internetzugriff",
     "platform": "Plattform",
     "users": "Benutzer",
     "organizations": "Organisationen",
@@ -77,20 +77,21 @@
     "logout": "Abmelden",
     "userMenu": "Benutzermenü",
     "profile": "Profil & Einstellungen",
-    "audit": "Audit",
-    "requests": "Requests",
-    "skills": "Skills",
+    "audit": "Protokoll",
+    "requests": "Datenverkehr",
+    "skills": "Fähigkeiten",
     "voices": "Stimmen",
     "setupPage": "Einrichtung",
     "inbox": "Posteingang",
-    "administrationSection": "Verwaltung",
-    "administration": "Administration",
+    "administrationSection": "Organisation",
+    "administration": "Einstellungen",
     "approvals": "Freigaben",
     "infrastructure": "Infrastruktur",
     "apps": "covey-App",
     "helpShort": "Hilfe",
     "menu": "Menü",
-    "workflows": "Abläufe"
+    "workflows": "Abläufe",
+    "members": "Mitglieder"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -237,7 +238,7 @@
     }
   },
   "audit": {
-    "title": "Audit",
+    "title": "Protokoll",
     "count": "{{count}} Einträge",
     "lead": "Was Menschen an der Plattform getan haben — das Gegenstück zum Recording, das die Agenten zeigt. Festgehalten ist, wer wann was angefasst hat; Inhalte stehen bewusst nicht darin, weil dort Secret-Werte lägen.",
     "searchPlaceholder": "Suchen (Pfad, Person, Methode)",
@@ -1037,8 +1038,8 @@
     "appliedAs": "Übernommen als Version {{v}}"
   },
   "guardrails": {
-    "title": "Guard-Rails",
-    "subtitle": "zentral erzwungen, fail-closed",
+    "title": "Regeln",
+    "subtitle": "Grenzen, die für alle Agenten gelten — und an die sie sich halten müssen",
     "desc": "Regeln greifen außerhalb der Runtime — am Broker und im Tool-Layer. Eine engere Ebene kann verschärfen, eine globale Deny-Regel nie aufgeweicht werden. Pausierte Regeln bleiben erhalten, greifen aber nicht.",
     "noneByDefault": "Keine Regeln definiert — Default ist trotzdem fail-closed am Broker.",
     "paused": "pausiert",
@@ -1279,17 +1280,31 @@
     "breadcrumb": "Organigramm",
     "self": "— Sie",
     "profile": "Profil",
-    "orgChart": "Im Org-Chart",
+    "orgChart": "Im Organigramm",
     "reportsTo": "berichtet an",
     "nobody": "niemanden",
     "directReports": "direkte Berichte",
     "noDirect": "keine",
     "supervisedAgents": "betreute Agenten",
     "noAgents": "keine",
-    "readOnlyHint": "Profile anderer Personen pflegt ein Admin unter „Benutzer“.",
+    "readOnlyHint": "Profile anderer Personen pflegt die Verwaltung unter „Mitglieder“.",
     "photoChange": "Foto ändern",
     "photoRemove": "Foto entfernen",
-    "photoFailed": "Das Foto konnte nicht gespeichert werden. Erlaubt sind JPEG und PNG bis 12 MB."
+    "photoFailed": "Das Foto konnte nicht gespeichert werden. Erlaubt sind JPEG und PNG bis 12 MB.",
+    "access": "Rolle und Zugang",
+    "roleChange": "Ändern",
+    "roleSave": "Rolle speichern",
+    "roleHint": "Die neue Rolle gilt sofort, auch in Sitzungen, die gerade laufen.",
+    "ownRole": "Die eigene Rolle ändert jemand anderes mit Verwaltungsrechten.",
+    "passwordTitle": "Passwort",
+    "passwordHint": "Ein neues Passwort meldet die Person überall ab.",
+    "ownPassword": "Ihr eigenes Passwort ändern Sie weiter unten.",
+    "removeTitle": "Aus der Organisation entfernen",
+    "removeHint": "Die Person verliert sofort den Zugang zu dieser Organisation.",
+    "openOrgChart": "Im Organigramm ansehen",
+    "current": "Aktuell",
+    "accessDesc": "Was die Person in dieser Organisation darf.",
+    "profileDesc": "Was Agenten über die Person wissen, um sie richtig anzusprechen."
   },
   "runtimes": {
     "title": "Engines",
@@ -1367,8 +1382,8 @@
     }
   },
   "secrets": {
-    "title": "Secrets",
-    "subtitle": "AES-GCM-verschlüsselt in Postgres",
+    "title": "Zugangsdaten",
+    "subtitle": "Passwörter und Schlüssel, mit denen Agenten sich anmelden — verschlüsselt gespeichert",
     "noAccess": "Ihre Rolle ({{role}}) hat auf den Secret-Store keinen Zugriff.",
     "desc": "Secrets sind zunächst einfache Variablen (Servernamen, URLs) und bleiben einsehbar. Tokens und Passwörter markierst du als sensibel — dann ist der Wert write-only und über die API nie wieder lesbar, nur die ersten Zeichen dienen als Wiedererkennungshilfe.",
     "key": "Key",
@@ -1690,7 +1705,7 @@
     }
   },
   "skills": {
-    "title": "Skills",
+    "title": "Fähigkeiten",
     "subtitle": "Fähigkeiten, die Agenten bei Bedarf laden",
     "desc": "Die Agenten-Config steht in jedem Lauf vollständig im Prompt. Ein Skill dreht das um: Nur seine Beschreibung ist immer sichtbar, Anleitung und Zusatzdateien liest die Runtime erst, wenn sie ihn zieht. Ein Skill aus dieser Bibliothek wirkt erst, wenn du ihn einem Agenten verlinkst — jede Beschreibung kostet Kontext in jedem seiner Läufe, deshalb ausdrücklich statt automatisch.",
     "new": "Neuer Skill",
@@ -1741,7 +1756,7 @@
     "importSkipped": "ausgelassen: {{what}}"
   },
   "targets": {
-    "title": "Zielsysteme",
+    "title": "Angebundene Systeme",
     "subtitle": "Was Ihre Agenten bedienen — aus dem Store, selbst angebunden oder mitgeliefert",
     "desc": "Zielsysteme sind Plugins. Die meisten holen Sie aus dem Store: ein Katalog, aus dem installiert wird, ohne Deploy und ohne neue covey-Fassung. Mitgeliefert ist nur, was echten Code braucht — Protokolle jenseits von REST, OAuth-Flüsse, Arbeit in der Sandbox. Ein eigenes REST-System binden Sie als JSON-Manifest an.",
     "noAccess": "Ihre Rolle ({{role}}) kann Zielsysteme ansehen, aber nicht verwalten.",
@@ -1844,8 +1859,8 @@
     "kindWasm": "Code (wasm)"
   },
   "egress": {
-    "title": "Egress",
-    "subtitle": "Netzwerk-Ausgang der Sandboxen",
+    "title": "Internetzugriff",
+    "subtitle": "Welche Adressen Agenten im Internet erreichen dürfen",
     "overview": "Übersicht",
     "templates": "Templates",
     "allowed24h": "erlaubt, letzte 24 h",
@@ -1929,8 +1944,8 @@
     }
   },
   "requests": {
-    "title": "Requests",
-    "subtitle": "HTTP-Verkehr an den Rändern",
+    "title": "Datenverkehr",
+    "subtitle": "Was zwischen covey und den angebundenen Systemen hin- und herging",
     "intro": "Jeder Request, den ein Zielsystem-Plugin stellt (raus) und jeder Webhook, den covey empfängt (rein) — inklusive der abgelehnten. Das Recording zeigt, WAS ein Agent getan hat; hier steht, was dabei über die Leitung ging. Diagnose-Daten mit kurzer Aufbewahrung, keine Revisionsspur. Zugangsdaten werden redigiert, Bodies gekappt.",
     "disabled": "Request-Log ist abgeschaltet",
     "disabledHint": "Mit COVEY_REQUEST_LOG=true (Default) einschalten und den Prozess neu starten.",
@@ -2005,21 +2020,33 @@
   },
   "users": {
     "title": "Benutzer",
-    "subtitle": "Menschen & Rollen dieser Organisation (RBAC)",
-    "desc": "Rollen wirken sofort auf laufende Sessions. Ein Passwort-Reset meldet den Nutzer überall ab. Der letzte Org-Admin einer Organisation kann weder gelöscht noch herabgestuft werden.",
+    "desc": "Wer in dieser Organisation mitarbeitet und was jede Person darf. Eine geänderte Rolle gilt sofort.",
     "noAccess": "Ihre Rolle ({{role}}) hat auf die Benutzerverwaltung keinen Zugriff.",
     "email": "E-Mail",
     "name": "Name",
     "role": "Rolle",
     "password": "Passwort (min. 8 Zeichen)",
-    "create": "Anlegen",
+    "create": "Hinzufügen",
     "profileHint": "Funktion, Plattform-Kennungen und Zuständigkeiten werden nach dem Anlegen auf der Profil-Seite der Person gepflegt.",
-    "passwordReset": "Passwort",
-    "delete": "Löschen",
+    "passwordReset": "Passwort zurücksetzen",
+    "delete": "Entfernen",
     "cantDeleteSelf": "Das eigene Konto kann nicht gelöscht werden",
     "self": "— Sie",
     "newPasswordLabel": "Neues Passwort (min. 8 Zeichen) — meldet den Nutzer überall ab",
-    "setPassword": "Setzen"
+    "setPassword": "Setzen",
+    "add": "Person hinzufügen",
+    "cancel": "Abbrechen",
+    "count": "{{count}} Personen",
+    "count_one": "Eine Person",
+    "confirmDelete": "{{name}} wirklich entfernen?",
+    "rolesHelp": "Was dürfen die Rollen?",
+    "roleDesc": {
+      "org_admin": "Verwaltet die Organisation: Mitglieder, Einstellungen und alle Agenten.",
+      "agent_owner": "Stellt Agenten ein, richtet sie ein und arbeitet mit ihnen.",
+      "security": "Legt Regeln und Internetzugriff fest, kann Agenten anhalten und Freigaben erteilen.",
+      "auditor": "Liest Protokoll und Arbeitsnachweise mit, ändert aber nichts.",
+      "controlling": "Sieht Kosten und Verbrauch."
+    }
   },
   "account": {
     "title": "Konto",
@@ -2106,7 +2133,9 @@
       "ops": "Plattform",
       "opsHint": "Ein Runner, der verschwindet, ein Zugang, den ein Zielsystem abweist oder bald abweisen wird, und anderes, was der Betrieb wissen sollte.",
       "instanceOff": "Vom Administrator für die ganze Installation abgeschaltet."
-    }
+    },
+    "developer": "Für Entwickler",
+    "developerDesc": "API-Schlüssel und der covey-Skill für Claude Code."
   },
   "profile": {
     "noProfile": "Kein Profil hinterlegt.",
@@ -2114,12 +2143,15 @@
     "phone": "Telefon",
     "responsibilities": "Zuständigkeiten (sehen die Agenten)",
     "responsibilitiesPlaceholder": "z. B. testet Bugfixes im Projekt educa",
-    "responsibilitiesHint": "Profil und Zuständigkeiten gehen als Team-Verzeichnis in den Prompt der Agenten — so weiß z. B. der GitLab-Bot, wem er ein Issue zum Testen zuweist.",
+    "responsibilitiesHint": "Agenten sehen Funktion und Zuständigkeiten und wissen so, wen sie wofür ansprechen.",
     "identityLabel": "{{system}}-Kennung",
     "identityPlaceholder": "Username / Login im System",
     "noTargets": "Keine Zielsysteme aktiviert — Plattform-Kennungen lassen sich pflegen, sobald unter „Zielsysteme“ ein System aktiv ist.",
     "jobTitlePlaceholder": "z. B. QA Engineer",
-    "save": "Speichern"
+    "save": "Speichern",
+    "identities": "Anmeldungen in anderen Systemen",
+    "identitiesHint": "Damit Agenten die Person dort erkennen und ihr etwas zuweisen können. Nur ausfüllen, wo sie arbeitet.",
+    "saved": "Gespeichert."
   },
   "help": {
     "title": "Hilfe",
@@ -2317,19 +2349,24 @@
     "failed": "Die Ausschreibung ist fehlgeschlagen."
   },
   "administration": {
-    "title": "Administration",
+    "title": "Organisation",
     "subtitle": "Diese Organisation",
-    "tabProfile": "Profil",
-    "tabMembers": "Mitglieder & Rollen",
+    "tabProfile": "Allgemein",
+    "tabMembers": "Mitglieder",
     "tabUsage": "Verbrauch",
-    "tabAudit": "Audit",
-    "profileDesc": "Die Stammdaten dieser Organisation. Beschreibung und Plattform-Repository stehen auch am Organigramm — es ist derselbe Speicher, nur der zweite Weg dorthin.",
+    "profileDesc": "Wer Ihre Organisation ist und wie die Zusammenarbeit mit den Agenten aussieht.",
     "usageDesc": "Was diese Organisation beansprucht. Kontingente, gegen die diese Zahlen einmal geprüft werden, gibt es noch nicht.",
     "members": "Mitglieder",
     "agents": "Agenten",
     "agentsActive": "davon beschäftigt",
     "cost30d": "Kosten (30 Tage)",
-    "tabDiagnostics": "Diagnose"
+    "tabDiagnostics": "Diagnose",
+    "tabSignIn": "Anmeldung",
+    "groupCompany": "Unternehmen",
+    "groupWork": "Zusammenarbeit",
+    "groupVoice": "Sprache und Stimme",
+    "advanced": "Erweitert",
+    "advancedDesc": "Technische Einstellungen, die selten gebraucht werden."
   },
   "platform": {
     "seatAddPick": "Einer Organisation hinzufügen …",
@@ -2341,7 +2378,7 @@
     "tabAccounts": "Konten",
     "tabSettings": "Einstellungen",
     "tabWaitlist": "Warteliste",
-    "accountsDesc": "Jede Anmeldung dieser Installation. Die Ebene rechts gilt für die Instanz; die Rollen darunter gehören je einer Organisation und werden dort vergeben.",
+    "accountsDesc": "Jede Anmeldung dieser Installation. Ein Klick öffnet ein Konto: seine Organisationen mit der Rolle dort, und ob es die Installation verwalten darf.",
     "noAccounts": "Noch keine Konten.",
     "you": "— Sie",
     "unverified": "unbestätigt",
@@ -2461,7 +2498,19 @@
     },
     "deleteAccount": "Konto löschen",
     "deleteAccountConfirm_one": "{{email}} endgültig löschen, mit seinem Sitz? Das lässt sich nicht rückgängig machen.",
-    "deleteAccountConfirm_other": "{{email}} endgültig löschen, mit seinen {{count}} Sitzen? Das lässt sich nicht rückgängig machen."
+    "deleteAccountConfirm_other": "{{email}} endgültig löschen, mit seinen {{count}} Sitzen? Das lässt sich nicht rückgängig machen.",
+    "accountsSearch": "Name, E-Mail oder Organisation suchen",
+    "accountsCount": "{{count}} Konten",
+    "accountsCount_one": "Ein Konto",
+    "detailOrgs": "Organisationen",
+    "detailInstance": "Diese Installation",
+    "levelHint": "System-Admins verwalten die ganze Installation mit allen Organisationen.",
+    "seatRemoveConfirm": "Aus {{org}} entfernen?",
+    "seatAddButton": "Zu einer Organisation hinzufügen",
+    "deleteHint": "Löscht die Anmeldung samt allen Organisationen. Lässt sich nicht rückgängig machen.",
+    "levelDescUser": "Arbeitet in den Organisationen, in denen das Konto Mitglied ist.",
+    "levelDescAdmin": "Verwaltet die ganze Installation mit allen Organisationen.",
+    "seatOrgLabel": "Organisation"
   },
   "catalog": {
     "loading": "Katalog wird geladen …",

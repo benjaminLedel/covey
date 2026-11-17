@@ -62,9 +62,29 @@ const Setup = lazy(() => import("./pages/Setup"));
 const Costs = lazy(() => import("./pages/Costs"));
 
 
-function NavItem({ to, icon, label, end, count }: { to: string; icon: string; label: string; end?: boolean; count?: number }) {
+function NavItem({
+  to,
+  icon,
+  label,
+  end,
+  count,
+  except,
+  also,
+}: {
+  to: string;
+  icon: string;
+  label: string;
+  end?: boolean;
+  count?: number;
+  /** A sub-path with an entry of its own: there this one stays unmarked. */
+  except?: string;
+  /** Marked as well, where the address alone does not say so. */
+  also?: boolean;
+}) {
+  const { pathname } = useLocation();
+  const elsewhere = except != null && (pathname === except || pathname.startsWith(except + "/"));
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
+    <NavLink to={to} end={end} className={({ isActive }) => `nav-item ${(isActive && !elsewhere) || also ? "active" : ""}`}>
       <NavIcon name={icon} />
       {label}
       {count != null && count > 0 && <span className="count">{count}</span>}
@@ -139,6 +159,7 @@ const PAGE_TITLES: [string, string][] = [
   ["/audit", "nav.audit"],
   ["/requests", "nav.requests"],
   ["/administration", "nav.administration"],
+  ["/administration/members", "nav.members"],
   ["/platform", "nav.platform"],
   ["/people", "nav.profile"],
   ["/notes", "mobile.notizen"],
@@ -174,17 +195,6 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
     const gewaehlt = initialLang("/");
     if (i18n.language !== gewaehlt) void ladeSprache(gewaehlt);
   }, []);
-
-  // Administration is needed rarely — collapsed by default, the state is
-  // remembered; on an administration page the group is always open.
-  const inPlatform = ["/administration", "/platform"].some((p) => location.pathname.startsWith(p));
-  const [platformOpen, setPlatformOpen] = useState(() => localStorage.getItem("covey.nav.platform") === "1");
-  const togglePlatform = () => {
-    const next = !platformOpen;
-    setPlatformOpen(next);
-    localStorage.setItem("covey.nav.platform", next ? "1" : "0");
-  };
-  const showPlatform = platformOpen || inPlatform;
 
   /* At phone width the navigation is a drawer (#463). It closes on every
      navigation, and when the window grows past the break — there it is a
@@ -311,10 +321,10 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
           <div className="tm-spalte-kopf">
             <h1 className="tm-spalte-titel">{t("team.verwaltung")}</h1>
           </div>
-          {/* The navigation grew — the order showed when something was added,
-              not when it is needed. Now sorted by the everyday: on top what
-              opens daily; below what is set up once; then the
-              oversight. */}
+          {/* Four groups, in the order they are needed (#743): the daily
+              work on top; the workforce's tools; what keeps it safe; the
+              organisation itself. The last group used to sit behind a toggle
+              that was closed by default — the member list three clicks deep. */}
           <div className="nav-group">
             {/* Setup first while it is not finished (#391): whoever just
                 installed covey starts there. */}
@@ -323,62 +333,56 @@ export default function AppShell({ me, onLogout }: { me: Principal; onLogout: ()
             {/* With the team surface, decisions are made in the conversation
                 with the agent (#391); the inbox is for installations without it. */}
             {!me.TeamSurface && <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />}
-            <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
             <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
+            <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           </div>
           <div className="nav-sec">{t("nav.setup")}</div>
           <div className="nav-group">
-            <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
             <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
+            <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
             <NavItem to="/skills" icon="book" label={t("nav.skills")} />
-            <NavItem to="/voices" icon="book" label={t("nav.voices")} />
+            <NavItem to="/voices" icon="chat" label={t("nav.voices")} />
             <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
-            <NavItem to="/infrastructure" icon="server" label={t("nav.infrastructure")} />
           </div>
           <div className="nav-sec">{t("nav.control")}</div>
           <div className="nav-group">
             <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
             <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
-            {/* Only those who may fetch the request log should read it (the API
-                lets `org_admin` and `security` through) — otherwise the menu
-                showed a path that ends in a 403. It used to sit in the
-                admin block, which hid it from security. */}
             {/* The audit trail is for those who review it: org admin,
                 security, auditor. Agent owners and controlling stand
                 in it themselves. */}
             {["org_admin", "security", "auditor"].includes(me.Role) && (
               <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
             )}
+            {/* Only those who may fetch the request log should read it (the API
+                lets `org_admin` and `security` through) — otherwise the menu
+                showed a path that ends in a 403. */}
             {(me.Role === "org_admin" || me.Role === "security") && (
               <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
             )}
-
           </div>
-          <div className="mt-auto">
-            {/* Two areas, two scopes — and two different levels that open
-                them. Administration manages THIS organisation, so it belongs to
-                the role the organisation grants itself. The platform
-                manages the installation and hangs on the account, where no
-                organisation can hand it out
-                (FR-003, finding F). */}
-            {(me.Role === "org_admin" || istSystemAdmin(me)) && (
+          {/* Two scopes, two levels that open them. Members and settings
+              manage THIS organisation, so they belong to the role the
+              organisation grants itself. The platform manages the
+              installation and hangs on the account, where no organisation can
+              hand it out (FR-003, finding F). Infrastructure — runtimes,
+              workplaces, runners — is the most technical page, so it moved
+              down here, open to everyone as before. */}
+          <div className="nav-sec">{t("nav.administrationSection")}</div>
+          <div className="nav-group">
+            {me.Role === "org_admin" && (
               <>
-                <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
-                  {t("nav.administrationSection")}
-                  <NavIcon name="chevron" />
-                </button>
-                {showPlatform && (
-                  <div className="nav-group">
-                    {me.Role === "org_admin" && (
-                      <NavItem to="/administration" icon="user" label={t("nav.administration")} />
-                    )}
-                    {istSystemAdmin(me) && (
-                      <NavItem to="/platform" icon="box" label={t("nav.platform")} />
-                    )}
-                  </div>
-                )}
+                <NavItem
+                  to="/administration/members"
+                  icon="user"
+                  label={t("nav.members")}
+                  also={location.pathname.startsWith("/people/") && (location.state as { from?: string } | null)?.from === "members"}
+                />
+                <NavItem to="/administration" except="/administration/members" icon="cog" label={t("nav.administration")} />
               </>
             )}
+            <NavItem to="/infrastructure" icon="server" label={t("nav.infrastructure")} />
+            {istSystemAdmin(me) && <NavItem to="/platform" icon="box" label={t("nav.platform")} />}
           </div>
         </aside>
       )}
