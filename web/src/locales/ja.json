@@ -2139,12 +2139,16 @@
     "phone": "電話",
     "responsibilities": "担当範囲（エージェントから見えます）",
     "responsibilitiesPlaceholder": "例: プロジェクト educa の不具合修正をテストする",
-    "responsibilitiesHint": "プロフィールと担当範囲は、チーム名簿としてエージェントのプロンプトに入ります。たとえば GitLab のボットが、テストのために誰へ課題を割り当てればよいか分かるようになります。",
+    "responsibilitiesHint": "エージェントは役職と担当を見て、何を誰に頼むべきかを判断します。",
     "identityLabel": "{{system}} での識別子",
     "identityPlaceholder": "そのシステムでのユーザー名 / ログイン名",
     "noTargets": "有効な対象システムがありません。「対象システム」でいずれかが有効になると、各プラットフォームの識別子を管理できます。",
     "jobTitlePlaceholder": "例: QA エンジニア",
-    "save": "保存"
+    "save": "保存",
+    "identities": "他のシステムのログイン",
+    "identitiesHint": "エージェントがその人を認識し、仕事を割り当てられるようにします。実際に使うシステムだけ入力してください。",
+    "identitiesCount": "{{total}} 件中 {{filled}} 件入力済み",
+    "saved": "保存しました。"
   },
   "help": {
     "title": "ヘルプ",

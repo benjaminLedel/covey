@@ -2139,12 +2139,16 @@
     "phone": "Teléfono",
     "responsibilities": "Responsabilidades (visibles para los agentes)",
     "responsibilitiesPlaceholder": "p. ej. prueba correcciones de errores en el proyecto educa",
-    "responsibilitiesHint": "El perfil y las responsabilidades entran como directorio del equipo en los prompts de los agentes, para que, por ejemplo, el bot de GitLab sepa a quién asignar una incidencia para que la pruebe.",
+    "responsibilitiesHint": "Los agentes ven el puesto y las responsabilidades, y así saben a quién acudir para qué.",
     "identityLabel": "Identidad en {{system}}",
     "identityPlaceholder": "Usuario / login en el sistema",
     "noTargets": "No hay sistemas de destino activados: las identidades de plataforma se podrán gestionar cuando haya un sistema activo en «Sistemas de destino».",
     "jobTitlePlaceholder": "p. ej. Ingeniera de QA",
-    "save": "Guardar"
+    "save": "Guardar",
+    "identities": "Inicios de sesión en otros sistemas",
+    "identitiesHint": "Para que los agentes reconozcan a la persona allí y puedan asignarle trabajo. Rellene solo donde trabaja.",
+    "identitiesCount": "{{filled}} de {{total}} completados",
+    "saved": "Guardado."
   },
   "help": {
     "title": "Ayuda",

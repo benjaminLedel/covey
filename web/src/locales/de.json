@@ -2139,12 +2139,16 @@
     "phone": "Telefon",
     "responsibilities": "Zuständigkeiten (sehen die Agenten)",
     "responsibilitiesPlaceholder": "z. B. testet Bugfixes im Projekt educa",
-    "responsibilitiesHint": "Profil und Zuständigkeiten gehen als Team-Verzeichnis in den Prompt der Agenten — so weiß z. B. der GitLab-Bot, wem er ein Issue zum Testen zuweist.",
+    "responsibilitiesHint": "Agenten sehen Funktion und Zuständigkeiten und wissen so, wen sie wofür ansprechen.",
     "identityLabel": "{{system}}-Kennung",
     "identityPlaceholder": "Username / Login im System",
     "noTargets": "Keine Zielsysteme aktiviert — Plattform-Kennungen lassen sich pflegen, sobald unter „Zielsysteme“ ein System aktiv ist.",
     "jobTitlePlaceholder": "z. B. QA Engineer",
-    "save": "Speichern"
+    "save": "Speichern",
+    "identities": "Anmeldungen in anderen Systemen",
+    "identitiesHint": "Damit Agenten die Person dort erkennen und ihr etwas zuweisen können. Nur ausfüllen, wo sie arbeitet.",
+    "identitiesCount": "{{filled}} von {{total}} hinterlegt",
+    "saved": "Gespeichert."
   },
   "help": {
     "title": "Hilfe",

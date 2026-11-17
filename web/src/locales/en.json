@@ -2139,12 +2139,16 @@
     "phone": "Phone",
     "responsibilities": "Responsibilities (visible to agents)",
     "responsibilitiesPlaceholder": "e.g. tests bug fixes in project educa",
-    "responsibilitiesHint": "Profile and responsibilities go as a team directory into agent prompts — so e.g. the GitLab bot knows whom to assign an issue for testing.",
+    "responsibilitiesHint": "Agents see the job title and responsibilities, so they know whom to turn to for what.",
     "identityLabel": "{{system}} identity",
     "identityPlaceholder": "Username / login in the system",
     "noTargets": "No target systems activated — platform identities can be managed once a system is active under \"Target Systems\".",
     "jobTitlePlaceholder": "e.g. QA Engineer",
-    "save": "Save"
+    "save": "Save",
+    "identities": "Logins in other systems",
+    "identitiesHint": "So agents recognise the person there and can assign them work. Fill in only where they work.",
+    "identitiesCount": "{{filled}} of {{total}} filled in",
+    "saved": "Saved."
   },
   "help": {
     "title": "Help",

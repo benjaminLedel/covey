@@ -2139,12 +2139,16 @@
     "phone": "Telefoon",
     "responsibilities": "Verantwoordelijkheden (zichtbaar voor agenten)",
     "responsibilitiesPlaceholder": "bijv. test bugfixes in project educa",
-    "responsibilitiesHint": "Profiel en verantwoordelijkheden gaan als teamgids mee in de prompts van agenten — zodat bijv. de GitLab-bot weet aan wie hij een issue ter test toewijst.",
+    "responsibilitiesHint": "Agents zien functie en verantwoordelijkheden en weten zo wie ze waarvoor moeten aanspreken.",
     "identityLabel": "Identiteit op {{system}}",
     "identityPlaceholder": "Gebruikersnaam / login in het systeem",
     "noTargets": "Geen doelsystemen geactiveerd — platformidentiteiten kunt u beheren zodra er een systeem actief is onder “Doelsystemen”.",
     "jobTitlePlaceholder": "bijv. QA-engineer",
-    "save": "Opslaan"
+    "save": "Opslaan",
+    "identities": "Logins in andere systemen",
+    "identitiesHint": "Zodat agents de persoon daar herkennen en werk kunnen toewijzen. Alleen invullen waar die werkt.",
+    "identitiesCount": "{{filled}} van {{total}} ingevuld",
+    "saved": "Opgeslagen."
   },
   "help": {
     "title": "Hulp",

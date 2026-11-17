@@ -2139,12 +2139,16 @@
     "phone": "Telefon",
     "responsibilities": "Zakres odpowiedzialności (widoczny dla agentów)",
     "responsibilitiesPlaceholder": "np. testuje poprawki błędów w projekcie educa",
-    "responsibilitiesHint": "Profil i zakres odpowiedzialności trafiają do promptów agentów jako katalog zespołu — żeby np. bot GitLaba wiedział, komu przypisać zgłoszenie do przetestowania.",
+    "responsibilitiesHint": "Agenci widzą stanowisko i obowiązki, więc wiedzą, do kogo zwrócić się w jakiej sprawie.",
     "identityLabel": "Tożsamość w {{system}}",
     "identityPlaceholder": "Nazwa użytkownika / login w systemie",
     "noTargets": "Nie włączono żadnego systemu docelowego — tożsamościami na platformach będzie można zarządzać, gdy jakiś system stanie się aktywny w „Systemy docelowe”.",
     "jobTitlePlaceholder": "np. inżynier QA",
-    "save": "Zapisz"
+    "save": "Zapisz",
+    "identities": "Loginy w innych systemach",
+    "identitiesHint": "Aby agenci rozpoznawali tę osobę i mogli przydzielać jej pracę. Wypełnij tylko tam, gdzie pracuje.",
+    "identitiesCount": "Uzupełniono {{filled}} z {{total}}",
+    "saved": "Zapisano."
   },
   "help": {
     "title": "Pomoc",

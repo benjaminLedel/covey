@@ -75,50 +75,64 @@ export default function ProfileForm({
     );
   }
 
+  const initial = JSON.stringify({
+    job_title: human.job_title,
+    identities: human.identities ?? {},
+    phone: human.phone,
+    responsibilities: human.responsibilities,
+    custom: human.custom ?? {},
+  });
+  const dirty = JSON.stringify(p) !== initial;
+
   return (
     <form
+      className="profile-form"
       onSubmit={(e) => {
         e.preventDefault();
         save.mutate();
       }}
     >
-      <div className="flex gap-3 items-end flex-wrap">
-        <div className="min-w-40">
-          <label>{t("profile.jobTitle")}</label>
-          <input value={p.job_title} onChange={(e) => setP({ ...p, job_title: e.target.value })} placeholder={t("profile.jobTitlePlaceholder")} />
+      <div className="field-grid">
+        <div>
+          <label htmlFor="pf-job">{t("profile.jobTitle")}</label>
+          <input id="pf-job" value={p.job_title} onChange={(e) => setP({ ...p, job_title: e.target.value })} placeholder={t("profile.jobTitlePlaceholder")} />
         </div>
-        <div className="min-w-40">
-          <label>{t("profile.phone")}</label>
-          <input value={p.phone} onChange={(e) => setP({ ...p, phone: e.target.value })} />
+        <div>
+          <label htmlFor="pf-phone">{t("profile.phone")}</label>
+          <input id="pf-phone" type="tel" value={p.phone} onChange={(e) => setP({ ...p, phone: e.target.value })} />
         </div>
-        <IdentityFields value={p.identities} onChange={(identities) => setP({ ...p, identities })} />
         {fieldDefs.map((f) => (
-          <div className="min-w-40" key={f.id}>
-            <label>{f.label}</label>
+          <div key={f.id}>
+            <label htmlFor={`pf-${f.key}`}>{f.label}</label>
             <input
+              id={`pf-${f.key}`}
               value={p.custom[f.key] ?? ""}
               onChange={(e) => setP({ ...p, custom: { ...p.custom, [f.key]: e.target.value } })}
             />
           </div>
         ))}
-      </div>
-      <div className="flex gap-3 items-end flex-wrap mt-3">
-        <div className="flex-1 min-w-52">
-          <label>{t("profile.responsibilities")}</label>
-          <input
+        <div className="field-wide">
+          <label htmlFor="pf-resp">{t("profile.responsibilities")}</label>
+          <textarea
+            id="pf-resp"
+            rows={2}
             value={p.responsibilities}
             onChange={(e) => setP({ ...p, responsibilities: e.target.value })}
             placeholder={t("profile.responsibilitiesPlaceholder")}
           />
+          <p className="muted text-xs mt-1 mb-0">{t("profile.responsibilitiesHint")}</p>
         </div>
-        <button className="btn sm primary" disabled={save.isPending}>
+      </div>
+
+      <IdentityFields value={p.identities} onChange={(identities) => setP({ ...p, identities })} />
+
+      <div className="edit-panel-foot">
+        {save.isError && <span className="danger-text text-xs mr-auto">{(save.error as Error).message}</span>}
+        {save.isSuccess && !dirty && <span className="muted text-xs mr-auto">{t("profile.saved")}</span>}
+        <button className="btn primary" disabled={!dirty || save.isPending}>
           {t("profile.save")}
         </button>
       </div>
-      <p className="muted text-xs mt-2 mb-0">
-        {t("profile.responsibilitiesHint")}
-      </p>
-      {save.isError && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(save.error as Error).message}</p>}
     </form>
   );
 }

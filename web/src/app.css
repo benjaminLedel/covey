@@ -4950,3 +4950,23 @@ a.tm-file:hover { background: var(--tint); }
 .account-detail { padding: 8px 15px 14px 15px; background: var(--surface-1); }
 .account-section { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
 @media (max-width: 720px) { .account-chips { max-width: 100%; justify-content: flex-start; } .account-last { text-align: left; } }
+
+/* The profile form (#743): the few fields that describe a person in a grid,
+   the logins in other systems folded into one quiet list. */
+.profile-form { display: grid; gap: 14px; }
+.profile-form .edit-panel-foot { margin-top: 0; }
+.field-grid { display: grid; gap: 12px 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.field-grid .field-wide { grid-column: 1 / -1; }
+.field-grid input, .field-grid textarea { max-width: none; }
+.field-grid textarea { width: 100%; resize: vertical; min-height: 56px; }
+.identity-box { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.identity-box > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; }
+.identity-box > summary::-webkit-details-marker { display: none; }
+.identity-box > summary::before { content: "›"; display: inline-block; width: 0.8em; color: var(--text-muted); transition: transform 0.15s; }
+.identity-box[open] > summary::before { transform: rotate(90deg); }
+.identity-list { display: grid; }
+.identity-row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; align-items: center; gap: 12px; padding: 6px 0; margin: 0; font-size: 13px; }
+.identity-row + .identity-row { border-top: 1px solid var(--border); }
+.identity-name { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.identity-row input { max-width: 360px; }
+@media (max-width: 560px) { .identity-row { grid-template-columns: 1fr; gap: 4px; } }

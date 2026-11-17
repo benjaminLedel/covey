@@ -2139,12 +2139,16 @@
     "phone": "Telefono",
     "responsibilities": "Responsabilità (visibili agli agenti)",
     "responsibilitiesPlaceholder": "ad es. prova le correzioni di bug nel progetto educa",
-    "responsibilitiesHint": "Profilo e responsabilità entrano nei prompt degli agenti come elenco del team — così, ad esempio, il bot di GitLab sa a chi assegnare una segnalazione da provare.",
+    "responsibilitiesHint": "Gli agenti vedono ruolo e responsabilità, e sanno così a chi rivolgersi per cosa.",
     "identityLabel": "Identità su {{system}}",
     "identityPlaceholder": "Nome utente / login nel sistema",
     "noTargets": "Nessun sistema di destinazione attivato — le identità sulle piattaforme si potranno gestire quando un sistema sarà attivo in «Sistemi di destinazione».",
     "jobTitlePlaceholder": "ad es. QA Engineer",
-    "save": "Salva"
+    "save": "Salva",
+    "identities": "Accessi in altri sistemi",
+    "identitiesHint": "Così gli agenti riconoscono la persona e possono assegnarle lavoro. Compila solo dove lavora.",
+    "identitiesCount": "{{filled}} di {{total}} compilati",
+    "saved": "Salvato."
   },
   "help": {
     "title": "Aiuto",
