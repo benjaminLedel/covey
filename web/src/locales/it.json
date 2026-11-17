@@ -1301,7 +1301,8 @@
     "ownPassword": "La propria password si cambia più in basso.",
     "removeTitle": "Rimuovi dall'organizzazione",
     "removeHint": "La persona perde subito l'accesso a questa organizzazione.",
-    "openOrgChart": "Vedi nell'organigramma"
+    "openOrgChart": "Vedi nell'organigramma",
+    "current": "Attuale"
   },
   "runtimes": {
     "title": "Motori",
@@ -2499,7 +2500,10 @@
     "levelHint": "Gli amministratori di sistema gestiscono l'intera installazione con tutte le organizzazioni.",
     "seatRemoveConfirm": "Rimuovere da {{org}}?",
     "seatAddButton": "Aggiungi a un'organizzazione",
-    "deleteHint": "Elimina l'accesso insieme a tutte le organizzazioni. Non si può annullare."
+    "deleteHint": "Elimina l'accesso insieme a tutte le organizzazioni. Non si può annullare.",
+    "levelDescUser": "Lavora nelle organizzazioni di cui l'account è membro.",
+    "levelDescAdmin": "Gestisce l'intera installazione con tutte le organizzazioni.",
+    "seatOrgLabel": "Organizzazione"
   },
   "catalog": {
     "loading": "Caricamento del catalogo …",

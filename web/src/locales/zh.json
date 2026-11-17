@@ -1301,7 +1301,8 @@
     "ownPassword": "在下方更改您自己的密码。",
     "removeTitle": "从组织中移除",
     "removeHint": "此人将立即失去对本组织的访问权限。",
-    "openOrgChart": "在组织架构图中查看"
+    "openOrgChart": "在组织架构图中查看",
+    "current": "当前"
   },
   "runtimes": {
     "title": "引擎",
@@ -2499,7 +2500,10 @@
     "levelHint": "系统管理员管理整个安装及其所有组织。",
     "seatRemoveConfirm": "从 {{org}} 中移除？",
     "seatAddButton": "添加到组织",
-    "deleteHint": "删除该登录账号及其所有组织席位。无法撤销。"
+    "deleteHint": "删除该登录账号及其所有组织席位。无法撤销。",
+    "levelDescUser": "在该账户所属的组织中工作。",
+    "levelDescAdmin": "管理整个安装及其所有组织。",
+    "seatOrgLabel": "组织"
   },
   "catalog": {
     "loading": "正在加载目录 …",

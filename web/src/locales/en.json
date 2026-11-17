@@ -1301,7 +1301,8 @@
     "ownPassword": "Change your own password further down.",
     "removeTitle": "Remove from the organization",
     "removeHint": "The person loses access to this organization at once.",
-    "openOrgChart": "View in org chart"
+    "openOrgChart": "View in org chart",
+    "current": "Current"
   },
   "runtimes": {
     "title": "Engines",
@@ -2499,7 +2500,10 @@
     "levelHint": "System admins run the whole installation with every organization.",
     "seatRemoveConfirm": "Remove from {{org}}?",
     "seatAddButton": "Add to an organization",
-    "deleteHint": "Deletes the sign-in along with every organization seat. Cannot be undone."
+    "deleteHint": "Deletes the sign-in along with every organization seat. Cannot be undone.",
+    "levelDescUser": "Works in the organizations the account is a member of.",
+    "levelDescAdmin": "Runs the whole installation with every organization.",
+    "seatOrgLabel": "Organization"
   },
   "catalog": {
     "loading": "Loading the catalogue …",

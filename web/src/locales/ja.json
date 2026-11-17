@@ -1301,7 +1301,8 @@
     "ownPassword": "自分のパスワードは下で変更できます。",
     "removeTitle": "組織から削除",
     "removeHint": "その人はこの組織へのアクセスをすぐに失います。",
-    "openOrgChart": "組織図で見る"
+    "openOrgChart": "組織図で見る",
+    "current": "現在"
   },
   "runtimes": {
     "title": "エンジン",
@@ -2499,7 +2500,10 @@
     "levelHint": "システム管理者はすべての組織を含むインストール全体を管理します。",
     "seatRemoveConfirm": "{{org}} から削除しますか？",
     "seatAddButton": "組織に追加",
-    "deleteHint": "サインインとすべての組織の所属を削除します。元に戻せません。"
+    "deleteHint": "サインインとすべての組織の所属を削除します。元に戻せません。",
+    "levelDescUser": "アカウントが所属する組織で作業します。",
+    "levelDescAdmin": "すべての組織を含むインストール全体を管理します。",
+    "seatOrgLabel": "組織"
   },
   "catalog": {
     "loading": "カタログを読み込んでいます …",

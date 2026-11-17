@@ -1301,7 +1301,8 @@
     "ownPassword": "Modifiez votre propre mot de passe plus bas.",
     "removeTitle": "Retirer de l'organisation",
     "removeHint": "La personne perd aussitôt l'accès à cette organisation.",
-    "openOrgChart": "Voir dans l'organigramme"
+    "openOrgChart": "Voir dans l'organigramme",
+    "current": "Actuel"
   },
   "runtimes": {
     "title": "Moteurs",
@@ -2499,7 +2500,10 @@
     "levelHint": "Les administrateurs système gèrent toute l'installation et toutes ses organisations.",
     "seatRemoveConfirm": "Retirer de {{org}} ?",
     "seatAddButton": "Ajouter à une organisation",
-    "deleteHint": "Supprime le compte et toutes ses organisations. Irréversible."
+    "deleteHint": "Supprime le compte et toutes ses organisations. Irréversible.",
+    "levelDescUser": "Travaille dans les organisations dont le compte est membre.",
+    "levelDescAdmin": "Gère toute l'installation avec toutes les organisations.",
+    "seatOrgLabel": "Organisation"
   },
   "catalog": {
     "loading": "Chargement du catalogue …",

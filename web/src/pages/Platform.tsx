@@ -6,6 +6,8 @@ import {
   api, del, patch, post, put,
   type Account, type Organization, type Principal, type Setting, type WaitlistCode,
 } from "../api";
+import ChoiceList from "../components/ChoiceList";
+import { NavIcon } from "../components/navicons";
 import Organizations from "./Organizations";
 import PlatformHeader from "./platform/Header";
 import Mail from "./platform/Mail";
@@ -194,142 +196,188 @@ function AccountDetail({ account, isSelf, orgs }: { account: Account; isSelf: bo
   const error = (setPlatformRole.error ?? seat.error ?? add.error ?? remove.error) as Error | null;
   const cancel = () => setStep("");
 
+  const roleChoices = ORG_ROLES.map((r) => ({ value: r, label: t(`role.${r}`, r), desc: t(`users.roleDesc.${r}`) }));
+  const levelChoices = [
+    { value: "user", label: t("platform.roleUser"), desc: t("platform.levelDescUser") },
+    { value: "system_admin", label: t("platform.roleSystemAdmin"), desc: t("platform.levelDescAdmin") },
+  ];
+  const foot = (saveLabel: string, disabled: boolean, icon = "check") => (
+    <div className="edit-panel-foot">
+      <button type="button" className="btn" onClick={cancel}>{t("users.cancel")}</button>
+      <button className="btn primary" disabled={disabled}>
+        <NavIcon name={icon} />
+        {saveLabel}
+      </button>
+    </div>
+  );
+
   return (
     <div className="account-detail">
-      <div className="text-xs font-medium mb-1">{t("platform.detailOrgs")}</div>
+      <div className="account-section">{t("platform.detailOrgs")}</div>
       {account.seats.length === 0 && <p className="muted text-xs mt-0">{t("platform.noSeat")}</p>}
       {account.seats.map((s) => (
-        <div key={s.org_id} className="access-row text-xs">
-          <span className="flex-1 min-w-0">
-            <span className="font-medium">{s.org_name}</span>
-            <span className="muted"> · {t(`role.${s.role}`, s.role)}</span>
-          </span>
-          {step === `role:${s.org_id}` ? (
+        <div key={s.org_id} className="seat">
+          <div className={`access-row${step.endsWith(`:${s.org_id}`) ? " editing" : ""}`}>
+            <span className="flex-1 min-w-0">
+              <span className="text-sm font-medium block">{s.org_name}</span>
+              <span className="muted text-xs">{t(`role.${s.role}`, s.role)}</span>
+            </span>
+            {!step.endsWith(`:${s.org_id}`) && (
+              <span className="flex gap-1">
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    setSeatRole(s.role);
+                    setStep(`role:${s.org_id}`);
+                  }}
+                >
+                  <NavIcon name="edit" />
+                  {t("person.roleChange")}
+                </button>
+                <button className="btn sm quiet danger" onClick={() => setStep(`remove:${s.org_id}`)}>
+                  <NavIcon name="trash" />
+                  {t("platform.seatRemove")}
+                </button>
+              </span>
+            )}
+          </div>
+          {step === `role:${s.org_id}` && (
             <form
-              className="flex gap-2 items-center"
+              className="edit-panel"
               onSubmit={(e) => {
                 e.preventDefault();
                 seat.mutate({ org: s.org_id, role: seatRole });
               }}
             >
-              <select value={seatRole} onChange={(e) => setSeatRole(e.target.value)} style={{ width: 170 }} autoFocus>
-                {ORG_ROLES.map((r) => (
-                  <option key={r} value={r}>{t(`role.${r}`, r)}</option>
-                ))}
-              </select>
-              <button className="btn sm primary" disabled={seatRole === s.role || seat.isPending}>{t("platform.save")}</button>
-              <button type="button" className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+              <ChoiceList
+                name={`seat-${s.org_id}`}
+                legend={t("users.role")}
+                value={seatRole}
+                onChange={setSeatRole}
+                choices={roleChoices}
+                current={s.role}
+                currentLabel={t("person.current")}
+              />
+              {foot(t("platform.save"), seatRole === s.role || seat.isPending)}
             </form>
-          ) : step === `remove:${s.org_id}` ? (
-            <span className="flex gap-2 items-center">
-              <span>{t("platform.seatRemoveConfirm", { org: s.org_name })}</span>
-              <button className="btn sm danger" onClick={() => seat.mutate({ org: s.org_id })} disabled={seat.isPending}>
-                {t("platform.seatRemove")}
-              </button>
-              <button className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
-            </span>
-          ) : (
-            <span className="flex gap-2">
-              <button
-                className="btn sm"
-                onClick={() => {
-                  setSeatRole(s.role);
-                  setStep(`role:${s.org_id}`);
-                }}
-              >
-                {t("person.roleChange")}
-              </button>
-              <button className="btn sm" onClick={() => setStep(`remove:${s.org_id}`)}>
-                {t("platform.seatRemove")}
-              </button>
-            </span>
+          )}
+          {step === `remove:${s.org_id}` && (
+            <div className="edit-panel danger" role="alertdialog" aria-label={t("platform.seatRemove")}>
+              <div className="text-sm font-medium">{t("platform.seatRemoveConfirm", { org: s.org_name })}</div>
+              <div className="edit-panel-foot">
+                <button className="btn" onClick={cancel} autoFocus>{t("users.cancel")}</button>
+                <button className="btn danger solid" onClick={() => seat.mutate({ org: s.org_id })} disabled={seat.isPending}>
+                  <NavIcon name="trash" />
+                  {t("platform.seatRemove")}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       ))}
       {free.length > 0 &&
         (step === "add" ? (
           <form
-            className="access-row text-xs flex-wrap"
+            className="edit-panel"
             onSubmit={(e) => {
               e.preventDefault();
               add.mutate();
             }}
           >
-            <select value={addOrg} onChange={(e) => setAddOrg(e.target.value)} className="flex-1 min-w-44" autoFocus>
+            <label htmlFor={`add-org-${account.id}`}>{t("platform.seatOrgLabel")}</label>
+            <select id={`add-org-${account.id}`} value={addOrg} onChange={(e) => setAddOrg(e.target.value)} autoFocus>
               <option value="">{t("platform.seatAddPick")}</option>
               {free.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
-            <select value={addRole} onChange={(e) => setAddRole(e.target.value)} style={{ width: 170 }}>
-              {ORG_ROLES.map((r) => (
-                <option key={r} value={r}>{t(`role.${r}`, r)}</option>
-              ))}
-            </select>
-            <button className="btn sm primary" disabled={!addOrg || add.isPending}>{t("platform.seatAdd")}</button>
-            <button type="button" className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
+            <label className="mt-3">{t("users.role")}</label>
+            <ChoiceList
+              name={`add-role-${account.id}`}
+              legend={t("users.role")}
+              value={addRole}
+              onChange={setAddRole}
+              choices={roleChoices}
+            />
+            {foot(t("platform.seatAdd"), !addOrg || add.isPending, "plus")}
           </form>
         ) : (
-          <button className="btn sm mt-1" onClick={() => setStep("add")}>{t("platform.seatAddButton")}</button>
+          <button className="btn sm quiet mt-1" onClick={() => setStep("add")}>
+            <NavIcon name="plus" />
+            {t("platform.seatAddButton")}
+          </button>
         ))}
 
-      <div className="text-xs font-medium mt-4 mb-1">{t("platform.detailInstance")}</div>
-      <div className="access-row text-xs">
+      <div className="account-section mt-4">{t("platform.detailInstance")}</div>
+      <div className={`access-row${step === "level" ? " editing" : ""}`}>
         <span className="flex-1 min-w-0">
-          <span className="font-medium">
+          <span className="text-sm font-medium block">
             {account.platform_role === "system_admin" ? t("platform.roleSystemAdmin") : t("platform.roleUser")}
           </span>
-          <span className="muted block">{t("platform.levelHint")}</span>
+          <span className="muted text-xs">
+            {account.platform_role === "system_admin" ? t("platform.levelDescAdmin") : t("platform.levelDescUser")}
+          </span>
         </span>
-        {step === "level" ? (
-          <form
-            className="flex gap-2 items-center"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPlatformRole.mutate();
+        {step !== "level" && !isSelf && (
+          <button
+            className="btn sm"
+            onClick={() => {
+              setLevel(account.platform_role);
+              setStep("level");
             }}
           >
-            <select value={level} onChange={(e) => setLevel(e.target.value)} style={{ width: 170 }} autoFocus>
-              <option value="user">{t("platform.roleUser")}</option>
-              <option value="system_admin">{t("platform.roleSystemAdmin")}</option>
-            </select>
-            <button className="btn sm primary" disabled={level === account.platform_role || setPlatformRole.isPending}>
-              {t("platform.save")}
-            </button>
-            <button type="button" className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
-          </form>
-        ) : (
-          !isSelf && (
-            <button
-              className="btn sm"
-              onClick={() => {
-                setLevel(account.platform_role);
-                setStep("level");
-              }}
-            >
-              {t("person.roleChange")}
-            </button>
-          )
+            <NavIcon name="edit" />
+            {t("person.roleChange")}
+          </button>
         )}
       </div>
+      {step === "level" && (
+        <form
+          className="edit-panel"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPlatformRole.mutate();
+          }}
+        >
+          <ChoiceList
+            name={`level-${account.id}`}
+            legend={t("platform.detailInstance")}
+            value={level}
+            onChange={setLevel}
+            choices={levelChoices}
+            current={account.platform_role}
+            currentLabel={t("person.current")}
+          />
+          {foot(t("platform.save"), level === account.platform_role || setPlatformRole.isPending)}
+        </form>
+      )}
 
       {!isSelf && (
-        <div className="access-row text-xs mt-2">
-          <span className="flex-1 min-w-0 muted">{t("platform.deleteHint")}</span>
-          {step === "delete" ? (
-            <span className="flex gap-2 items-center">
-              <span>{t("platform.deleteAccountConfirm", { email: account.email, count: account.seats.length })}</span>
-              <button className="btn sm danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+        <>
+          <div className={`access-row mt-2${step === "delete" ? " editing" : ""}`}>
+            <span className="flex-1 min-w-0 muted text-xs">{t("platform.deleteHint")}</span>
+            {step !== "delete" && (
+              <button className="btn sm quiet danger" onClick={() => setStep("delete")}>
+                <NavIcon name="trash" />
                 {t("platform.deleteAccount")}
               </button>
-              <button className="btn sm" onClick={cancel}>{t("users.cancel")}</button>
-            </span>
-          ) : (
-            <button className="btn sm danger" onClick={() => setStep("delete")}>
-              {t("platform.deleteAccount")}
-            </button>
+            )}
+          </div>
+          {step === "delete" && (
+            <div className="edit-panel danger" role="alertdialog" aria-label={t("platform.deleteAccount")}>
+              <div className="text-sm font-medium">
+                {t("platform.deleteAccountConfirm", { email: account.email, count: account.seats.length })}
+              </div>
+              <div className="edit-panel-foot">
+                <button className="btn" onClick={cancel} autoFocus>{t("users.cancel")}</button>
+                <button className="btn danger solid" onClick={() => remove.mutate()} disabled={remove.isPending}>
+                  <NavIcon name="trash" />
+                  {t("platform.deleteAccount")}
+                </button>
+              </div>
+            </div>
           )}
-        </div>
+        </>
       )}
       {error && <p className="danger-text text-xs mt-2 mb-0">{error.message}</p>}
     </div>

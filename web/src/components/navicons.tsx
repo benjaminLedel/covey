@@ -231,6 +231,20 @@ const icons: Record<string, JSX.Element> = {
       <path d="M2.5 19h19" />
     </>
   ),
+  // Actions on a row: change, remove, add (#743).
+  edit: (
+    <>
+      <path d="M4 20h4L19 9l-4-4L4 16z" />
+      <path d="M13.5 6.5l4 4" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4.5 7h15M10 4h4M6.5 7l1 13h9l1-13" />
+      <path d="M10 11v5.5M14 11v5.5" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   dots: (
     <>

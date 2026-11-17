@@ -1301,7 +1301,8 @@
     "ownPassword": "Ihr eigenes Passwort ändern Sie weiter unten.",
     "removeTitle": "Aus der Organisation entfernen",
     "removeHint": "Die Person verliert sofort den Zugang zu dieser Organisation.",
-    "openOrgChart": "Im Organigramm ansehen"
+    "openOrgChart": "Im Organigramm ansehen",
+    "current": "Aktuell"
   },
   "runtimes": {
     "title": "Engines",
@@ -2499,7 +2500,10 @@
     "levelHint": "System-Admins verwalten die ganze Installation mit allen Organisationen.",
     "seatRemoveConfirm": "Aus {{org}} entfernen?",
     "seatAddButton": "Zu einer Organisation hinzufügen",
-    "deleteHint": "Löscht die Anmeldung samt allen Organisationen. Lässt sich nicht rückgängig machen."
+    "deleteHint": "Löscht die Anmeldung samt allen Organisationen. Lässt sich nicht rückgängig machen.",
+    "levelDescUser": "Arbeitet in den Organisationen, in denen das Konto Mitglied ist.",
+    "levelDescAdmin": "Verwaltet die ganze Installation mit allen Organisationen.",
+    "seatOrgLabel": "Organisation"
   },
   "catalog": {
     "loading": "Katalog wird geladen …",

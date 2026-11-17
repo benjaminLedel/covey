@@ -1301,7 +1301,8 @@
     "ownPassword": "Cambie su propia contraseña más abajo.",
     "removeTitle": "Quitar de la organización",
     "removeHint": "La persona pierde al instante el acceso a esta organización.",
-    "openOrgChart": "Ver en el organigrama"
+    "openOrgChart": "Ver en el organigrama",
+    "current": "Actual"
   },
   "runtimes": {
     "title": "Motores",
@@ -2499,7 +2500,10 @@
     "levelHint": "Quien administra el sistema gestiona toda la instalación con todas las organizaciones.",
     "seatRemoveConfirm": "¿Quitar de {{org}}?",
     "seatAddButton": "Añadir a una organización",
-    "deleteHint": "Elimina el inicio de sesión con todas sus organizaciones. No se puede deshacer."
+    "deleteHint": "Elimina el inicio de sesión con todas sus organizaciones. No se puede deshacer.",
+    "levelDescUser": "Trabaja en las organizaciones de las que la cuenta es miembro.",
+    "levelDescAdmin": "Administra toda la instalación con todas las organizaciones.",
+    "seatOrgLabel": "Organización"
   },
   "catalog": {
     "loading": "Cargando el catálogo …",

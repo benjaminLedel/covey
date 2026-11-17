@@ -1301,7 +1301,8 @@
     "ownPassword": "Uw eigen wachtwoord wijzigt u verderop.",
     "removeTitle": "Uit de organisatie verwijderen",
     "removeHint": "De persoon verliest meteen de toegang tot deze organisatie.",
-    "openOrgChart": "Bekijken in het organigram"
+    "openOrgChart": "Bekijken in het organigram",
+    "current": "Huidig"
   },
   "runtimes": {
     "title": "Engines",
@@ -2499,7 +2500,10 @@
     "levelHint": "Systeembeheerders beheren de hele installatie met alle organisaties.",
     "seatRemoveConfirm": "Verwijderen uit {{org}}?",
     "seatAddButton": "Aan een organisatie toevoegen",
-    "deleteHint": "Verwijdert de aanmelding met alle organisaties. Kan niet ongedaan worden gemaakt."
+    "deleteHint": "Verwijdert de aanmelding met alle organisaties. Kan niet ongedaan worden gemaakt.",
+    "levelDescUser": "Werkt in de organisaties waarvan het account lid is.",
+    "levelDescAdmin": "Beheert de hele installatie met alle organisaties.",
+    "seatOrgLabel": "Organisatie"
   },
   "catalog": {
     "loading": "De catalogus laden …",

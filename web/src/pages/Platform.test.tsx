@@ -89,7 +89,7 @@ describe("Plattform-Panel", () => {
 
     await userEvent.click(await screen.findByText("Betreiberin"));
     await userEvent.click(screen.getAllByRole("button", { name: "Ändern" })[0]);
-    await userEvent.selectOptions(screen.getByRole("combobox"), "auditor");
+    await userEvent.click(screen.getByRole("radio", { name: /Auditor/ }));
     expect(calls.some((c) => c.startsWith("PATCH"))).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(calls).toContain("PATCH /api/v1/platform/orgs/22222222-2222-2222-2222-222222222222/members/33333333-3333-3333-3333-333333333333");

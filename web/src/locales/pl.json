@@ -1301,7 +1301,8 @@
     "ownPassword": "Własne hasło zmienisz niżej.",
     "removeTitle": "Usuń z organizacji",
     "removeHint": "Ta osoba od razu traci dostęp do tej organizacji.",
-    "openOrgChart": "Zobacz w schemacie organizacyjnym"
+    "openOrgChart": "Zobacz w schemacie organizacyjnym",
+    "current": "Obecna"
   },
   "runtimes": {
     "title": "Silniki",
@@ -2499,7 +2500,10 @@
     "levelHint": "Administratorzy systemu zarządzają całą instalacją ze wszystkimi organizacjami.",
     "seatRemoveConfirm": "Usunąć z {{org}}?",
     "seatAddButton": "Dodaj do organizacji",
-    "deleteHint": "Usuwa konto logowania wraz ze wszystkimi organizacjami. Nie da się tego cofnąć."
+    "deleteHint": "Usuwa konto logowania wraz ze wszystkimi organizacjami. Nie da się tego cofnąć.",
+    "levelDescUser": "Pracuje w organizacjach, do których należy konto.",
+    "levelDescAdmin": "Zarządza całą instalacją ze wszystkimi organizacjami.",
+    "seatOrgLabel": "Organizacja"
   },
   "catalog": {
     "loading": "Wczytywanie katalogu …",

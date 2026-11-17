@@ -6,6 +6,8 @@ import { api, del, deletePhoto, isNotFound, patch, photoUrl, ROLES, setPhoto, ty
 import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
+import ChoiceList from "../components/ChoiceList";
+import { NavIcon } from "../components/navicons";
 
 export default function PersonPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
@@ -168,109 +170,125 @@ function AccessCard({ human, isSelf }: { human: Human; isSelf: boolean }) {
   });
   const error = saveRole.error ?? savePassword.error ?? remove.error;
 
+  const roleChoices = ROLES.map((r) => ({ value: r, label: t(`role.${r}`, r), desc: t(`users.roleDesc.${r}`) }));
+
   return (
     <div className="card mb-4 access-card">
-      <div className="text-sm font-medium mb-3">{t("person.access")}</div>
+      <div className="text-sm font-medium mb-1">{t("person.access")}</div>
 
-      <div className="access-row">
+      <div className={`access-row${mode === "role" ? " editing" : ""}`}>
         <div className="flex-1 min-w-0">
           <div className="muted text-xs">{t("users.role")}</div>
           <div className="text-sm font-medium">{t(`role.${human.role}`, human.role)}</div>
-          <div className="muted text-xs">{t(`users.roleDesc.${human.role}`, "")}</div>
+          <div className="muted text-xs">{isSelf ? t("person.ownRole") : t(`users.roleDesc.${human.role}`, "")}</div>
         </div>
         {!isSelf && mode !== "role" && (
           <button className="btn sm" onClick={() => setMode("role")}>
+            <NavIcon name="edit" />
             {t("person.roleChange")}
           </button>
         )}
       </div>
-      {isSelf && <p className="muted text-xs mt-1 mb-0">{t("person.ownRole")}</p>}
       {mode === "role" && (
         <form
-          className="access-edit"
+          className="edit-panel"
           onSubmit={(e) => {
             e.preventDefault();
             saveRole.mutate();
           }}
         >
-          <fieldset className="role-pick">
-            <legend className="sr-only">{t("users.role")}</legend>
-            {ROLES.map((r) => (
-              <label key={r} className={`role-option${role === r ? " on" : ""}`}>
-                <input type="radio" name="role" value={r} checked={role === r} onChange={() => setRole(r)} />
-                <span>
-                  <span className="text-sm font-medium block">{t(`role.${r}`, r)}</span>
-                  <span className="muted text-xs block">{t(`users.roleDesc.${r}`)}</span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <p className="muted text-xs mb-2">{t("person.roleHint")}</p>
-          <div className="flex gap-2">
-            <button className="btn sm primary" disabled={role === human.role || saveRole.isPending}>
-              {t("person.roleSave")}
-            </button>
-            <button type="button" className="btn sm" onClick={close}>
+          <ChoiceList
+            name="role"
+            legend={t("users.role")}
+            value={role}
+            onChange={setRole}
+            choices={roleChoices}
+            current={human.role}
+            currentLabel={t("person.current")}
+          />
+          <div className="edit-panel-foot">
+            <span className="muted text-xs mr-auto">{t("person.roleHint")}</span>
+            <button type="button" className="btn" onClick={close}>
               {t("users.cancel")}
+            </button>
+            <button className="btn primary" disabled={role === human.role || saveRole.isPending}>
+              <NavIcon name="check" />
+              {t("person.roleSave")}
             </button>
           </div>
         </form>
       )}
 
-      <div className="access-row">
+      <div className={`access-row${mode === "password" ? " editing" : ""}`}>
         <div className="flex-1 min-w-0">
           <div className="muted text-xs">{t("person.passwordTitle")}</div>
-          <div className="muted text-xs">{t("person.passwordHint")}</div>
+          <div className="muted text-xs">{isSelf ? t("person.ownPassword") : t("person.passwordHint")}</div>
         </div>
         {!isSelf && mode !== "password" && (
           <button className="btn sm" onClick={() => setMode("password")}>
+            <NavIcon name="key" />
             {t("users.passwordReset")}
           </button>
         )}
       </div>
-      {isSelf && <p className="muted text-xs mt-1 mb-0">{t("person.ownPassword")}</p>}
       {mode === "password" && (
         <form
-          className="access-edit flex gap-2 items-end flex-wrap"
+          className="edit-panel"
           onSubmit={(e) => {
             e.preventDefault();
             savePassword.mutate();
           }}
         >
-          <div className="flex-1 min-w-52">
-            <label>{t("users.newPasswordLabel")}</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required autoFocus />
+          <label htmlFor="new-password">{t("users.newPasswordLabel")}</label>
+          <input
+            id="new-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            required
+            autoFocus
+            autoComplete="new-password"
+          />
+          <div className="edit-panel-foot">
+            <button type="button" className="btn" onClick={close}>
+              {t("users.cancel")}
+            </button>
+            <button className="btn primary" disabled={password.length < 8 || savePassword.isPending}>
+              <NavIcon name="check" />
+              {t("users.setPassword")}
+            </button>
           </div>
-          <button className="btn sm primary" disabled={savePassword.isPending}>
-            {t("users.setPassword")}
-          </button>
-          <button type="button" className="btn sm" onClick={close}>
-            {t("users.cancel")}
-          </button>
         </form>
       )}
 
       {!isSelf && (
-        <div className="access-row">
+        <div className={`access-row${mode === "remove" ? " editing" : ""}`}>
           <div className="flex-1 min-w-0">
             <div className="muted text-xs">{t("person.removeTitle")}</div>
             <div className="muted text-xs">{t("person.removeHint")}</div>
           </div>
-          {mode === "remove" ? (
-            <span className="flex gap-2 items-center">
-              <span className="text-xs">{t("users.confirmDelete", { name: human.display_name })}</span>
-              <button className="btn sm danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
-                {t("users.delete")}
-              </button>
-              <button className="btn sm" onClick={close}>
-                {t("users.cancel")}
-              </button>
-            </span>
-          ) : (
-            <button className="btn sm danger" onClick={() => setMode("remove")}>
+          {mode !== "remove" && (
+            <button className="btn sm quiet danger" onClick={() => setMode("remove")}>
+              <NavIcon name="trash" />
               {t("users.delete")}
             </button>
           )}
+        </div>
+      )}
+      {mode === "remove" && (
+        <div className="edit-panel danger" role="alertdialog" aria-label={t("person.removeTitle")}>
+          <div className="text-sm font-medium">{t("users.confirmDelete", { name: human.display_name })}</div>
+          <div className="muted text-xs">{t("person.removeHint")}</div>
+          <div className="edit-panel-foot">
+            <button className="btn" onClick={close} autoFocus>
+              {t("users.cancel")}
+            </button>
+            <button className="btn danger solid" onClick={() => remove.mutate()} disabled={remove.isPending}>
+              <NavIcon name="trash" />
+              {t("users.delete")}
+            </button>
+          </div>
         </div>
       )}
       {error && <p className="danger-text text-xs mt-2 mb-0">{(error as Error).message}</p>}
