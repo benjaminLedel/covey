@@ -197,6 +197,14 @@
   "mobile.fotoWaehlen": "Escolher foto",
   "mobile.fotoZuschneiden": "Recortar",
   "mobile.fotoZuschneidenHinweis": "Mova e amplie até o seu rosto ficar dentro do círculo.",
+  "mobile.freigabeSchritt": "Etapa: {{step}}",
+  "mobile.freigabeSeit": "aguarda desde {{when}}",
+  "mobile.freigaben": "Aprovações",
+  "mobile.freigabenFehler": "Não foi possível carregar as aprovações. Puxe para baixo para atualizar.",
+  "mobile.freigabenLeer": "Nada aguarda a sua aprovação.",
+  "mobile.freigabenLeerHinweis": "Quando um fluxo precisar da sua decisão, ela aparece aqui.",
+  "mobile.freigabenOffen": "{{count}} aguardam por você",
+  "mobile.freigabenOffen_one": "{{count}} aguarda por você",
   "mobile.freigeben": "Permitir",
   "mobile.freigegeben": "Permitido",
   "mobile.gespeichert": "Guardado",
@@ -425,6 +433,5 @@
   "tour.willkommen.text": "Os seus colegas aqui são agentes de IA. Dá-lhes trabalho como o daria a uma pessoa: escrevendo-lhes. Num minuto mostramos-lhe onde está cada coisa.",
   "tour.willkommen.titel": "Bem-vindo ao covey",
   "tour.zurueck": "Voltar",
-  "workflows.chat.decidedAs": "Decidido: {{choice}}.",
-  "workflows.chat.kindApproval": "Aprovação"
+  "workflows.chat.decidedAs": "Decidido: {{choice}}."
 }

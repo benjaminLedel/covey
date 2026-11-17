@@ -1,5 +1,6 @@
 import 'dart:ui' show FontFeature, ImageFilter;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'chrome.dart';
@@ -294,9 +295,13 @@ class SpaceCapsule extends StatelessWidget {
     required this.onAdd,
     required this.addLabel,
     this.anker = const [],
+    this.badges = const [],
   });
 
   final List<({IconData icon, String label})> spaces;
+
+  /// A count per space, by index (#748); null or zero: none.
+  final List<ValueListenable<int>?> badges;
 
   /// The tour's name for each space, by index (#402); null: none.
   final List<String?> anker;
@@ -325,6 +330,7 @@ class SpaceCapsule extends StatelessWidget {
                         icon: spaces[i].icon,
                         label: spaces[i].label,
                         selected: i == selected,
+                        badge: i < badges.length ? badges[i] : null,
                         onTap: () => onSelect(i),
                       ),
                     ),
@@ -360,39 +366,72 @@ class SpaceCapsule extends StatelessWidget {
 Widget _mitAnker(String? id, Widget child) => id == null ? child : TourAnker(id: id, child: child);
 
 class _CapsuleItem extends StatelessWidget {
-  const _CapsuleItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  const _CapsuleItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
 
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final ValueListenable<int>? badge;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final fg = selected ? c.textPrimary : c.textMuted;
+    // Only the chosen space carries its name (#748): with three spaces and
+    // the plus, names on every item no longer fit a phone's width. The
+    // others keep theirs for screen readers and as a tooltip.
+    final glyph = badge == null
+        ? Icon(icon, size: 21, color: fg)
+        : ValueListenableBuilder<int>(
+            valueListenable: badge!,
+            builder: (context, n, _) => Badge(
+              isLabelVisible: n > 0,
+              label: Text(n > 99 ? '99+' : '$n'),
+              backgroundColor: c.textPrimary,
+              textColor: c.surface2,
+              child: Icon(icon, size: 21, color: fg),
+            ),
+          );
     return Semantics(
       selected: selected,
       button: true,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          decoration: BoxDecoration(
-            color: selected ? c.textPrimary.withValues(alpha: 0.08) : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 21, color: fg),
-              const SizedBox(width: 8),
-              Text(label, style: context.type.labelLarge?.copyWith(color: fg)),
-            ],
+      label: label,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: selected ? '' : label,
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            height: 48,
+            padding: EdgeInsets.symmetric(horizontal: selected ? 18 : 16),
+            decoration: BoxDecoration(
+              color: selected ? c.textPrimary.withValues(alpha: 0.08) : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  glyph,
+                  if (selected) ...[
+                    const SizedBox(width: 8),
+                    Text(label, style: context.type.labelLarge?.copyWith(color: fg)),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -197,6 +197,14 @@
   "mobile.fotoWaehlen": "选择照片",
   "mobile.fotoZuschneiden": "裁剪",
   "mobile.fotoZuschneidenHinweis": "移动和缩放，直到您的脸位于圆圈内。",
+  "mobile.freigabeSchritt": "步骤：{{step}}",
+  "mobile.freigabeSeit": "等待自 {{when}}",
+  "mobile.freigaben": "审批",
+  "mobile.freigabenFehler": "无法加载审批。下拉即可刷新。",
+  "mobile.freigabenLeer": "没有等待您审批的事项。",
+  "mobile.freigabenLeerHinweis": "当流程需要您做决定时，会显示在这里。",
+  "mobile.freigabenOffen": "{{count}} 项等待您处理",
+  "mobile.freigabenOffen_one": "{{count}} 项等待您处理",
   "mobile.freigeben": "允许",
   "mobile.freigegeben": "已允许",
   "mobile.gespeichert": "已保存",
@@ -425,6 +433,5 @@
   "tour.willkommen.text": "这里的同事都是 AI 智能体。您给他们分配工作，就像给人分配一样：给他们写消息。花一分钟，我们带您看看各个功能在哪里。",
   "tour.willkommen.titel": "欢迎使用 covey",
   "tour.zurueck": "上一步",
-  "workflows.chat.decidedAs": "已决定:{{choice}}。",
-  "workflows.chat.kindApproval": "审批"
+  "workflows.chat.decidedAs": "已决定:{{choice}}。"
 }

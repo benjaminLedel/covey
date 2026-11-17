@@ -566,49 +566,151 @@ class _ProposalCardViewState extends State<ProposalCardView> with _Deciding {
   }
 }
 
-/// A workflow's approval step put to the person (#564): the question, and
-/// one button per option. GET /workflows/mine lists only the steps that name
-/// the person, so the buttons are offered; the server still checks.
+/// A workflow's approval step put to the person (#564), in the app's
+/// approvals space (#748): the case, the question, the step and since when
+/// it waits, then one button per option. GET /workflows/mine lists only the
+/// steps that name the person, so the buttons are offered; the server still
+/// checks. Once decided the card says what was chosen until the list is read
+/// again ([decided]).
 class WorkflowDecisionCard extends StatefulWidget {
-  const WorkflowDecisionCard({super.key, required this.api, required this.decision, this.onDecided});
+  const WorkflowDecisionCard({super.key, required this.api, required this.decision, this.decided, this.onDecided});
 
   final CoveyApi api;
   final WorkflowDecision decision;
-  final VoidCallback? onDecided;
+  final String? decided;
+  final ValueChanged<String>? onDecided;
 
   @override
   State<WorkflowDecisionCard> createState() => _WorkflowDecisionCardState();
 }
 
 class _WorkflowDecisionCardState extends State<WorkflowDecisionCard> with _Deciding {
-  String? _chosen;
-
   Future<void> _decide(String option) async {
     final d = widget.decision;
     if (await decide(() => widget.api.decideWorkflow(d.workflow, d.run, option))) {
-      if (mounted) setState(() => _chosen = option);
-      widget.onDecided?.call();
+      widget.onDecided?.call(option);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final d = widget.decision;
     final question = d.question.isNotEmpty ? d.question : (d.title.isNotEmpty ? d.title : d.caseRef);
-    return _Frame(
-      kind: [context.t('workflows.chat.kindApproval'), if (d.caseRef.isNotEmpty) d.caseRef].join(' · '),
-      title: question,
-      children: [
-        _Note([d.name, if (d.step.isNotEmpty) d.step].join(' · ')),
-        if (_chosen != null)
-          _Note(context.t('workflows.chat.decidedAs', args: {'choice': _chosen}))
-        else if (!refused)
-          _buttons(context, [
-            for (final o in d.options)
-              OutlinedButton(style: _secondary(context), onPressed: busy ? null : () => _decide(o), child: Text(o)),
-          ]),
-        if (error != null) _Note(error!, danger: true),
-      ],
+    final caseLine = [
+      if (d.caseRef.isNotEmpty) d.caseRef,
+      if (d.title.isNotEmpty && d.title != question) d.title,
+    ].join(' · ');
+    final since = d.since;
+    final chosen = widget.decided;
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: chosen == null ? 1 : 0.6,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(color: c.surface2, borderRadius: BorderRadius.circular(18)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (caseLine.isNotEmpty || since != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        caseLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.type.labelMedium?.copyWith(color: c.textSecondary),
+                      ),
+                    ),
+                    if (since != null)
+                      Text(
+                        context.t('mobile.freigabeSeit', args: {'when': _since(context, since)}),
+                        style: context.type.labelSmall?.copyWith(
+                          color: c.textMuted,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            Text(question, style: context.type.titleMedium),
+            if (d.step.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  context.t('mobile.freigabeSchritt', args: {'step': d.step}),
+                  style: context.type.bodySmall?.copyWith(color: c.textSecondary),
+                ),
+              ),
+            if (chosen != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_rounded, size: 18, color: c.textAccent),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        context.t('workflows.chat.decidedAs', args: {'choice': chosen}),
+                        style: context.type.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (!refused && d.options.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                // Two options share the row in equal parts — big targets for
+                // a thumb; more wrap at their natural width, so no label is
+                // cut.
+                child: d.options.length <= 2
+                    ? Row(
+                        children: [
+                          for (var i = 0; i < d.options.length; i++) ...[
+                            if (i > 0) const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                style: _secondary(context),
+                                onPressed: busy ? null : () => _decide(d.options[i]),
+                                child: Text(d.options[i], maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ),
+                            ),
+                          ],
+                        ],
+                      )
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final o in d.options)
+                            OutlinedButton(
+                              style: _secondary(context),
+                              onPressed: busy ? null : () => _decide(o),
+                              child: Text(o),
+                            ),
+                        ],
+                      ),
+              ),
+            if (error != null) _Note(error!, danger: true),
+          ],
+        ),
+      ),
     );
   }
+}
+
+/// Today the time, this week the weekday, before that the date — as the
+/// chat lists say when (#747).
+String _since(BuildContext context, DateTime at) {
+  final lang = Strings.of(context).language;
+  final local = at.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (!local.isBefore(today)) return DateFormat.Hm(lang).format(local);
+  if (!local.isBefore(today.subtract(const Duration(days: 6)))) return DateFormat.E(lang).format(local);
+  return DateFormat.MMMd(lang).format(local);
 }
