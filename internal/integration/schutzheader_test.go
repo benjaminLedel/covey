@@ -29,6 +29,9 @@ func TestSchutzHeaderDerOberflaeche(t *testing.T) {
 		"script-src 'self'",      // no 'unsafe-inline' for scripts
 		"frame-ancestors 'none'", // no clickjacking
 		"object-src 'none'",
+		// Forms go to covey itself and to github.com only — the manifest
+		// POST that creates an organisation's own GitHub App (#754).
+		"form-action 'self' https://github.com;",
 		"base-uri 'none'",
 		"media-src 'self' blob:", // voice samples play from a blob (#523)
 	} {
