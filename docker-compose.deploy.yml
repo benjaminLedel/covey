@@ -102,6 +102,17 @@ x-covey-base: &covey-base
     COVEY_APPLE_APP_ID: ${COVEY_APPLE_APP_ID:-}
     COVEY_ANDROID_APP_PACKAGE: ${COVEY_ANDROID_APP_PACKAGE:-}
     COVEY_ANDROID_CERT_SHA256: ${COVEY_ANDROID_CERT_SHA256:-}
+    # The platform's shared GitHub App ("Connect with GitHub", #754). All
+    # empty: not offered; organisations can still create an App of their own.
+    # The key lives under the data directory, mounted at the same path, e.g.
+    #   COVEY_GITHUB_APP_PRIVATE_KEY_FILE=/opt/covey/data/github/app.pem
+    # See docs/en/integrations/github.md, section 9.4.
+    COVEY_GITHUB_APP_ID: ${COVEY_GITHUB_APP_ID:-}
+    COVEY_GITHUB_APP_SLUG: ${COVEY_GITHUB_APP_SLUG:-}
+    COVEY_GITHUB_APP_PRIVATE_KEY_FILE: ${COVEY_GITHUB_APP_PRIVATE_KEY_FILE:-}
+    COVEY_GITHUB_APP_CLIENT_ID: ${COVEY_GITHUB_APP_CLIENT_ID:-}
+    COVEY_GITHUB_APP_CLIENT_SECRET: ${COVEY_GITHUB_APP_CLIENT_SECRET:-}
+    COVEY_GITHUB_APP_WEBHOOK_SECRET: ${COVEY_GITHUB_APP_WEBHOOK_SECRET:-}
   volumes:
     - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
 
