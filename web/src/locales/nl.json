@@ -2980,9 +2980,9 @@
     "sucheMarkieren": "collega kiezen",
     "ungelesen": "{{count}} ongelezen berichten",
     "ungelesen_one": "Eén ongelezen bericht",
-    "ungelesenTitel": "Ongelezen",
     "bereiche": "Onderdelen",
-    "gestopptHinweis": "{{name}} is gestopt. Zolang de noodstop actief is, neemt {{name}} geen berichten aan."
+    "gestopptHinweis": "{{name}} is gestopt. Zolang de noodstop actief is, neemt {{name}} geen berichten aan.",
+    "zuletzt": "Recent"
   },
   "mobile": {
     "verbindenTitel": "Waar is uw covey?",
@@ -3234,7 +3234,15 @@
     "statusLeer": "Geen notities met deze status.",
     "orgKoppeln": "Nog een organisatie koppelen",
     "orgNichtGekoppelt": "Nog niet in de app. Koppel haar in de browser, in die organisatie, onder profiel → mobiele app.",
-    "updatesSuchen": "Zoeken naar updates"
+    "updatesSuchen": "Zoeken naar updates",
+    "freigaben": "Goedkeuringen",
+    "freigabenOffen": "{{count}} wachten op u",
+    "freigabenOffen_one": "{{count}} wacht op u",
+    "freigabenLeer": "Niets wacht op uw goedkeuring.",
+    "freigabenLeerHinweis": "Als een werkstroom uw beslissing nodig heeft, staat die hier.",
+    "freigabenFehler": "De goedkeuringen konden niet worden geladen. Trek omlaag om te vernieuwen.",
+    "freigabeSeit": "wacht sinds {{when}}",
+    "freigabeSchritt": "Stap: {{step}}"
   },
   "appLink": {
     "title": "Openen in de covey-app",

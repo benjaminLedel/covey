@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from "react-router";
-import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myConversations, myThreads, reachableAgents, type Agent, type Department, type Principal, type ThreadState } from "../api";
+import { PEOPLE_SLUG, api, inbox, isColleague, isDraft, myConversations, myThreads, reachableAgents, type Agent, type Department, type Principal, type ThreadState, type ConversationSummary } from "../api";
 import { canManage } from "../pages/agent/roles";
 import HelpDrawer from "../components/HelpDrawer";
 import Rail from "../components/Rail";
@@ -36,6 +36,30 @@ const NotesSidebar = lazy(() => import("../notes/NotesPane").then((m) => ({ defa
  * dreizehn Ziele, hier die Kollegen —, nicht ihre Form.
  */
 
+/** How many rows "Recent" holds besides the unread ones (#747). */
+const ZULETZT = 6;
+
+/* Today the time, this week the weekday, before that the date — the same
+   reading as the app's list (`_when` in mobile/lib/screens/team_space.dart). */
+function wann(iso: string, lang: string): string {
+  const at = new Date(iso);
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  if (at >= heute) return at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+  const woche = new Date(heute);
+  woche.setDate(heute.getDate() - 6);
+  if (at >= woche) return at.toLocaleDateString(lang, { weekday: "short" });
+  return at.toLocaleDateString(lang, { day: "numeric", month: "short" });
+}
+
+function Wann({ iso, lang }: { iso: string; lang: string }) {
+  return (
+    <time className="tm-kollege-zeit" dateTime={iso} title={new Date(iso).toLocaleString(lang)}>
+      {wann(iso, lang)}
+    </time>
+  );
+}
+
 /** Ein Agent, der Arbeit annehmen kann. Ein Bewerber ist ein Entwurf. */
 const eingestellt = isColleague;
 
@@ -48,7 +72,7 @@ const zustandVon = (a: Agent) => (a.killed ? "killed" : a.status === "sleeping" 
    Ring hat das Gesicht eingerahmt, statt es zu zeigen. */
 
 export default function Team({ me, onLogout }: { me: Principal; onLogout: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [helpOpen, setHelpOpen] = useState(false);
 
   const agents = useQuery({
@@ -124,13 +148,25 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
   const peopleEntwurf = !!people && isDraft(people);
   const darfEinstellen = canManage(me.Role);
 
-  /* Who has something unread stands above the departments, newest first,
-     and leaves its department until it has been read (#385, as #383 in the
-     app). */
-  const neu = liste
-    .filter((a) => ungelesen.has(a.id))
-    .sort((a, b) => Date.parse(ungelesen.get(b.id)!.last_at) - Date.parse(ungelesen.get(a.id)!.last_at));
-  const gelesen = liste.filter((a) => !ungelesen.has(a.id));
+  /* When one last wrote with whom (#747): every thread and conversation
+     with its last exchange. The newest stand above the departments under
+     "Recent" — everything unread among them, however old —, each with its
+     last line and its time, as the app's list has it. Whoever stands there
+     leaves the department until something newer pushes them out. */
+  const verlauf = new Map<string, ThreadState>((threads.data ?? []).map((th) => [th.agent_id, th]));
+  const lang = i18n.language;
+  type Zeile = { at: number; agent?: Agent; gespraech?: ConversationSummary };
+  const zeilen: Zeile[] = [
+    ...andere.map((c) => ({ at: Date.parse(c.last?.created_at ?? c.last_message_at), gespraech: c })),
+    ...liste.filter((a) => verlauf.has(a.id)).map((a) => ({ at: Date.parse(verlauf.get(a.id)!.last_at), agent: a })),
+  ]
+    .filter((z) => !Number.isNaN(z.at))
+    .sort((x, y) => y.at - x.at);
+  const istNeu = (z: Zeile) => (z.agent ? ungelesen.has(z.agent.id) : (z.gespraech?.unread ?? 0) > 0);
+  const zuletzt = zeilen.filter((z, i) => i < ZULETZT || istNeu(z));
+  const inZuletzt = new Set(zuletzt.map((z) => z.agent?.id ?? z.gespraech!.id));
+  const aeltereGespraeche = andere.filter((c) => !inZuletzt.has(c.id));
+  const gelesen = liste.filter((a) => !inZuletzt.has(a.id));
 
   /* Nach Abteilung gruppiert, wie eine Kanalliste. Wer keine hat, steht unten
      unter einer eigenen Überschrift — nicht oben, damit die Gliederung nicht
@@ -146,7 +182,77 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
       mitglieder: gelesen.filter((a) => !a.department_id || !depts.some((d) => d.id === a.department_id)),
     },
   ].filter((g) => g.mitglieder.length > 0);
-  if (neu.length > 0) gruppen.unshift({ id: "ungelesen", name: t("team.ungelesenTitel"), color: "", mitglieder: neu });
+
+  const gespraechZeile = (c: ConversationSummary) => {
+    const anderer = c.members.find((m) => !m.left_at && !(m.kind === "human" && m.id === me.ID));
+    const at = c.last?.created_at ?? c.last_message_at;
+    return (
+      <NavLink
+        key={c.id}
+        to={`/team/c/${c.id}`}
+        className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""} ${c.unread > 0 ? "neu" : ""}`}
+      >
+        <span className="tm-kollege-zeichen">
+          {c.kind === "group" ? (
+            <span className="tm-gruppe-zeichen klein" aria-hidden="true">
+              <NavIcon name="chat" />
+            </span>
+          ) : (
+            <Avatar name={anderer?.name ?? "?"} human size={22} />
+          )}
+        </span>
+        <span className="tm-kollege-text">
+          <span className="tm-kollege-name">
+            <span className="tm-kollege-wort">{gespraechName(c, me.ID)}</span>
+            {c.last && <Wann iso={at} lang={lang} />}
+          </span>
+          <span className="tm-kollege-rolle">
+            {c.last
+              ? `${c.kind === "group" && c.last.author_name ? c.last.author_name + ": " : ""}${c.last.text}`
+              : t("conversation.emptyThread")}
+          </span>
+        </span>
+        {c.unread > 0 && (
+          <span className="tm-ungelesen" aria-label={t("team.ungelesen", { count: c.unread })}>
+            {Math.min(c.unread, 99)}
+          </span>
+        )}
+      </NavLink>
+    );
+  };
+
+  /* Das Gesicht macht den Kollegen unterscheidbar, bevor man den Namen
+     liest, und zeigt seinen Zustand. Under "Recent" the second line is the
+     last thing said; in a department it is the role. */
+  const kollegeZeile = (a: Agent, mitText: boolean) => {
+    const th = verlauf.get(a.id);
+    return (
+      <NavLink
+        key={a.id}
+        to={`/team/${a.id}`}
+        className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""} ${ungelesen.has(a.id) ? "neu" : ""}`}
+      >
+        <span className="tm-kollege-zeichen">
+          <Gesicht schluessel={a.slug} zustand={zustandVon(a)} groesse={22} />
+        </span>
+        <span className="tm-kollege-text">
+          <span className="tm-kollege-name">
+            <span className="tm-kollege-wort">{a.display_name}</span>
+            {wartetBei.has(a.id) && (
+              <span className="tm-kollege-wartet" title={t("team.wartet")} aria-label={t("team.wartet")} />
+            )}
+            {th && <Wann iso={th.last_at} lang={lang} />}
+          </span>
+          <span className="tm-kollege-rolle">{(mitText && th?.last_text) || a.job_title || a.slug}</span>
+        </span>
+        {ungelesen.has(a.id) && (
+          <span className="tm-ungelesen" aria-label={t("team.ungelesen", { count: ungelesen.get(a.id)!.unread })}>
+            {Math.min(ungelesen.get(a.id)!.unread, 99)}
+          </span>
+        )}
+      </NavLink>
+    );
+  };
 
   const pfad = useLocation().pathname;
   const notizenOffen = pfad === "/team/notes" || pfad.startsWith("/team/notes/");
@@ -209,44 +315,17 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
               from. Two rows of one kind: both are where one goes, not whom
               one talks to. */}
 
-          {andere.length > 0 && (
+          {zuletzt.length > 0 && (
+            <section className="tm-gruppe">
+              <h2 className="tm-gruppe-kopf">{t("team.zuletzt")}</h2>
+              {zuletzt.map((z) => (z.agent ? kollegeZeile(z.agent, true) : gespraechZeile(z.gespraech!)))}
+            </section>
+          )}
+
+          {aeltereGespraeche.length > 0 && (
             <section className="tm-gruppe">
               <h2 className="tm-gruppe-kopf">{t("conversation.title")}</h2>
-              {andere.map((c) => {
-                const anderer = c.members.find((m) => !m.left_at && !(m.kind === "human" && m.id === me.ID));
-                return (
-                  <NavLink
-                    key={c.id}
-                    to={`/team/c/${c.id}`}
-                    className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""} ${c.unread > 0 ? "neu" : ""}`}
-                  >
-                    <span className="tm-kollege-zeichen">
-                      {c.kind === "group" ? (
-                        <span className="tm-gruppe-zeichen klein" aria-hidden="true">
-                          <NavIcon name="chat" />
-                        </span>
-                      ) : (
-                        <Avatar name={anderer?.name ?? "?"} human size={22} />
-                      )}
-                    </span>
-                    <span className="tm-kollege-text">
-                      <span className="tm-kollege-name">
-                        <span className="tm-kollege-wort">{gespraechName(c, me.ID)}</span>
-                      </span>
-                      <span className="tm-kollege-rolle">
-                        {c.last
-                          ? `${c.kind === "group" && c.last.author_name ? c.last.author_name + ": " : ""}${c.last.text}`
-                          : t("conversation.emptyThread")}
-                      </span>
-                    </span>
-                    {c.unread > 0 && (
-                      <span className="tm-ungelesen" aria-label={t("team.ungelesen", { count: c.unread })}>
-                        {Math.min(c.unread, 99)}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
+              {aeltereGespraeche.map(gespraechZeile)}
             </section>
           )}
 
@@ -259,38 +338,7 @@ export default function Team({ me, onLogout }: { me: Principal; onLogout: () => 
                 {g.color && <span className="tm-dept-punkt" style={{ background: g.color }} aria-hidden="true" />}
                 {g.name}
               </h2>
-              {g.mitglieder.map((a) => (
-                <NavLink
-                  key={a.id}
-                  to={`/team/${a.id}`}
-                  className={({ isActive }) => `tm-kollege ${isActive ? "on" : ""} ${ungelesen.has(a.id) ? "neu" : ""}`}
-                >
-                  {/* Das Gesicht macht den Kollegen unterscheidbar, bevor man
-                      den Namen liest, und zeigt seinen Zustand. Der Ring
-                      darum trägt die Farbe der Abteilung — das Einzige an
-                      dieser Liste, was aus der Organisation selbst kommt. */}
-                  <span className="tm-kollege-zeichen">
-                    <Gesicht schluessel={a.slug} zustand={zustandVon(a)} groesse={22} />
-                  </span>
-                  <span className="tm-kollege-text">
-                    <span className="tm-kollege-name">
-                      <span className="tm-kollege-wort">{a.display_name}</span>
-                      {wartetBei.has(a.id) && (
-                        <span className="tm-kollege-wartet" title={t("team.wartet")} aria-label={t("team.wartet")} />
-                      )}
-                    </span>
-                    {/* Unread: the newest line in place of the role, and a
-                        count — the name in bold says it a third way, so it
-                        does not rest on the badge's colour. */}
-                    <span className="tm-kollege-rolle">{ungelesen.get(a.id)?.last_text || a.job_title || a.slug}</span>
-                  </span>
-                  {ungelesen.has(a.id) && (
-                    <span className="tm-ungelesen" aria-label={t("team.ungelesen", { count: ungelesen.get(a.id)!.unread })}>
-                      {Math.min(ungelesen.get(a.id)!.unread, 99)}
-                    </span>
-                  )}
-                </NavLink>
-              ))}
+              {g.mitglieder.map((a) => kollegeZeile(a, false))}
             </section>
           ))}
         </nav>

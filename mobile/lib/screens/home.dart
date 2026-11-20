@@ -27,6 +27,7 @@ import 'office_space.dart';
 import 'review.dart';
 import 'suggestions.dart';
 import 'settings.dart';
+import 'approvals_space.dart';
 import 'team_space.dart';
 import 'thread.dart';
 import '../tour.dart';
@@ -85,7 +86,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget? _thread, _note;
 
   /// Where Notes stands among the spaces: last, after Team and the office.
-  int get _notesIndex => (_me?.teamSurface ?? false) ? (officeSpace ? 2 : 1) : 0;
+  /// Team (and office) first, then the approvals (#748), the notes last.
+  /// Without the team surface the app is the notetaker (#336): notes alone.
+  int get _notesIndex => (_me?.teamSurface ?? false) ? (officeSpace ? 3 : 2) : 0;
 
   /// The detail of the space on screen.
   Widget? get _detail => _space == _notesIndex ? _note : _thread;
@@ -404,6 +407,19 @@ class _HomeScreenState extends State<HomeScreen> {
             compact: isWide,
           ),
         ),
+      // Workflow approvals put to the person (#748), in a space of their own
+      // rather than among the team's waiting items.
+      if (me.teamSurface)
+        (
+          icon: AppIcons.approvals.of(context),
+          label: context.t('mobile.freigaben'),
+          body: ApprovalsSpace(
+            api: widget.api,
+            actions: actions,
+            bottomClearance: isWide ? 24 : capsuleClearance,
+            compact: isWide,
+          ),
+        ),
       (
         icon: AppIcons.notes.of(context),
         label: context.t('mobile.notizen'),
@@ -425,7 +441,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final body = IndexedStack(index: space, children: [for (final s in spaces) s.body]);
     final capsule = [for (final s in spaces) (icon: s.icon, label: s.label)];
     // What the tour points at (#402), in the order of `spaces`.
-    final anker = <String?>[if (me.teamSurface) 'team', if (me.teamSurface && officeSpace) null, 'notes'];
+    final anker = <String?>[
+      if (me.teamSurface) 'team',
+      if (me.teamSurface && officeSpace) null,
+      if (me.teamSurface) null,
+      'notes',
+    ];
+    final approvalsIndex = me.teamSurface ? notesIndex - 1 : -1;
 
     if (isWide) {
       return Scaffold(
@@ -436,7 +458,15 @@ class _HomeScreenState extends State<HomeScreen> {
               // The team carries the unread count (#393).
               spaces: [
                 for (var i = 0; i < spaces.length; i++)
-                  (icon: spaces[i].icon, label: spaces[i].label, badge: me.teamSurface && i == 0 ? unreadTotal : null),
+                  (
+                    icon: spaces[i].icon,
+                    label: spaces[i].label,
+                    badge: me.teamSurface && i == 0
+                        ? unreadTotal
+                        : i == approvalsIndex
+                        ? approvalsOpen
+                        : null,
+                  ),
               ],
               selected: space,
               onSelect: (i) => setState(() => _space = i),
@@ -448,7 +478,10 @@ class _HomeScreenState extends State<HomeScreen> {
             // The panes right of the sidebar are clear of the traffic lights.
             // The table and the board of the notes take the width (#373); an
             // open note stands beside them.
-            if ((space == notesIndex && _notesView != NotesView.list) || space == officeIndex) ...[
+            // The approvals have no detail to open beside them: full width.
+            if ((space == notesIndex && _notesView != NotesView.list) ||
+                space == officeIndex ||
+                space == approvalsIndex) ...[
               Expanded(child: LightsInset(left: 0, child: body)),
               if (_detail != null) ...[
                 const VerticalDivider(width: 0.6),
@@ -497,6 +530,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 onAdd: () => _capture(notesIndex),
                 addLabel: context.t('mobile.neu'),
                 anker: anker,
+                badges: [
+                  for (var i = 0; i < spaces.length; i++)
+                    me.teamSurface && i == 0
+                        ? unreadTotal
+                        : i == approvalsIndex
+                        ? approvalsOpen
+                        : null,
+                ],
               ),
             ),
           ),

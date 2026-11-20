@@ -2980,9 +2980,9 @@
     "sucheMarkieren": "选择同事",
     "ungelesen": "{{count}} 条未读消息",
     "ungelesen_one": "{{count}} 条未读消息",
-    "ungelesenTitel": "未读",
     "bereiche": "区域",
-    "gestopptHinweis": "{{name}} 已停止。紧急停止生效期间，{{name}} 不接收消息。"
+    "gestopptHinweis": "{{name}} 已停止。紧急停止生效期间，{{name}} 不接收消息。",
+    "zuletzt": "最近"
   },
   "mobile": {
     "verbindenTitel": "你的 covey 在哪里？",
@@ -3234,7 +3234,15 @@
     "statusLeer": "没有此状态的笔记。",
     "orgKoppeln": "关联另一个组织",
     "orgNichtGekoppelt": "尚未在应用中。请在浏览器中切换到该组织，在个人资料 → 移动应用中关联。",
-    "updatesSuchen": "检查更新"
+    "updatesSuchen": "检查更新",
+    "freigaben": "审批",
+    "freigabenOffen": "{{count}} 项等待您处理",
+    "freigabenOffen_one": "{{count}} 项等待您处理",
+    "freigabenLeer": "没有等待您审批的事项。",
+    "freigabenLeerHinweis": "当流程需要您做决定时，会显示在这里。",
+    "freigabenFehler": "无法加载审批。下拉即可刷新。",
+    "freigabeSeit": "等待自 {{when}}",
+    "freigabeSchritt": "步骤：{{step}}"
   },
   "appLink": {
     "title": "在 covey 应用中打开",

@@ -2980,9 +2980,9 @@
     "sucheMarkieren": "Kollegen markieren",
     "ungelesen": "{{count}} ungelesene Nachrichten",
     "ungelesen_one": "Eine ungelesene Nachricht",
-    "ungelesenTitel": "Ungelesen",
     "bereiche": "Bereiche",
-    "gestopptHinweis": "{{name}} ist gestoppt. Solange der Notaus steht, nimmt {{name}} keine Nachrichten an."
+    "gestopptHinweis": "{{name}} ist gestoppt. Solange der Notaus steht, nimmt {{name}} keine Nachrichten an.",
+    "zuletzt": "Zuletzt"
   },
   "mobile": {
     "verbindenTitel": "Wo ist Ihr covey?",
@@ -3234,7 +3234,15 @@
     "statusLeer": "Keine Notizen mit diesem Status.",
     "orgKoppeln": "Weitere Organisation koppeln",
     "orgNichtGekoppelt": "Noch nicht in der App. Im Browser in dieser Organisation unter Profil → Mobile App koppeln.",
-    "updatesSuchen": "Nach Updates suchen"
+    "updatesSuchen": "Nach Updates suchen",
+    "freigaben": "Freigaben",
+    "freigabenOffen": "{{count}} warten auf Sie",
+    "freigabenOffen_one": "{{count}} wartet auf Sie",
+    "freigabenLeer": "Nichts wartet auf Ihre Freigabe.",
+    "freigabenLeerHinweis": "Wenn ein Ablauf Ihre Entscheidung braucht, steht sie hier.",
+    "freigabenFehler": "Die Freigaben ließen sich nicht laden. Ziehen Sie zum Aktualisieren nach unten.",
+    "freigabeSeit": "wartet seit {{when}}",
+    "freigabeSchritt": "Schritt: {{step}}"
   },
   "appLink": {
     "title": "In der covey-App öffnen",
