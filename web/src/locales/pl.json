@@ -3162,7 +3162,15 @@
     "statusLeer": "Brak notatek o tym statusie.",
     "orgKoppeln": "Połącz kolejną organizację",
     "orgNichtGekoppelt": "Jeszcze nie w aplikacji. Proszę połączyć ją w przeglądarce, w tej organizacji, w profilu → aplikacja mobilna.",
-    "updatesSuchen": "Sprawdź aktualizacje"
+    "updatesSuchen": "Sprawdź aktualizacje",
+    "freigaben": "Zatwierdzenia",
+    "freigabenOffen": "{{count}} czeka na Ciebie",
+    "freigabenOffen_one": "{{count}} czeka na Ciebie",
+    "freigabenLeer": "Nic nie czeka na Twoje zatwierdzenie.",
+    "freigabenLeerHinweis": "Gdy proces będzie potrzebował Twojej decyzji, pojawi się tutaj.",
+    "freigabenFehler": "Nie udało się wczytać zatwierdzeń. Przeciągnij w dół, aby odświeżyć.",
+    "freigabeSeit": "czeka od {{when}}",
+    "freigabeSchritt": "Krok: {{step}}"
   },
   "appLink": {
     "title": "Otwórz w aplikacji covey",

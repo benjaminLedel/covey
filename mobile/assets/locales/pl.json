@@ -197,6 +197,14 @@
   "mobile.fotoWaehlen": "Wybierz zdjęcie",
   "mobile.fotoZuschneiden": "Przytnij",
   "mobile.fotoZuschneidenHinweis": "Przesuń i przybliż, aż twarz znajdzie się w okręgu.",
+  "mobile.freigabeSchritt": "Krok: {{step}}",
+  "mobile.freigabeSeit": "czeka od {{when}}",
+  "mobile.freigaben": "Zatwierdzenia",
+  "mobile.freigabenFehler": "Nie udało się wczytać zatwierdzeń. Przeciągnij w dół, aby odświeżyć.",
+  "mobile.freigabenLeer": "Nic nie czeka na Twoje zatwierdzenie.",
+  "mobile.freigabenLeerHinweis": "Gdy proces będzie potrzebował Twojej decyzji, pojawi się tutaj.",
+  "mobile.freigabenOffen": "{{count}} czeka na Ciebie",
+  "mobile.freigabenOffen_one": "{{count}} czeka na Ciebie",
   "mobile.freigeben": "Zezwól",
   "mobile.freigegeben": "Dozwolone",
   "mobile.gespeichert": "Zapisano",
@@ -425,6 +433,5 @@
   "tour.willkommen.text": "Państwa współpracownicy to tutaj agenci AI. Zleca im Państwo pracę tak, jak zleciliby ją Państwo człowiekowi: pisząc do nich. W minutę pokażemy, gdzie co jest.",
   "tour.willkommen.titel": "Witamy w covey",
   "tour.zurueck": "Wstecz",
-  "workflows.chat.decidedAs": "Rozstrzygnięto: {{choice}}.",
-  "workflows.chat.kindApproval": "Zatwierdzenie"
+  "workflows.chat.decidedAs": "Rozstrzygnięto: {{choice}}."
 }

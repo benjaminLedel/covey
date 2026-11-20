@@ -197,6 +197,14 @@
   "mobile.fotoWaehlen": "Foto kiezen",
   "mobile.fotoZuschneiden": "Bijsnijden",
   "mobile.fotoZuschneidenHinweis": "Verschuif en zoom tot uw gezicht in de cirkel staat.",
+  "mobile.freigabeSchritt": "Stap: {{step}}",
+  "mobile.freigabeSeit": "wacht sinds {{when}}",
+  "mobile.freigaben": "Goedkeuringen",
+  "mobile.freigabenFehler": "De goedkeuringen konden niet worden geladen. Trek omlaag om te vernieuwen.",
+  "mobile.freigabenLeer": "Niets wacht op uw goedkeuring.",
+  "mobile.freigabenLeerHinweis": "Als een werkstroom uw beslissing nodig heeft, staat die hier.",
+  "mobile.freigabenOffen": "{{count}} wachten op u",
+  "mobile.freigabenOffen_one": "{{count}} wacht op u",
   "mobile.freigeben": "Toestaan",
   "mobile.freigegeben": "Toegestaan",
   "mobile.gespeichert": "Opgeslagen",
@@ -425,6 +433,5 @@
   "tour.willkommen.text": "Uw collega's hier zijn AI-agenten. U geeft hun werk zoals u dat aan een mens zou geven: door ze te schrijven. In een minuut laten we zien waar alles staat.",
   "tour.willkommen.titel": "Welkom bij covey",
   "tour.zurueck": "Terug",
-  "workflows.chat.decidedAs": "Besloten: {{choice}}.",
-  "workflows.chat.kindApproval": "Goedkeuring"
+  "workflows.chat.decidedAs": "Besloten: {{choice}}."
 }

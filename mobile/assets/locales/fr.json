@@ -197,6 +197,14 @@
   "mobile.fotoWaehlen": "Choisir une photo",
   "mobile.fotoZuschneiden": "Recadrer",
   "mobile.fotoZuschneidenHinweis": "Déplacez et zoomez jusqu’à ce que votre visage soit dans le cercle.",
+  "mobile.freigabeSchritt": "Étape : {{step}}",
+  "mobile.freigabeSeit": "en attente depuis {{when}}",
+  "mobile.freigaben": "Validations",
+  "mobile.freigabenFehler": "Impossible de charger les validations. Tirez vers le bas pour actualiser.",
+  "mobile.freigabenLeer": "Rien n'attend votre validation.",
+  "mobile.freigabenLeerHinweis": "Quand un processus a besoin de votre décision, elle apparaît ici.",
+  "mobile.freigabenOffen": "{{count}} vous attendent",
+  "mobile.freigabenOffen_one": "{{count}} vous attend",
   "mobile.freigeben": "Autoriser",
   "mobile.freigegeben": "Autorisé",
   "mobile.gespeichert": "Enregistré",
@@ -425,6 +433,5 @@
   "tour.willkommen.text": "Vos collègues ici sont des agents d'IA. Vous leur confiez du travail comme à une personne : en leur écrivant. En une minute, nous vous montrons où se trouve chaque chose.",
   "tour.willkommen.titel": "Bienvenue dans covey",
   "tour.zurueck": "Retour",
-  "workflows.chat.decidedAs": "Décidé : {{choice}}.",
-  "workflows.chat.kindApproval": "Validation"
+  "workflows.chat.decidedAs": "Décidé : {{choice}}."
 }

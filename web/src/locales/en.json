@@ -3162,7 +3162,15 @@
     "statusLeer": "No notes with this status.",
     "orgKoppeln": "Pair another organisation",
     "orgNichtGekoppelt": "Not in the app yet. Pair it in the browser, in that organisation, under profile → mobile app.",
-    "updatesSuchen": "Check for updates"
+    "updatesSuchen": "Check for updates",
+    "freigaben": "Approvals",
+    "freigabenOffen": "{{count}} waiting for you",
+    "freigabenOffen_one": "{{count}} waiting for you",
+    "freigabenLeer": "Nothing is waiting for your approval.",
+    "freigabenLeerHinweis": "When a workflow needs your decision, it appears here.",
+    "freigabenFehler": "The approvals could not be loaded. Pull down to refresh.",
+    "freigabeSeit": "waiting since {{when}}",
+    "freigabeSchritt": "Step: {{step}}"
   },
   "appLink": {
     "title": "Open in the covey app",

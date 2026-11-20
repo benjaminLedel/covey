@@ -197,6 +197,14 @@
   "mobile.fotoWaehlen": "Foto auswählen",
   "mobile.fotoZuschneiden": "Zuschneiden",
   "mobile.fotoZuschneidenHinweis": "Verschieben und zoomen Sie, bis Ihr Gesicht im Kreis sitzt.",
+  "mobile.freigabeSchritt": "Schritt: {{step}}",
+  "mobile.freigabeSeit": "wartet seit {{when}}",
+  "mobile.freigaben": "Freigaben",
+  "mobile.freigabenFehler": "Die Freigaben ließen sich nicht laden. Ziehen Sie zum Aktualisieren nach unten.",
+  "mobile.freigabenLeer": "Nichts wartet auf Ihre Freigabe.",
+  "mobile.freigabenLeerHinweis": "Wenn ein Ablauf Ihre Entscheidung braucht, steht sie hier.",
+  "mobile.freigabenOffen": "{{count}} warten auf Sie",
+  "mobile.freigabenOffen_one": "{{count}} wartet auf Sie",
   "mobile.freigeben": "Freigeben",
   "mobile.freigegeben": "Freigegeben",
   "mobile.gespeichert": "Gespeichert",
@@ -425,6 +433,5 @@
   "tour.willkommen.text": "Ihre Kolleginnen und Kollegen hier sind KI-Agenten. Sie geben ihnen Arbeit, wie Sie sie einem Menschen geben würden: indem Sie ihnen schreiben. In einer Minute zeigen wir, wo was ist.",
   "tour.willkommen.titel": "Willkommen bei covey",
   "tour.zurueck": "Zurück",
-  "workflows.chat.decidedAs": "Entschieden: {{choice}}.",
-  "workflows.chat.kindApproval": "Freigabe"
+  "workflows.chat.decidedAs": "Entschieden: {{choice}}."
 }

@@ -3162,7 +3162,15 @@
     "statusLeer": "Não há notas com este estado.",
     "orgKoppeln": "Associar outra organização",
     "orgNichtGekoppelt": "Ainda não está na aplicação. Associe-a no navegador, nessa organização, em perfil → aplicação móvel.",
-    "updatesSuchen": "Procurar atualizações"
+    "updatesSuchen": "Procurar atualizações",
+    "freigaben": "Aprovações",
+    "freigabenOffen": "{{count}} aguardam por você",
+    "freigabenOffen_one": "{{count}} aguarda por você",
+    "freigabenLeer": "Nada aguarda a sua aprovação.",
+    "freigabenLeerHinweis": "Quando um fluxo precisar da sua decisão, ela aparece aqui.",
+    "freigabenFehler": "Não foi possível carregar as aprovações. Puxe para baixo para atualizar.",
+    "freigabeSeit": "aguarda desde {{when}}",
+    "freigabeSchritt": "Etapa: {{step}}"
   },
   "appLink": {
     "title": "Abrir na aplicação covey",

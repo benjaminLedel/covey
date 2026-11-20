@@ -22,6 +22,7 @@ abstract final class AppIcons {
   static const office = AppIcon(Icons.apartment_rounded, CupertinoIcons.building_2_fill);
   static const team = AppIcon(Icons.people_alt_outlined, CupertinoIcons.person_2);
   static const notes = AppIcon(Icons.edit_note_rounded, CupertinoIcons.square_pencil);
+  static const approvals = AppIcon(Icons.fact_check_outlined, CupertinoIcons.checkmark_seal);
   static const add = AppIcon(Icons.add_rounded, CupertinoIcons.add);
   static const chevron = AppIcon(Icons.chevron_right_rounded, CupertinoIcons.chevron_right);
   static const summary = AppIcon(Icons.auto_awesome_outlined, CupertinoIcons.sparkles);
