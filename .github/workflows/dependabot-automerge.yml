@@ -1,0 +1,48 @@
+# Dependabot auto-merge: keep dependencies current without a person having to
+# click through every weekly group.
+#
+# What merges on its own: minor and patch updates of the Go module and the
+# frontend (the weekly "minor-und-patch" groups and single bumps of that size).
+# What does NOT: majors (work of their own, see the React-19 step), pre-releases
+# (a "-beta.9" is no promise of stability, whatever its semver step says) and
+# base images (they change the sandbox under every agent — read them).
+#
+# "Auto-merge" means: GitHub merges once the required checks are green. Nothing
+# here skips a check. A dependency that breaks the build stays open, red, and
+# waits for a person like any other pull request.
+#
+# Merged on GitHub is not deployed: app.covey.work follows the GitLab side, and
+# that push stays a person's decision.
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for minor and patch updates
+        if: >-
+          (steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+           steps.meta.outputs.update-type == 'version-update:semver-minor') &&
+          (steps.meta.outputs.package-ecosystem == 'gomod' ||
+           steps.meta.outputs.package-ecosystem == 'npm_and_yarn') &&
+          !contains(steps.meta.outputs.new-version, '-')
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Say why it stays for a person
+        if: steps.meta.outputs.update-type == 'version-update:semver-major' || contains(steps.meta.outputs.new-version, '-')
+        run: echo "::notice::${{ steps.meta.outputs.dependency-names }} → ${{ steps.meta.outputs.new-version }} (${{ steps.meta.outputs.update-type }}) is left for review."
