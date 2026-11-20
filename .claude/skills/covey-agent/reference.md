@@ -79,6 +79,9 @@ special cases, checklists, templates, reference tables.
 - **ACCESS.md** — access, one line per system: `- system: <name> scope: <a>,<b>`.
 - **HEARTBEAT.md** — triggers, one line per trigger:
   `- alle: <interval> nur-wenn: <system>:<kind> titel: <short> aufgabe: <concrete>`.
+  Optional `nur-zwischen: HH:MM-HH:MM [Zone]` limits an entry to a time of day
+  (e.g. `08:00-18:00 Europe/Berlin`; may wrap midnight). A day and a night
+  cadence are two entries with complementary windows and their own titles.
   The keys are German because a parser reads them — they are the data format, not text.
 
 ## Target-system catalogue

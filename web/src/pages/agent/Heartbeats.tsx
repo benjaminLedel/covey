@@ -37,6 +37,26 @@ function fmtRunChip(d: Date): string {
   return `${d.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
 }
 
+// Whether a run at d falls inside the nur-zwischen: window. Only decidable
+// for a window with a zone: server time is the database's, which the browser
+// does not know — such runs are all shown, as before.
+function inWindow(hb: HeartbeatStatus, d: Date): boolean {
+  if (!hb.window || !hb.window_zone) return true;
+  const [from, to] = hb.window.split("-");
+  let clock: string;
+  try {
+    clock = new Intl.DateTimeFormat("en-GB", {
+      timeZone: hb.window_zone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(d);
+  } catch {
+    return true;
+  }
+  return from < to ? clock >= from && clock < to : clock >= from || clock < to;
+}
+
 function upcomingRuns(hb: HeartbeatStatus, horizonMs: number): Date[] {
   const now = Date.now();
   const step = (hb.every_seconds ?? 24 * 3600) * 1000;
@@ -46,8 +66,12 @@ function upcomingRuns(hb: HeartbeatStatus, horizonMs: number): Date[] {
     runs.push(new Date(now));
     while (t <= now) t += step;
   }
-  while (t <= now + horizonMs && runs.length < 48) {
-    runs.push(new Date(t));
+  // Outside its window a heartbeat is not due, so those slots are no runs.
+  // The step is the interval, which keeps the guess simple: the first tick
+  // inside a window fires at once, later ones follow at the interval.
+  let guard = 0;
+  while (t <= now + horizonMs && runs.length < 48 && guard++ < 2000) {
+    if (inWindow(hb, new Date(t))) runs.push(new Date(t));
     t += step;
   }
   return runs;
@@ -137,6 +161,17 @@ function HeartbeatCard({
             {t("agent.heartbeat.system")}
           </span>
         )}
+        {hb.window && (
+          <span
+            className="badge"
+            title={t("agent.heartbeat.windowHint", {
+              window: hb.window,
+              zone: hb.window_zone || t("agent.heartbeat.serverZone"),
+            })}
+          >
+            {t("agent.heartbeat.window", { window: hb.window })}
+          </span>
+        )}
         {hb.only_if && (
           <span className="badge" title={t("agent.heartbeat.onlyIfHint", { system: hb.only_if })}>
             {t("agent.heartbeat.onlyIf", { system: hb.only_if })}
@@ -177,6 +212,8 @@ function HeartbeatCard({
       <p className="text-xs font-medium mb-2">
         {killed
           ? t("agent.heartbeat.pausedWhileStopped")
+          : !hb.in_window
+          ? t("agent.heartbeat.outsideWindow", { window: hb.window })
           : overdue
           ? hb.pending
             ? t("agent.heartbeat.overdueWithPending")

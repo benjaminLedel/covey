@@ -709,7 +709,9 @@ func (o *Orchestrator) ConsolidateWikis(ctx context.Context) (int, error) {
 // fireHeartbeats creates a backlog task for due heartbeat entries
 // (HEARTBEAT.md, materialized in agent_heartbeats). The interval form is due
 // once the interval has elapsed since last_fired_at, the time-of-day form once
-// per day from the configured time (server time). Kill switches apply as they
+// per day from the configured time (server time). An entry with a
+// nur-zwischen: window is only due inside it — outside, it is not selected at
+// all, so last_fired_at stays put and the first tick inside fires it. Kill switches apply as they
 // do on wake. Dedup: as long as a non-terminal task with the same title from
 // this heartbeat exists, no new one is created — the run still counts as
 // "fired" so that no immediate second helping follows its completion and the
@@ -737,6 +739,7 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 		        AND h.last_fired_at + make_interval(secs => h.every_seconds) <= now())
 		    OR (h.daily_at IS NOT NULL AND CURRENT_TIME >= h.daily_at
 		        AND h.last_fired_at::date < CURRENT_DATE))
+		  AND `+agents.HeartbeatInWindowSQL+`
 		FOR UPDATE OF h SKIP LOCKED`)
 	if err != nil {
 		o.Log.Warn("heartbeat query", "err", err)

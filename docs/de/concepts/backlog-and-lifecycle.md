@@ -39,7 +39,7 @@ Trifft später ein Ereignis mit demselben Schlüssel ein, weckt es genau diese A
 ## Weckquellen
 
 - **Webhook** — das Zielsystem ruft covey, wenn dort etwas passiert. Der schnellste Weg, und der einzige ohne Leerlauf.
-- **Heartbeat** — ein Takt aus der `HEARTBEAT.md`, etwa `- alle: 30m titel: Posteingang aufgabe: Neue Tickets sichten.` Mit `nur-wenn:` fragt die Control Plane vorher billig nach, ob es überhaupt etwas zu tun gibt, und lässt den Agenten sonst schlafen.
+- **Heartbeat** — ein Takt aus der `HEARTBEAT.md`, etwa `- alle: 30m titel: Posteingang aufgabe: Neue Tickets sichten.` Mit `nur-wenn:` fragt die Control Plane vorher billig nach, ob es überhaupt etwas zu tun gibt, und lässt den Agenten sonst schlafen. Mit `nur-zwischen: 08:00-18:00 Europe/Berlin` feuert ein Eintrag nur in dieser Tageszeit — zwei Einträge mit sich ergänzenden Fenstern ergeben tagsüber einen kürzeren und nachts einen längeren Takt.
 - **Von Hand** — „Wecken" in der Oberfläche, oder ein API-Aufruf.
 
 ## Nachrichten im Team-Chat
