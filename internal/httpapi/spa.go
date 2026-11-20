@@ -250,7 +250,11 @@ func setzeSchutzHeader(w http.ResponseWriter) {
 		"connect-src 'self'",
 		"frame-ancestors 'none'",
 		"base-uri 'none'",
-		"form-action 'self'",
+		// github.com: creating an organisation's own GitHub App is a form
+		// POST of the App's manifest to GitHub — the one flow the platform
+		// defines that way (#754). Without it the browser drops the click
+		// without a word. No other foreign target is allowed.
+		"form-action 'self' https://github.com",
 		"object-src 'none'",
 	}, "; "))
 	h.Set("X-Frame-Options", "DENY")
