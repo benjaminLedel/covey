@@ -5,6 +5,10 @@
 # Three ecosystems at three places: the frontend under web/ (npm), the Go module
 # in the repo root, and the base images of the Dockerfiles. Weekly, so it stays
 # signal and does not turn into noise.
+#
+# Minor and patch updates of Go and npm merge on their own once the required
+# checks are green (.github/workflows/dependabot-automerge.yml); majors,
+# pre-releases and base images wait for review.
 version: 2
 updates:
   # Frontend: package.json/package-lock.json sit under web/.
