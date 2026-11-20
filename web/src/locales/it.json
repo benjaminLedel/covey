@@ -580,8 +580,8 @@
       "emptyAll": "Ancora nessuna registrazione."
     },
     "heartbeat": {
-      "desc": "Compiti ricorrenti da HEARTBEAT.md (scheda Config). Il piano di controllo crea automaticamente come compiti del backlog le esecuzioni scadute — la linea del tempo mostra le prossime 24 ore. Gli orari sono quelli del server.",
-      "noHeartbeats": "Nessun battito definito. Nella scheda Config aggiungi un file HEARTBEAT.md, ad es. - alle: 30m titel: Controlla la posta aufgabe: … .",
+      "desc": "Compiti ricorrenti da HEARTBEAT.md (scheda Comportamento). Il piano di controllo crea automaticamente come compiti del backlog le esecuzioni scadute — la linea del tempo mostra le prossime 24 ore. Gli orari sono quelli del server.",
+      "noHeartbeats": "Nessun battito definito. Nella scheda Comportamento aggiungi un file HEARTBEAT.md, ad es. - alle: 30m titel: Controlla la posta aufgabe: … .",
       "taskOpen": "Compito aperto",
       "taskOpenHint": "Il compito dell'esecuzione precedente non è ancora concluso — fino ad allora non verrà creata alcuna nuova esecuzione.",
       "lastRun": "ultima esecuzione {{delta}} fa",
@@ -620,14 +620,11 @@
       "templateName": "Nome del modello",
       "templateDesc": "Descrizione (facoltativa)",
       "saveBtn": "Salva",
-      "exportBundle": "Esporta come pacchetto",
-      "importBundle": "Importa pacchetto (solo config)",
-      "importConfirm": "Sovrascrivere la config di questo agente con quella del pacchetto? Vengono applicati solo i file di configurazione (come nuova versione) — dati del profilo, segreti e regole di sicurezza restano invariati.",
+      "exportBundle": "Esporta",
+      "importBundle": "Importa",
+      "importConfirm": "Sostituire la configurazione di questo agente con quella del file? Viene salvata come nuova versione; profilo, credenziali e regole restano invariati.",
       "importInvalidJson": "JSON non valido — non è un pacchetto valido.",
-      "newVersion": "Salva una nuova versione",
       "cancel": "Annulla",
-      "versionInfo": "Config as code: ogni modifica crea una nuova versione{{version}}.",
-      "currentVersion": " — attuale v{{v}}",
       "assist": {
         "title": "Assistente IA",
         "hint": "Descrivi che cosa dovrebbe fare l'agente o che cosa non ti torna nel suo comportamento. L'assistente propone modifiche alla configurazione come bozza — hanno effetto solo quando salvi una nuova versione.",
@@ -637,6 +634,55 @@
         "apply": "Applica a {{file}}",
         "applied": "applicato",
         "reset": "Nuova conversazione"
+      },
+      "intro": "Ciò che l'agente legge prima di ogni lavoro. Ogni modifica viene salvata come nuova versione.",
+      "versionNow": "Versione attuale: {{v}}.",
+      "doc": {
+        "soul": {
+          "title": "Ruolo e incarico",
+          "desc": "Chi è l'agente, cosa fa e come si esprime.",
+          "placeholder": "Chi sei, qual è il tuo incarico, come parli, quali sono i tuoi limiti?"
+        },
+        "playbooks": {
+          "title": "Modo di lavorare",
+          "desc": "Come svolge i compiti tipici, passo dopo passo.",
+          "placeholder": "## Gestire una richiesta\n1. …"
+        },
+        "capabilities": {
+          "title": "Competenze",
+          "desc": "Di cosa si occupa – e di cosa espressamente no.",
+          "placeholder": "- Si occupa di …\n- Non si occupa di …"
+        },
+        "org": {
+          "title": "Referenti",
+          "desc": "A chi si rivolge quando qualcosa non è chiaro.",
+          "placeholder": "Domande sulle fatture: contabilità …"
+        },
+        "heartbeat": {
+          "title": "Attività ricorrenti",
+          "desc": "Ciò che fa da solo a intervalli regolari: un blocco per attività con alle: o täglich:.",
+          "placeholder": "- alle: 30m\n  titel: Controllare la posta\n  aufgabe: …"
+        }
+      },
+      "edit": "Modifica",
+      "add": "Aggiungi",
+      "done": "Fatto",
+      "changed": "modificato",
+      "more": "Altri file",
+      "moreDesc": "Come testo, di solito gestiti nella loro pagina: {{files}}",
+      "openThere": "Apri lì",
+      "unsavedTitle": "Modifiche non salvate",
+      "discard": "Annulla",
+      "saveVersion": "Salva come versione {{v}}",
+      "share": "Modello e condivisione",
+      "shareDesc": "Salvare la configurazione come modello per nuovi agenti o condividerla come file.",
+      "importOverwrite": "Sovrascrivi",
+      "where": {
+        "access": "Gli accessi ai sistemi collegati, gestiti in «Tools & Skills». Una modifica qui vale anche lì e richiede il ruolo sicurezza.",
+        "egress": "L'accesso a internet, gestito in «Accesso a internet». Una modifica qui vale anche lì e richiede il ruolo sicurezza.",
+        "kpis": "Indicatori per il fascicolo di lavoro. L'agente non li vede.",
+        "tone": "Tono e stile con cui vengono valutati i suoi testi.",
+        "other": "Un altro file della configurazione."
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "Quanto a fondo viene registrato, quanto può spendere e che cosa esportare in caso di dubbio."
       },
       "recordingRetention": "Conserva la trascrizione (giorni)",
-      "recordingRetentionHint": "Vuoto = come l'organizzazione. Un numero può solo allungarla; più corto dell'organizzazione non è possibile. 0 = per sempre."
+      "recordingRetentionHint": "Vuoto = come l'organizzazione. Un numero può solo allungarla; più corto dell'organizzazione non è possibile. 0 = per sempre.",
+      "subSchedule": "Pianificazione",
+      "subTrigger": "Attivatori",
+      "subBehaviour": "Comportamento",
+      "subEgress": "Accesso a internet",
+      "subSecrets": "Credenziali"
     },
     "skills": {
       "desc": "Le capacità di questo agente — le proprie più quelle collegate dalla libreria. Esattamente questo elenco viene scritto nella sua home prima di ogni esecuzione; di ogni voce resta stabilmente nel contesto solo la descrizione.",

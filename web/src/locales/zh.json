@@ -580,8 +580,8 @@
       "emptyAll": "还没有记录。"
     },
     "heartbeat": {
-      "desc": "来自 HEARTBEAT.md（Config 标签）的周期任务。逾期的运行由控制平面自动建成待办任务——时间轴显示未来 24 小时。时间为服务器时间。",
-      "noHeartbeats": "尚未定义心跳。请在 Config 标签中添加 HEARTBEAT.md 文件，例如 - alle: 30m titel: 查看收件箱 aufgabe: … 。",
+      "desc": "来自 HEARTBEAT.md（行为 标签）的周期任务。逾期的运行由控制平面自动建成待办任务——时间轴显示未来 24 小时。时间为服务器时间。",
+      "noHeartbeats": "尚未定义心跳。请在 行为 标签中添加 HEARTBEAT.md 文件，例如 - alle: 30m titel: 查看收件箱 aufgabe: … 。",
       "taskOpen": "任务未结",
       "taskOpenHint": "上一次运行的任务还没完成——在此之前不会创建新的运行。",
       "lastRun": "上次运行于 {{delta}} 前",
@@ -620,14 +620,11 @@
       "templateName": "模板名称",
       "templateDesc": "描述（可选）",
       "saveBtn": "保存",
-      "exportBundle": "导出为配置包",
-      "importBundle": "导入配置包（仅 config）",
-      "importConfirm": "用配置包覆盖这个智能体的 config 吗？只会应用配置文件（作为新版本）——档案数据、密钥和护栏保持不变。",
+      "exportBundle": "导出",
+      "importBundle": "导入",
+      "importConfirm": "用文件中的配置替换此代理的配置？它将保存为新版本；资料、凭据和规则保持不变。",
       "importInvalidJson": "JSON 无效——不是有效的配置包。",
-      "newVersion": "保存为新版本",
       "cancel": "取消",
-      "versionInfo": "配置即代码：每一次改动都会生成新版本{{version}}。",
-      "currentVersion": " — 当前 v{{v}}",
       "assist": {
         "title": "AI 助手",
         "hint": "描述这个智能体该做什么，或者它的表现哪里不对劲。助手会以草稿形式提出配置修改——只有你保存新版本后才会生效。",
@@ -637,6 +634,55 @@
         "apply": "应用到 {{file}}",
         "applied": "已应用",
         "reset": "新的对话"
+      },
+      "intro": "代理在每次工作前阅读的内容。每次修改都会保存为新版本。",
+      "versionNow": "当前版本：{{v}}。",
+      "doc": {
+        "soul": {
+          "title": "角色与任务",
+          "desc": "代理是谁、做什么、如何表达。",
+          "placeholder": "你是谁，你的任务是什么，你怎么说话，你的边界在哪里？"
+        },
+        "playbooks": {
+          "title": "工作方式",
+          "desc": "如何一步步完成典型任务。",
+          "placeholder": "## 处理请求\n1. …"
+        },
+        "capabilities": {
+          "title": "职责范围",
+          "desc": "负责什么，以及明确不负责什么。",
+          "placeholder": "- 负责：…\n- 不负责：…"
+        },
+        "org": {
+          "title": "联系人",
+          "desc": "遇到不清楚的事情时找谁。",
+          "placeholder": "发票问题：财务 …"
+        },
+        "heartbeat": {
+          "title": "定期任务",
+          "desc": "它定期主动做的事——每个任务一个块，用 alle: 或 täglich:。",
+          "placeholder": "- alle: 30m\n  titel: 查看收件箱\n  aufgabe: …"
+        }
+      },
+      "edit": "编辑",
+      "add": "添加",
+      "done": "完成",
+      "changed": "已修改",
+      "more": "更多文件",
+      "moreDesc": "以文本显示，通常在各自页面维护：{{files}}",
+      "openThere": "在那里打开",
+      "unsavedTitle": "未保存的更改",
+      "discard": "放弃",
+      "saveVersion": "保存为版本 {{v}}",
+      "share": "模板与共享",
+      "shareDesc": "将配置保存为新代理的模板，或以文件形式传递。",
+      "importOverwrite": "覆盖",
+      "where": {
+        "access": "对已连接系统的访问权限，在“Tools & Skills”中维护。在此修改会同步生效，并需要安全角色。",
+        "egress": "互联网访问，在“互联网访问”中维护。在此修改会同步生效，并需要安全角色。",
+        "kpis": "用于工作档案的指标。代理本身看不到。",
+        "tone": "衡量其文本的语气和风格。",
+        "other": "配置中的其他文件。"
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "记录得多深、能花多少钱，以及有疑问时导出什么。"
       },
       "recordingRetention": "保留记录（天）",
-      "recordingRetentionHint": "留空 = 与组织一致。填数字只能延长；短于组织不行。0 = 永久。"
+      "recordingRetentionHint": "留空 = 与组织一致。填数字只能延长；短于组织不行。0 = 永久。",
+      "subSchedule": "日程",
+      "subTrigger": "触发器",
+      "subBehaviour": "行为",
+      "subEgress": "互联网访问",
+      "subSecrets": "凭据"
     },
     "skills": {
       "desc": "这个智能体拥有的能力——自有的，加上从技能库链接过来的。每次运行前，正是这份清单被写入它的主目录；每一项之中，只有描述会长期留在上下文里。",

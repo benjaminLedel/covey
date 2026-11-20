@@ -123,3 +123,12 @@ describe("Tabellen", () => {
     expect(lists[1].getAttribute("start")).toBe("2");
   });
 });
+
+describe("Markdown list continuation", () => {
+  it("keeps an indented, hard-wrapped line inside its list item (#745)", () => {
+    const { container } = render(<Markdown text={"1. Do the work and\n   write it down.\n2. Next"} />);
+    const items = container.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toBe("Do the work and write it down.");
+  });
+});

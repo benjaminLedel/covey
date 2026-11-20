@@ -245,6 +245,12 @@ const icons: Record<string, JSX.Element> = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  arrowDown: (
+    <>
+      <path d="M12 5v13" />
+      <path d="M6 12l6 6 6-6" />
+    </>
+  ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   dots: (
     <>

@@ -42,11 +42,11 @@ export function AgentSettings({
   // agent were possible before and should stay that way.
   const subs = [
     ["allgemein", t("agent.settings.subGeneral"), true],
-    ["heartbeat", t("agent.tabs.heartbeat"), true],
-    ["webhook", t("agent.tabs.webhook"), canManage],
-    ["config", t("agent.tabs.config"), true],
-    ["egress", t("agent.tabs.egress"), true],
-    ["secrets", t("agent.tabs.secrets"), canSecrets],
+    ["heartbeat", t("agent.settings.subSchedule"), true],
+    ["webhook", t("agent.settings.subTrigger"), canManage],
+    ["config", t("agent.settings.subBehaviour"), true],
+    ["egress", t("agent.settings.subEgress"), true],
+    ["secrets", t("agent.settings.subSecrets"), canSecrets],
   ] as const;
   const wanted = sp.get("sub") ?? "allgemein";
   const sub = subs.some(([k, , allowed]) => k === wanted && allowed) ? wanted : "allgemein";
