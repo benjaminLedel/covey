@@ -30,6 +30,8 @@ The schedule source is config as code: every line in `HEARTBEAT.md` ([`02-agent-
 - alle: 30m      titel: Posteingang sichten   aufgabe: Prüfe neue Tickets und triagiere sie.
 - täglich: 09:00 titel: Tagesbericht          aufgabe: Fasse den gestrigen Tag zusammen.
 - alle: 5m nur-wenn: email titel: Postfach    aufgabe: Bearbeite die ungelesenen Mails.
+- alle: 5m  nur-zwischen: 08:00-18:00 Europe/Berlin titel: Queue (Tag)   aufgabe: Sichte die Queue.
+- alle: 15m nur-zwischen: 18:00-08:00 Europe/Berlin titel: Queue (Nacht) aufgabe: Sichte die Queue.
 ```
 
 Two schedule forms, exactly one per entry:
@@ -40,6 +42,7 @@ Two schedule forms, exactly one per entry:
 Optional per entry:
 
 - **`nur-wenn:`** (only-if) — the name of a target system that has to report work first when the entry fires. The control plane asks the plugin through the optional `target.WorkChecker` interface (`HasWork`) with self-resolved secrets — for `email`, for instance: "are there unread mails in the working set?" If the system reports no work, the run is skipped without waking the agent; `last_fired_at` is advanced regardless, so the schedule keeps polling as usual. The check is fail-open: if the condition cannot be evaluated (plugin without `WorkChecker`, missing secrets, connection error), the heartbeat fires as usual — a broken condition must not leave work lying around. This turns the polling intake of webhook-less systems into a cheap control-plane check; the expensive runtime only starts when something is genuinely there.
+- **`nur-zwischen:`** (only-between) — a time-of-day window `HH:MM-HH:MM`, optionally followed by an IANA zone (`Europe/Berlin`). Outside the window the entry is **not due**: it neither fires nor advances `last_fired_at`, so the first tick inside the window fires it. The window is half-open (`08:00-18:00` fires at 08:00 and no longer at 18:00) and may wrap midnight (`18:00-08:00`), so two entries with complementary windows give a day and a night cadence without overlapping. Without a zone the window is read in server time, as `täglich:` is; with one it follows local time including daylight saving time. An empty window (`08:00-08:00`) or an unknown zone is a parse error. The window combines with both schedule forms and with `nur-wenn:`; the manual trigger ignores it, as it ignores `nur-wenn:`. Two entries are two heartbeats with their own titles — each deduplicates against its own open task, not against the other's.
 
 **Never wake twice on the same state (signature):** a `nur-wenn:` condition measures a level — "something is waiting there" stays true until the agent changes the state. For conversation threads (GitLab issue, merge request) that means: as long as the last contribution is not from the agent, the same item wakes it again at every interval. An agent that **deliberately** ends a run without commenting — the QA colleague's feedback was an approval, there is nothing to do — would therefore be woken permanently and would end up commenting only to switch off its own alarm clock. Between two agents this carries a runaway: every comment closes one's own gate and opens the other's.
 

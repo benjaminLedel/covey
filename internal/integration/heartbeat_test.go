@@ -420,3 +420,79 @@ func TestHeartbeatWatermarkKeptWithoutOwnWrite(t *testing.T) {
 		t.Fatalf("a run without its own write must not swallow foreign activity, watermark is now %q", got)
 	}
 }
+
+// TestHeartbeatWindow checks nur-zwischen: (#760): an entry whose window holds
+// now fires, one whose window does not is not due at all — it creates no task
+// and its last_fired_at stays where it was, so the first tick inside the
+// window would fire it. The status view reports the same verdict.
+func TestHeartbeatWindow(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	agent, err := s.registry.Create(ctx, s.orgID, "fenster", "Fenster-Agent", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Windows around the current UTC time; the zone is named so the test does
+	// not depend on the database's TimeZone setting. Both may wrap midnight.
+	now := time.Now().UTC()
+	clock := func(d time.Duration) string { return now.Add(d).Format("15:04") }
+	open := clock(-time.Hour) + "-" + clock(time.Hour)
+	closed := clock(2*time.Hour) + "-" + clock(3*time.Hour)
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md": "# Fenster-Agent",
+		"HEARTBEAT.md": "- alle: 1s nur-zwischen: " + open + " UTC titel: Offen aufgabe: Jetzt. [mock:result ok]\n" +
+			"- alle: 1s nur-zwischen: " + closed + " UTC titel: Zu aufgabe: Später. [mock:result ok]",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	var closedFiredBefore time.Time
+	if err := s.pool.QueryRow(ctx,
+		"SELECT last_fired_at FROM agent_heartbeats WHERE agent_id=$1 AND name='Zu'", agent.ID).Scan(&closedFiredBefore); err != nil {
+		t.Fatal(err)
+	}
+
+	waitFor(t, "heartbeat inside its window fires", 15*time.Second, func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
+		for _, task := range tasks {
+			if task.Origin == "heartbeat" && task.Title == "Offen" {
+				return true
+			}
+		}
+		return false
+	})
+	// Several ticks have passed by now; the closed one must still be silent.
+	time.Sleep(2 * time.Second)
+	tasks, err := s.backlog.ListByAgent(ctx, agent.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		if task.Title == "Zu" {
+			t.Fatalf("heartbeat outside its window fired: %+v", task)
+		}
+	}
+	var closedFiredAfter time.Time
+	if err := s.pool.QueryRow(ctx,
+		"SELECT last_fired_at FROM agent_heartbeats WHERE agent_id=$1 AND name='Zu'", agent.ID).Scan(&closedFiredAfter); err != nil {
+		t.Fatal(err)
+	}
+	if !closedFiredAfter.Equal(closedFiredBefore) {
+		t.Fatalf("last_fired_at advanced outside the window: %v -> %v", closedFiredBefore, closedFiredAfter)
+	}
+
+	hbs, err := s.registry.Heartbeats(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, hb := range hbs {
+		got[hb.Name] = hb.InWindow
+		if hb.Window == "" || hb.WindowZone != "UTC" {
+			t.Errorf("status lost the window: %+v", hb)
+		}
+	}
+	if !got["Offen"] || got["Zu"] {
+		t.Fatalf("in_window wrong: %+v", got)
+	}
+}

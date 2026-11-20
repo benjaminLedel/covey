@@ -452,6 +452,9 @@ export type HeartbeatStatus = {
   every_seconds?: number;
   daily_at?: string;
   only_if?: string;
+  window?: string; // nur-zwischen: "HH:MM-HH:MM", may wrap midnight
+  window_zone?: string; // IANA zone of the window; empty = server time
+  in_window: boolean; // true when there is no window, too
   source?: string; // "config" (HEARTBEAT.md) | "system" (platform default, e.g. wiki upkeep)
   last_fired_at: string;
   next_run: string;

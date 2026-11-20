@@ -39,7 +39,7 @@ When an event with the same key arrives later, it wakes exactly that task again,
 ## Wake sources
 
 - **Webhook** — the target system calls covey when something happens there. The fastest route, and the only one without idle polling.
-- **Heartbeat** — a schedule from `HEARTBEAT.md`, e.g. `- alle: 30m titel: Inbox aufgabe: Triage new tickets.` With `nur-wenn:` the control plane cheaply checks first whether there is anything to do at all, and otherwise lets the agent sleep.
+- **Heartbeat** — a schedule from `HEARTBEAT.md`, e.g. `- alle: 30m titel: Inbox aufgabe: Triage new tickets.` With `nur-wenn:` the control plane cheaply checks first whether there is anything to do at all, and otherwise lets the agent sleep. With `nur-zwischen: 08:00-18:00 Europe/Berlin` an entry fires only inside that time of day — two entries with complementary windows give a shorter interval by day and a longer one by night.
 - **By hand** — "Wake" in the interface, or an API call.
 
 ## Messages in the team chat
