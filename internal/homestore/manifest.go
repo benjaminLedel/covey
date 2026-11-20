@@ -322,10 +322,24 @@ func openSame(home *os.Root, rel string, want fs.FileInfo) (*os.File, fs.FileInf
 		// A link put in its place that leads out of the home fails here
 		// rather than at the identity check. Either way it is a change, not
 		// a fault of the sync.
-		if now, lerr := home.Lstat(filepath.FromSlash(rel)); lerr != nil || !os.SameFile(now, want) {
-			return nil, nil, fmt.Errorf("%s: %w", rel, errChanged)
+		//
+		// A look at the name afterwards cannot settle it: by then the link
+		// may be gone again and a new file stand there — and Linux hands the
+		// inode number of a file just removed to the next one created, so
+		// SameFile can match a different file and the escape would surface
+		// as a failed sync. The name was a regular file in the home when the
+		// walk classified it; failing to open it now means it was replaced.
+		// Only a refusal of access is the file's own answer, and only a
+		// vanished name is for the caller to judge.
+		if os.IsNotExist(err) {
+			return nil, nil, err
 		}
-		return nil, nil, err
+		if errors.Is(err, fs.ErrPermission) {
+			if now, lerr := home.Lstat(filepath.FromSlash(rel)); lerr == nil && os.SameFile(now, want) {
+				return nil, nil, err
+			}
+		}
+		return nil, nil, fmt.Errorf("%s: %w", rel, errChanged)
 	}
 	got, err := f.Stat()
 	if err != nil {
