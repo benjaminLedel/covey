@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, patch, post, put, type ConfigVersion } from "../../api";
 import { Modal } from "../../components/Modal";
+import { GitHubAppPanel, type GitHubAppStatus } from "./GitHubApp";
 
 /* The setup assistant of a target system.
  *
@@ -32,6 +33,9 @@ type SetupState = {
   probe: boolean;
   agents: SetupAgent[];
   setup_doc?: string;
+  // GitHub only: "app" once a GitHub App is installed (the token is optional then).
+  connection?: "app" | "token";
+  github_app?: GitHubAppStatus;
 };
 type ProbeResult = { ok: boolean; identity?: string; error?: string; expires_at?: string; rotatable?: boolean };
 
@@ -168,6 +172,9 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
           </>
         )}
 
+        {current === "credentials" && name === "github" && (
+          <GitHubAppPanel onChanged={() => qc.invalidateQueries({ queryKey: ["target-setup", name] })} />
+        )}
         {current === "credentials" && (
           <CredentialStep
             credentials={credentials}

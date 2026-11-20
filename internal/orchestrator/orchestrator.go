@@ -32,6 +32,7 @@ import (
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/engines"
+	"covey/internal/githubapp"
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/identity"
@@ -66,6 +67,9 @@ type Options struct {
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store
+	// GitHubApp mints installation tokens for organisations connected through
+	// a GitHub App (shared or their own). nil = token-only, as before.
+	GitHubApp *githubapp.Service
 	// Runtimes is the capacity layer: which contract an agent works on and
 	// which of its credentials this waking phase runs on (spec/18).
 	Runtimes *runtimes.Store
@@ -852,7 +856,13 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 		return true, ""
 	}
 	var cred target.Credential
-	if d, _ := target.Describe(system); !d.NoCredentials {
+	appCred, viaApp := target.Credential{}, false
+	if system == "github" {
+		appCred, viaApp = o.githubAppPollCredential(ctx, orgID, agentID)
+	}
+	if viaApp {
+		cred = appCred
+	} else if d, _ := target.Describe(system); !d.NoCredentials {
 		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
 		if err != nil {
 			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
@@ -2463,6 +2473,8 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 			if o.Secrets != nil && repoSystem != "" {
 				if tok, err := o.Secrets.Get(ctx, agent.OrgID, repoSystem+"_token"); err == nil && strings.TrimSpace(tok) != "" {
 					canFile = true
+				} else if repoSystem == "github" && o.githubAppInstalled(ctx, agent.OrgID) {
+					canFile = true
 				}
 			}
 			if section := agents.PlatformRepoDoc(repoSystem, repoProject, ref, istTag,
@@ -3433,6 +3445,17 @@ func truncateRunes(s string, n int) string {
 // brokerCredential is the broker decision (spec/04): authorization per
 // ACCESS.md, guard rails, then short-lived pass-through from the SecretStore.
 func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent, req daemon.RequestCredential) daemon.InjectCredentials {
+	out := o.brokerCredentialFor(ctx, agent, req)
+	if out.Granted {
+		// Who acts travels with the credential: a plugin whose agents share one
+		// identity (a GitHub App) names the agent as author and signature, and
+		// leaves the marker an answer is routed back by.
+		out.ActorSlug, out.ActorName, out.ActorOrg = agent.Slug, agent.DisplayName, o.orgName(ctx, agent.OrgID)
+	}
+	return out
+}
+
+func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Agent, req daemon.RequestCredential) daemon.InjectCredentials {
 	deny := func(reason string) daemon.InjectCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 			map[string]any{"system": req.System, "granted": false, "reason": reason})
@@ -3496,6 +3519,14 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 				"ttl_secs": int(o.DaemonTokenTTL.Seconds())})
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
 			Granted: true, Token: token, BaseURL: baseURL, CA: ca, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+	}
+	if req.System == "github" {
+		if cred, used := o.githubAppCredential(ctx, agent, req); used {
+			if !cred.Granted {
+				return deny(cred.Reason)
+			}
+			return cred
+		}
 	}
 	token, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 	if err != nil {

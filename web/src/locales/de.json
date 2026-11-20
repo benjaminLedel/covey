@@ -580,8 +580,8 @@
       "emptyAll": "Noch keine Aufzeichnung."
     },
     "heartbeat": {
-      "desc": "Wiederkehrende Aufgaben aus HEARTBEAT.md (Tab Config). Die Control Plane legt fällige Läufe automatisch als Backlog-Aufgabe an — die Zeitachse zeigt die nächsten 24 Stunden. Tageszeiten gelten in Serverzeit.",
-      "noHeartbeats": "Keine Heartbeats definiert. Im Tab Config in der Datei HEARTBEAT.md z. B. - alle: 30m titel: Posteingang sichten aufgabe: … anlegen.",
+      "desc": "Wiederkehrende Aufgaben aus HEARTBEAT.md (Tab Verhalten). Die Control Plane legt fällige Läufe automatisch als Backlog-Aufgabe an — die Zeitachse zeigt die nächsten 24 Stunden. Tageszeiten gelten in Serverzeit.",
+      "noHeartbeats": "Keine Heartbeats definiert. Im Tab Verhalten in der Datei HEARTBEAT.md z. B. - alle: 30m titel: Posteingang sichten aufgabe: … anlegen.",
       "taskOpen": "Aufgabe offen",
       "taskOpenHint": "Die Aufgabe des letzten Laufs ist noch nicht abgeschlossen — solange wird kein neuer Lauf angelegt.",
       "lastRun": "letzter Lauf vor {{delta}}",
@@ -620,14 +620,11 @@
       "templateName": "Vorlagenname",
       "templateDesc": "Beschreibung (optional)",
       "saveBtn": "Speichern",
-      "exportBundle": "Als Bundle exportieren",
-      "importBundle": "Bundle importieren (nur Config)",
-      "importConfirm": "Config dieses Agenten aus dem Bundle überschreiben? Nur die Config-Dateien werden übernommen (als neue Version) — Stammdaten, Secrets und Guard-Rails bleiben unverändert.",
+      "exportBundle": "Exportieren",
+      "importBundle": "Importieren",
+      "importConfirm": "Die Konfiguration dieses Agenten durch die aus der Datei ersetzen? Sie wird als neue Version gespeichert; Profil, Zugangsdaten und Regeln bleiben unverändert.",
       "importInvalidJson": "Ungültiges JSON — kein gültiges Bundle.",
-      "newVersion": "Neue Version speichern",
       "cancel": "Abbrechen",
-      "versionInfo": "Config-as-Code: jede Änderung erzeugt eine neue Version{{version}}.",
-      "currentVersion": " — aktuell v{{v}}",
       "assist": {
         "title": "KI-Assistent",
         "hint": "Beschreibe, was der Agent tun soll oder was am Verhalten nicht stimmt. Der Assistent schlägt Config-Änderungen als Entwurf vor — wirksam werden sie erst, wenn du eine neue Version speicherst.",
@@ -637,6 +634,55 @@
         "apply": "In {{file}} übernehmen",
         "applied": "übernommen",
         "reset": "Neuer Verlauf"
+      },
+      "intro": "Was der Agent bei jeder Arbeit liest. Jede Änderung wird als neue Version gespeichert.",
+      "versionNow": "Aktuell Version {{v}}.",
+      "doc": {
+        "soul": {
+          "title": "Rolle und Auftrag",
+          "desc": "Wer der Agent ist, was er tut und wie er klingt.",
+          "placeholder": "Wer bist du, was ist dein Auftrag, wie sprichst du, wo sind deine Grenzen?"
+        },
+        "playbooks": {
+          "title": "Arbeitsweise",
+          "desc": "Wie er typische Aufgaben Schritt für Schritt erledigt.",
+          "placeholder": "## Eine Anfrage bearbeiten\n1. …"
+        },
+        "capabilities": {
+          "title": "Zuständigkeiten",
+          "desc": "Wofür er zuständig ist – und wofür ausdrücklich nicht.",
+          "placeholder": "- Zuständig für …\n- Nicht zuständig für …"
+        },
+        "org": {
+          "title": "Ansprechpartner",
+          "desc": "An wen er sich wendet, wenn etwas unklar ist.",
+          "placeholder": "Fragen zu Rechnungen: Buchhaltung …"
+        },
+        "heartbeat": {
+          "title": "Wiederkehrende Aufgaben",
+          "desc": "Was er regelmäßig von selbst tut – je Aufgabe ein Block mit alle: oder täglich:.",
+          "placeholder": "- alle: 30m\n  titel: Posteingang sichten\n  aufgabe: …"
+        }
+      },
+      "edit": "Bearbeiten",
+      "add": "Hinzufügen",
+      "done": "Fertig",
+      "changed": "geändert",
+      "more": "Weitere Dateien",
+      "moreDesc": "Als Text, meist auf ihrer eigenen Seite gepflegt: {{files}}",
+      "openThere": "Dort öffnen",
+      "unsavedTitle": "Ungespeicherte Änderungen",
+      "discard": "Verwerfen",
+      "saveVersion": "Als Version {{v}} speichern",
+      "share": "Vorlage und Austausch",
+      "shareDesc": "Die Konfiguration als Vorlage für neue Agenten speichern oder als Datei weitergeben.",
+      "importOverwrite": "Überschreiben",
+      "where": {
+        "access": "Die Zugänge zu angebundenen Systemen, gepflegt unter „Tools & Skills“. Eine Änderung hier wirkt dort und braucht die Sicherheitsrolle.",
+        "egress": "Der Internetzugriff, gepflegt unter „Internetzugriff“. Eine Änderung hier wirkt dort und braucht die Sicherheitsrolle.",
+        "kpis": "Kennzahlen für die Arbeitsakte. Der Agent selbst sieht sie nicht.",
+        "tone": "Tonfall und Stil, an dem seine Texte gemessen werden.",
+        "other": "Eine weitere Datei der Konfiguration."
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "Wie tief mitgeschrieben wird, was er ausgeben darf, und was man im Zweifel exportiert."
       },
       "recordingRetention": "Verlauf aufbewahren (Tage)",
-      "recordingRetentionHint": "Leer = wie die Organisation. Eine Zahl verlängert nur; kürzer als die Organisation geht nicht. 0 = unbegrenzt."
+      "recordingRetentionHint": "Leer = wie die Organisation. Eine Zahl verlängert nur; kürzer als die Organisation geht nicht. 0 = unbegrenzt.",
+      "subSchedule": "Zeitplan",
+      "subTrigger": "Auslöser",
+      "subBehaviour": "Verhalten",
+      "subEgress": "Internetzugriff",
+      "subSecrets": "Zugangsdaten"
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
@@ -1856,7 +1907,28 @@
     },
     "tabAvailable": "Vorhanden",
     "toAvailable": "Zu den vorhandenen",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Statt einen Token zu hinterlegen, eine GitHub App verbinden: covey erzeugt die Zugangstokens selbst, nichts läuft ab, und niemand braucht ein Bot-Konto.",
+      "connectShared": "Mit GitHub verbinden",
+      "connectSharedHint": "Installiert die App von covey in den Repositories, die du auswählst; deine Agenten erscheinen als {{bot}}.",
+      "createOwn": "Eigene GitHub App erstellen",
+      "createOwnHint": "Eine App deiner Organisation mit eigenem Namen (z. B. acme-agents[bot]). GitHub übergibt covey den Schlüssel direkt – niemand kopiert ihn.",
+      "githubOrg": "GitHub-Organisation (leer = persönliches Konto)",
+      "appName": "Name der App",
+      "create": "Auf GitHub erstellen",
+      "connected": "Verbunden als {{bot}} · {{account}}",
+      "notInstalled": "App {{app}} ist erstellt, aber noch nicht installiert.",
+      "install": "Installieren",
+      "disconnect": "Trennen",
+      "orToken": "Oder stattdessen unten einen Token hinterlegen:",
+      "noSite": "Braucht eine Seitenadresse (COVEY_SITE_URL), damit GitHub dich zurückschicken kann.",
+      "outcomeConnected": "GitHub ist verbunden.",
+      "outcomeRequested": "Installation angefragt – ein Owner der GitHub-Organisation muss sie noch freigeben.",
+      "outcomeError": "GitHub verbinden ist fehlgeschlagen:",
+      "routingHint": "Alle Agenten teilen sich den Namen der App. Einen bestimmten sprichst du mit dem Label agent:<slug> oder dem Kommentar /covey <slug> an; Antworten gehen an den Agenten, der das Issue oder den Pull Request geschrieben hat."
+    }
   },
   "egress": {
     "title": "Internetzugriff",

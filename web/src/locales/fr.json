@@ -580,8 +580,8 @@
       "emptyAll": "Pas encore d'enregistrement."
     },
     "heartbeat": {
-      "desc": "Tâches récurrentes issues de HEARTBEAT.md (onglet Config). Le plan de contrôle crée automatiquement les exécutions en retard comme tâches du backlog — la frise montre les 24 prochaines heures. Les heures sont celles du serveur.",
-      "noHeartbeats": "Aucun battement défini. Dans l'onglet Config, ajoutez un fichier HEARTBEAT.md, p. ex. - alle: 30m titel: Relever la boîte aufgabe: … .",
+      "desc": "Tâches récurrentes issues de HEARTBEAT.md (onglet Comportement). Le plan de contrôle crée automatiquement les exécutions en retard comme tâches du backlog — la frise montre les 24 prochaines heures. Les heures sont celles du serveur.",
+      "noHeartbeats": "Aucun battement défini. Dans l'onglet Comportement, ajoutez un fichier HEARTBEAT.md, p. ex. - alle: 30m titel: Relever la boîte aufgabe: … .",
       "taskOpen": "Tâche ouverte",
       "taskOpenHint": "La tâche de l'exécution précédente n'est pas terminée — aucune nouvelle exécution ne sera créée d'ici là.",
       "lastRun": "dernière exécution il y a {{delta}}",
@@ -620,14 +620,11 @@
       "templateName": "Nom du modèle",
       "templateDesc": "Description (facultative)",
       "saveBtn": "Enregistrer",
-      "exportBundle": "Exporter en paquet",
-      "importBundle": "Importer un paquet (config seule)",
-      "importConfirm": "Écraser la config de cet agent à partir du paquet ? Seuls les fichiers de configuration sont appliqués (comme nouvelle version) — les données de profil, les secrets et les garde-fous restent inchangés.",
+      "exportBundle": "Exporter",
+      "importBundle": "Importer",
+      "importConfirm": "Remplacer la configuration de cet agent par celle du fichier ? Elle est enregistrée comme nouvelle version ; profil, identifiants et règles restent inchangés.",
       "importInvalidJson": "JSON invalide — ce n'est pas un paquet valide.",
-      "newVersion": "Enregistrer une nouvelle version",
       "cancel": "Annuler",
-      "versionInfo": "Config as code : chaque modification crée une nouvelle version{{version}}.",
-      "currentVersion": " — actuelle v{{v}}",
       "assist": {
         "title": "Assistant IA",
         "hint": "Décrivez ce que l'agent devrait faire, ou ce qui cloche dans son comportement. L'assistant propose des modifications de configuration sous forme de brouillon — elles ne prennent effet qu'une fois une nouvelle version enregistrée.",
@@ -637,6 +634,55 @@
         "apply": "Appliquer à {{file}}",
         "applied": "appliqué",
         "reset": "Nouvelle conversation"
+      },
+      "intro": "Ce que l'agent lit avant chaque travail. Chaque modification est enregistrée comme nouvelle version.",
+      "versionNow": "Version actuelle : {{v}}.",
+      "doc": {
+        "soul": {
+          "title": "Rôle et mission",
+          "desc": "Qui est l'agent, ce qu'il fait et comment il s'exprime.",
+          "placeholder": "Qui es-tu, quelle est ta mission, comment parles-tu, quelles sont tes limites ?"
+        },
+        "playbooks": {
+          "title": "Façon de travailler",
+          "desc": "Comment il traite les tâches courantes, étape par étape.",
+          "placeholder": "## Traiter une demande\n1. …"
+        },
+        "capabilities": {
+          "title": "Responsabilités",
+          "desc": "Ce dont il est chargé – et ce dont il ne l'est explicitement pas.",
+          "placeholder": "- Chargé de …\n- Pas chargé de …"
+        },
+        "org": {
+          "title": "Interlocuteurs",
+          "desc": "À qui il s'adresse quand quelque chose n'est pas clair.",
+          "placeholder": "Questions sur les factures : comptabilité …"
+        },
+        "heartbeat": {
+          "title": "Tâches récurrentes",
+          "desc": "Ce qu'il fait de lui-même à intervalles réguliers – un bloc par tâche avec alle: ou täglich:.",
+          "placeholder": "- alle: 30m\n  titel: Relever la boîte\n  aufgabe: …"
+        }
+      },
+      "edit": "Modifier",
+      "add": "Ajouter",
+      "done": "Terminé",
+      "changed": "modifié",
+      "more": "Autres fichiers",
+      "moreDesc": "En texte, généralement gérés sur leur propre page : {{files}}",
+      "openThere": "Ouvrir",
+      "unsavedTitle": "Modifications non enregistrées",
+      "discard": "Annuler",
+      "saveVersion": "Enregistrer comme version {{v}}",
+      "share": "Modèle et partage",
+      "shareDesc": "Enregistrer la configuration comme modèle pour de nouveaux agents, ou la transmettre sous forme de fichier.",
+      "importOverwrite": "Remplacer",
+      "where": {
+        "access": "Les accès aux systèmes connectés, gérés sous « Tools & Skills ». Une modification ici s'y applique et requiert le rôle sécurité.",
+        "egress": "L'accès internet, géré sous « Accès internet ». Une modification ici s'y applique et requiert le rôle sécurité.",
+        "kpis": "Indicateurs pour le dossier de travail. L'agent ne les voit pas.",
+        "tone": "Le ton et le style auxquels ses textes sont mesurés.",
+        "other": "Un autre fichier de la configuration."
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "À quel point il est enregistré, ce qu'il peut dépenser, et quoi exporter en cas de doute."
       },
       "recordingRetention": "Conserver la transcription (jours)",
-      "recordingRetentionHint": "Vide = comme l'organisation. Un nombre ne fait que rallonger ; plus court que l'organisation est impossible. 0 = pour toujours."
+      "recordingRetentionHint": "Vide = comme l'organisation. Un nombre ne fait que rallonger ; plus court que l'organisation est impossible. 0 = pour toujours.",
+      "subSchedule": "Planning",
+      "subTrigger": "Déclencheurs",
+      "subBehaviour": "Comportement",
+      "subEgress": "Accès internet",
+      "subSecrets": "Identifiants"
     },
     "skills": {
       "desc": "Les capacités de cet agent — les siennes et celles liées depuis la bibliothèque. C'est exactement cette liste qui est écrite dans son répertoire personnel avant chaque exécution ; de chaque entrée, seule la description reste en permanence dans le contexte.",
@@ -1856,7 +1907,28 @@
     },
     "tabAvailable": "Disponibles",
     "toAvailable": "Vers les disponibles",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Au lieu d'enregistrer un jeton, connectez une GitHub App : covey crée lui-même les jetons d'accès, rien n'expire et personne n'a besoin d'un compte bot.",
+      "connectShared": "Connecter avec GitHub",
+      "connectSharedHint": "Installe l'App de covey sur les dépôts que vous choisissez ; vos agents apparaissent comme {{bot}}.",
+      "createOwn": "Créer sa propre GitHub App",
+      "createOwnHint": "Une App de votre organisation avec son propre nom (p. ex. acme-agents[bot]). GitHub transmet la clé directement à covey ; personne ne la copie.",
+      "githubOrg": "Organisation GitHub (vide = compte personnel)",
+      "appName": "Nom de l'App",
+      "create": "Créer sur GitHub",
+      "connected": "Connecté en tant que {{bot}} · {{account}}",
+      "notInstalled": "L'App {{app}} est créée mais pas encore installée.",
+      "install": "Installer",
+      "disconnect": "Déconnecter",
+      "orToken": "Ou enregistrez plutôt un jeton ci-dessous :",
+      "noSite": "Nécessite une adresse de site (COVEY_SITE_URL) pour que GitHub puisse vous renvoyer.",
+      "outcomeConnected": "GitHub est connecté.",
+      "outcomeRequested": "Installation demandée : un propriétaire de l'organisation GitHub doit encore l'approuver.",
+      "outcomeError": "La connexion à GitHub a échoué :",
+      "routingHint": "Tous les agents partagent le nom de l'App. Adressez-vous à l'un d'eux avec le label agent:<slug> ou un commentaire /covey <slug> ; les réponses reviennent à l'agent qui a écrit l'issue ou la pull request."
+    }
   },
   "egress": {
     "title": "Accès internet",

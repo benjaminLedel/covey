@@ -580,8 +580,8 @@
       "emptyAll": "No recording yet."
     },
     "heartbeat": {
-      "desc": "Recurring tasks from HEARTBEAT.md (Config tab). The control plane automatically creates overdue runs as backlog tasks — the timeline shows the next 24 hours. Times are in server time.",
-      "noHeartbeats": "No heartbeats defined. In the Config tab, add a HEARTBEAT.md file e.g. - every: 30m title: Check inbox task: … .",
+      "desc": "Recurring tasks from HEARTBEAT.md (Behaviour tab). The control plane automatically creates overdue runs as backlog tasks — the timeline shows the next 24 hours. Times are in server time.",
+      "noHeartbeats": "No heartbeats defined. In the Behaviour tab, add a HEARTBEAT.md file e.g. - every: 30m title: Check inbox task: … .",
       "taskOpen": "Task open",
       "taskOpenHint": "The previous run's task is not yet complete — no new run will be created until then.",
       "lastRun": "last run {{delta}} ago",
@@ -620,14 +620,11 @@
       "templateName": "Template name",
       "templateDesc": "Description (optional)",
       "saveBtn": "Save",
-      "exportBundle": "Export as bundle",
-      "importBundle": "Import bundle (config only)",
-      "importConfirm": "Overwrite this agent's config from the bundle? Only the config files are applied (as a new version) — profile data, secrets and guard-rails stay unchanged.",
+      "exportBundle": "Export",
+      "importBundle": "Import",
+      "importConfirm": "Replace this agent's configuration with the one from the file? It is saved as a new version; profile, credentials and rules stay unchanged.",
       "importInvalidJson": "Invalid JSON — not a valid bundle.",
-      "newVersion": "Save new version",
       "cancel": "Cancel",
-      "versionInfo": "Config-as-code: every change creates a new version{{version}}.",
-      "currentVersion": " — current v{{v}}",
       "assist": {
         "title": "AI assistant",
         "hint": "Describe what the agent should do or what feels off about its behaviour. The assistant proposes config changes as a draft — they only take effect once you save a new version.",
@@ -637,6 +634,55 @@
         "apply": "Apply to {{file}}",
         "applied": "applied",
         "reset": "New conversation"
+      },
+      "intro": "What the agent reads before every piece of work. Each change is saved as a new version.",
+      "versionNow": "Currently version {{v}}.",
+      "doc": {
+        "soul": {
+          "title": "Role and assignment",
+          "desc": "Who the agent is, what it does and how it sounds.",
+          "placeholder": "Who are you, what is your assignment, how do you speak, where are your limits?"
+        },
+        "playbooks": {
+          "title": "Way of working",
+          "desc": "How it handles typical tasks, step by step.",
+          "placeholder": "## Handling a request\n1. …"
+        },
+        "capabilities": {
+          "title": "Responsibilities",
+          "desc": "What it is responsible for – and explicitly not.",
+          "placeholder": "- Responsible for …\n- Not responsible for …"
+        },
+        "org": {
+          "title": "Contacts",
+          "desc": "Whom it turns to when something is unclear.",
+          "placeholder": "Questions about invoices: accounting …"
+        },
+        "heartbeat": {
+          "title": "Recurring tasks",
+          "desc": "What it does on its own at regular times – one block per task with alle: or täglich:.",
+          "placeholder": "- alle: 30m\n  titel: Check the inbox\n  aufgabe: …"
+        }
+      },
+      "edit": "Edit",
+      "add": "Add",
+      "done": "Done",
+      "changed": "changed",
+      "more": "More files",
+      "moreDesc": "As text, usually maintained on their own page: {{files}}",
+      "openThere": "Open there",
+      "unsavedTitle": "Unsaved changes",
+      "discard": "Discard",
+      "saveVersion": "Save as version {{v}}",
+      "share": "Template and sharing",
+      "shareDesc": "Save the configuration as a template for new agents, or pass it on as a file.",
+      "importOverwrite": "Overwrite",
+      "where": {
+        "access": "Access to connected systems, maintained under “Tools & Skills”. A change here takes effect there and needs the security role.",
+        "egress": "Internet access, maintained under “Internet access”. A change here takes effect there and needs the security role.",
+        "kpis": "Indicators for the work record. The agent itself never sees them.",
+        "tone": "Tone and style its texts are measured against.",
+        "other": "Another file of the configuration."
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "How deeply it is recorded, what it may spend, and what to export when in doubt."
       },
       "recordingRetention": "Keep the transcript (days)",
-      "recordingRetentionHint": "Empty = as the organisation. A number only extends it; shorter than the organisation is not possible. 0 = forever."
+      "recordingRetentionHint": "Empty = as the organisation. A number only extends it; shorter than the organisation is not possible. 0 = forever.",
+      "subSchedule": "Schedule",
+      "subTrigger": "Triggers",
+      "subBehaviour": "Behaviour",
+      "subEgress": "Internet access",
+      "subSecrets": "Credentials"
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
@@ -1856,7 +1907,28 @@
     },
     "tabAvailable": "Available",
     "toAvailable": "To the available ones",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Instead of storing a token, connect a GitHub App: covey creates the access tokens itself, nothing expires, and nobody needs a bot account.",
+      "connectShared": "Connect with GitHub",
+      "connectSharedHint": "Installs covey's App on the repositories you choose; your agents appear as {{bot}}.",
+      "createOwn": "Create own GitHub App",
+      "createOwnHint": "An App of your organisation with its own name (e.g. acme-agents[bot]). GitHub hands covey its key directly — nobody copies one.",
+      "githubOrg": "GitHub organisation (empty = personal account)",
+      "appName": "Name of the App",
+      "create": "Create on GitHub",
+      "connected": "Connected as {{bot}} · {{account}}",
+      "notInstalled": "App {{app}} is created but not installed yet.",
+      "install": "Install",
+      "disconnect": "Disconnect",
+      "orToken": "Or store a token below instead:",
+      "noSite": "Needs a site address (COVEY_SITE_URL) so that GitHub can send you back.",
+      "outcomeConnected": "GitHub is connected.",
+      "outcomeRequested": "Installation requested — an owner of the GitHub organisation still has to approve it.",
+      "outcomeError": "Connecting GitHub failed:",
+      "routingHint": "All agents share the App's name. Address one with the label agent:<slug> or a comment /covey <slug>; replies go back to the agent that wrote the issue or pull request."
+    }
   },
   "egress": {
     "title": "Internet access",

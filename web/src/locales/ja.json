@@ -580,8 +580,8 @@
       "emptyAll": "まだ記録はありません。"
     },
     "heartbeat": {
-      "desc": "HEARTBEAT.md（Config タブ）による定期タスクです。期限を過ぎた実行は、コントロールプレーンがバックログのタスクとして自動的に作ります。タイムラインは今後 24 時間を示します。時刻はサーバー時刻です。",
-      "noHeartbeats": "ハートビートが定義されていません。Config タブで HEARTBEAT.md を追加してください。例: - alle: 30m titel: 受信箱を確認 aufgabe: … 。",
+      "desc": "HEARTBEAT.md（振る舞い タブ）による定期タスクです。期限を過ぎた実行は、コントロールプレーンがバックログのタスクとして自動的に作ります。タイムラインは今後 24 時間を示します。時刻はサーバー時刻です。",
+      "noHeartbeats": "ハートビートが定義されていません。振る舞い タブで HEARTBEAT.md を追加してください。例: - alle: 30m titel: 受信箱を確認 aufgabe: … 。",
       "taskOpen": "タスクが未完了",
       "taskOpenHint": "前回の実行のタスクがまだ終わっていません。それまで新しい実行は作られません。",
       "lastRun": "前回の実行は {{delta}} 前",
@@ -620,14 +620,11 @@
       "templateName": "テンプレート名",
       "templateDesc": "説明（任意）",
       "saveBtn": "保存",
-      "exportBundle": "バンドルとして書き出す",
-      "importBundle": "バンドルを取り込む（config のみ）",
-      "importConfirm": "このエージェントの config をバンドルの内容で上書きしますか？ 適用されるのは設定ファイルだけです（新しいバージョンとして）。プロフィール、シークレット、ガードレールは変わりません。",
+      "exportBundle": "エクスポート",
+      "importBundle": "インポート",
+      "importConfirm": "このエージェントの設定をファイルの内容で置き換えますか？ 新しいバージョンとして保存され、プロフィール・認証情報・ルールは変わりません。",
       "importInvalidJson": "JSON が不正です。正しいバンドルではありません。",
-      "newVersion": "新しいバージョンとして保存",
       "cancel": "キャンセル",
-      "versionInfo": "Config as code: 変更のたびに新しいバージョン{{version}}が生まれます。",
-      "currentVersion": " — 現在 v{{v}}",
       "assist": {
         "title": "AI アシスタント",
         "hint": "エージェントに何をしてほしいか、あるいは振る舞いのどこが気になるかを書いてください。アシスタントは設定変更を下書きとして提案します。新しいバージョンを保存して初めて効力を持ちます。",
@@ -637,6 +634,55 @@
         "apply": "{{file}} に適用",
         "applied": "適用しました",
         "reset": "新しい会話"
+      },
+      "intro": "エージェントが毎回の作業の前に読む内容です。変更はそのたびに新しいバージョンとして保存されます。",
+      "versionNow": "現在のバージョン: {{v}}。",
+      "doc": {
+        "soul": {
+          "title": "役割と任務",
+          "desc": "エージェントが誰で、何をし、どう話すか。",
+          "placeholder": "あなたは誰で、任務は何か、どう話し、どこまでが範囲か。"
+        },
+        "playbooks": {
+          "title": "仕事の進め方",
+          "desc": "よくある作業を一歩ずつどう進めるか。",
+          "placeholder": "## 依頼への対応\n1. …"
+        },
+        "capabilities": {
+          "title": "担当範囲",
+          "desc": "何を担当し、何を明確に担当しないか。",
+          "placeholder": "- 担当: …\n- 担当外: …"
+        },
+        "org": {
+          "title": "連絡先",
+          "desc": "不明な点があるときに誰に相談するか。",
+          "placeholder": "請求書の質問: 経理 …"
+        },
+        "heartbeat": {
+          "title": "定期タスク",
+          "desc": "自分から定期的に行うこと。タスクごとに alle: または täglich: のブロックを書きます。",
+          "placeholder": "- alle: 30m\n  titel: 受信箱を確認\n  aufgabe: …"
+        }
+      },
+      "edit": "編集",
+      "add": "追加",
+      "done": "完了",
+      "changed": "変更あり",
+      "more": "その他のファイル",
+      "moreDesc": "テキスト表示。通常はそれぞれのページで管理します: {{files}}",
+      "openThere": "そちらを開く",
+      "unsavedTitle": "未保存の変更",
+      "discard": "破棄",
+      "saveVersion": "バージョン {{v}} として保存",
+      "share": "テンプレートと共有",
+      "shareDesc": "設定を新しいエージェント用のテンプレートとして保存するか、ファイルとして渡します。",
+      "importOverwrite": "上書き",
+      "where": {
+        "access": "接続システムへのアクセス。「Tools & Skills」で管理します。ここでの変更はそちらに反映され、セキュリティ権限が必要です。",
+        "egress": "インターネットアクセス。「インターネットアクセス」で管理します。ここでの変更はそちらに反映され、セキュリティ権限が必要です。",
+        "kpis": "作業記録用の指標。エージェント自身には見えません。",
+        "tone": "文章を評価する基準となるトーンとスタイル。",
+        "other": "設定のその他のファイル。"
       }
     },
     "memory": {
@@ -861,7 +907,12 @@
         "oversightHint": "どこまで記録するか、いくらまで使えるか、疑わしいときに何を書き出すか。"
       },
       "recordingRetention": "記録の保持（日数）",
-      "recordingRetentionHint": "空欄 = 組織と同じ。数値は延ばすだけで、組織より短くはできません。0 = 無期限。"
+      "recordingRetentionHint": "空欄 = 組織と同じ。数値は延ばすだけで、組織より短くはできません。0 = 無期限。",
+      "subSchedule": "スケジュール",
+      "subTrigger": "トリガー",
+      "subBehaviour": "振る舞い",
+      "subEgress": "インターネットアクセス",
+      "subSecrets": "認証情報"
     },
     "skills": {
       "desc": "このエージェントが持つ能力です。自分のものと、ライブラリからリンクしたもの。実行のたびに、この一覧がそのままホームへ書き込まれます。各項目のうち、常に文脈に残るのは説明だけです。",
@@ -1856,7 +1907,28 @@
     },
     "tabAvailable": "利用可能",
     "toAvailable": "利用可能なものへ",
-    "kindWasm": "コード（wasm）"
+    "kindWasm": "コード（wasm）",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "トークンを保存する代わりに GitHub App を接続します。covey がアクセストークンを自ら発行するため、期限切れがなく、ボットアカウントも不要です。",
+      "connectShared": "GitHub と接続",
+      "connectSharedHint": "選択したリポジトリに covey の App をインストールします。エージェントは {{bot}} として表示されます。",
+      "createOwn": "独自の GitHub App を作成",
+      "createOwnHint": "独自の名前を持つ組織の App（例: acme-agents[bot]）。GitHub が鍵を covey に直接渡すため、誰もコピーしません。",
+      "githubOrg": "GitHub 組織（空欄 = 個人アカウント）",
+      "appName": "App の名前",
+      "create": "GitHub で作成",
+      "connected": "{{bot}} として接続済み · {{account}}",
+      "notInstalled": "App {{app}} は作成済みですが、まだインストールされていません。",
+      "install": "インストール",
+      "disconnect": "切断",
+      "orToken": "または、下にトークンを保存してください:",
+      "noSite": "GitHub から戻るにはサイトアドレス（COVEY_SITE_URL）が必要です。",
+      "outcomeConnected": "GitHub に接続しました。",
+      "outcomeRequested": "インストールを申請しました。GitHub 組織のオーナーによる承認が必要です。",
+      "outcomeError": "GitHub への接続に失敗しました:",
+      "routingHint": "すべてのエージェントが App の名前を共有します。ラベル agent:<slug> またはコメント /covey <slug> で特定のエージェントを指定してください。返信は issue や pull request を書いたエージェントに戻ります。"
+    }
   },
   "egress": {
     "title": "インターネット接続",
