@@ -2980,9 +2980,9 @@
     "sucheMarkieren": "相手を選ぶ",
     "ungelesen": "未読メッセージ {{count}} 件",
     "ungelesen_one": "未読メッセージ {{count}} 件",
-    "ungelesenTitel": "未読",
     "bereiche": "エリア",
-    "gestopptHinweis": "{{name}} は停止中です。緊急停止が有効な間、{{name}} はメッセージを受け付けません。"
+    "gestopptHinweis": "{{name}} は停止中です。緊急停止が有効な間、{{name}} はメッセージを受け付けません。",
+    "zuletzt": "最近"
   },
   "mobile": {
     "verbindenTitel": "あなたの covey はどこですか？",
@@ -3234,7 +3234,15 @@
     "statusLeer": "このステータスのメモはありません。",
     "orgKoppeln": "別の組織を連携",
     "orgNichtGekoppelt": "まだアプリにありません。ブラウザでその組織に切り替え、プロフィール → モバイルアプリから連携してください。",
-    "updatesSuchen": "アップデートを確認"
+    "updatesSuchen": "アップデートを確認",
+    "freigaben": "承認",
+    "freigabenOffen": "{{count}} 件があなたを待っています",
+    "freigabenOffen_one": "{{count}} 件があなたを待っています",
+    "freigabenLeer": "あなたの承認を待っているものはありません。",
+    "freigabenLeerHinweis": "ワークフローがあなたの判断を必要とすると、ここに表示されます。",
+    "freigabenFehler": "承認を読み込めませんでした。下に引いて更新してください。",
+    "freigabeSeit": "{{when}} から待機中",
+    "freigabeSchritt": "ステップ: {{step}}"
   },
   "appLink": {
     "title": "covey アプリで開く",

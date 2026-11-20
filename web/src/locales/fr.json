@@ -2980,9 +2980,9 @@
     "sucheMarkieren": "choisir un collègue",
     "ungelesen": "{{count}} messages non lus",
     "ungelesen_one": "Un message non lu",
-    "ungelesenTitel": "Non lus",
     "bereiche": "Espaces",
-    "gestopptHinweis": "{{name}} est arrêté. Tant que l'arrêt d'urgence est actif, {{name}} n'accepte aucun message."
+    "gestopptHinweis": "{{name}} est arrêté. Tant que l'arrêt d'urgence est actif, {{name}} n'accepte aucun message.",
+    "zuletzt": "Récents"
   },
   "mobile": {
     "verbindenTitel": "Où est votre covey ?",
@@ -3234,7 +3234,15 @@
     "statusLeer": "Aucune note avec ce statut.",
     "orgKoppeln": "Associer une autre organisation",
     "orgNichtGekoppelt": "Pas encore dans l'application. Associez-la dans le navigateur, dans cette organisation, sous profil → application mobile.",
-    "updatesSuchen": "Rechercher des mises à jour"
+    "updatesSuchen": "Rechercher des mises à jour",
+    "freigaben": "Validations",
+    "freigabenOffen": "{{count}} vous attendent",
+    "freigabenOffen_one": "{{count}} vous attend",
+    "freigabenLeer": "Rien n'attend votre validation.",
+    "freigabenLeerHinweis": "Quand un processus a besoin de votre décision, elle apparaît ici.",
+    "freigabenFehler": "Impossible de charger les validations. Tirez vers le bas pour actualiser.",
+    "freigabeSeit": "en attente depuis {{when}}",
+    "freigabeSchritt": "Étape : {{step}}"
   },
   "appLink": {
     "title": "Ouvrir dans l'application covey",

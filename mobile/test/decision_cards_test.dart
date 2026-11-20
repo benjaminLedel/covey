@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:covey_mobile/api.dart';
 import 'package:covey_mobile/i18n.dart';
 import 'package:covey_mobile/models.dart';
+import 'package:covey_mobile/screens/approvals_space.dart';
 import 'package:covey_mobile/screens/decision_cards.dart';
-import 'package:covey_mobile/screens/team_space.dart';
 import 'package:covey_mobile/screens/thread.dart';
 import 'package:covey_mobile/theme.dart';
 import 'package:flutter/material.dart';
@@ -248,7 +248,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('a workflow decision is taken in the team space, one button per option', (tester) async {
+  testWidgets('a workflow decision is taken in the approvals space, one button per option (#748)', (tester) async {
     final posts = <(String, Map<String, dynamic>)>[];
     final api = CoveyApi(
       Uri.parse('https://c.example'),
@@ -281,24 +281,29 @@ void main() {
         return _json({});
       }),
     );
-    await tester.pumpWidget(
-      await tester.runAsync(
-            () => _app(
-              Scaffold(
-                body: TeamSpace(api: api, me: _me('auditor'), onOpen: (_, _, _, _) {}),
-              ),
-            ),
-          )
-          as Widget,
-    );
+    await tester.pumpWidget(await tester.runAsync(() => _app(Scaffold(body: ApprovalsSpace(api: api)))) as Widget);
     await _settle(tester);
-    expect(find.text('Wartet auf Sie'), findsOneWidget);
+    expect(find.text('Erstattungen'), findsOneWidget, reason: 'grouped under the workflow');
     expect(find.text('Erstatten?'), findsOneWidget);
+    expect(find.text('Schritt: Freigabe'), findsOneWidget);
+    expect(find.textContaining('wartet seit'), findsOneWidget);
     await tester.tap(find.text('nein'));
     await _settle(tester);
     expect(posts.single.$1, endsWith('/workflows/refunds/runs/run-1/decide'));
     expect(posts.single.$2, {'option': 'nein'});
     expect(find.text('Entschieden: nein.'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the approvals space says so when nothing waits (#748)', (tester) async {
+    final api = CoveyApi(
+      Uri.parse('https://c.example'),
+      'k',
+      client: MockClient((req) async => req.url.path.endsWith('/workflows/mine') ? _json([]) : _json({})),
+    );
+    await tester.pumpWidget(await tester.runAsync(() => _app(Scaffold(body: ApprovalsSpace(api: api)))) as Widget);
+    await _settle(tester);
+    expect(find.text('Nichts wartet auf Ihre Freigabe.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
