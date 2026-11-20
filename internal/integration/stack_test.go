@@ -32,6 +32,7 @@ import (
 	"covey/internal/db"
 	"covey/internal/dream"
 	"covey/internal/egress"
+	"covey/internal/githubapp"
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/httpapi"
@@ -192,6 +193,9 @@ type stack struct {
 	settings *settings.Store
 	dreams   *dream.Store
 	orch     *orchestrator.Orchestrator
+	// githubApp is the GitHub App service; a test points its API at a
+	// stand-in and configures the shared App.
+	githubApp *githubapp.Service
 	// srv is the HTTP server itself, so a test can equip it with something the
 	// basic stack deliberately leaves out — a plugin catalogue, for instance.
 	srv        *httpapi.Server
@@ -378,6 +382,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		t.Fatal(err)
 	}
 	s.settings = settings.New(pool, box)
+	s.githubApp = &githubapp.Service{Pool: pool, Box: box, Client: githubapp.NewClient()}
 	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
@@ -398,7 +403,8 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Platform: platform,
 		Pool:     pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
-		Chat: chat.New(pool), Org: org.NewStore(pool),
+		GitHubApp: s.githubApp,
+		Chat:      chat.New(pool), Org: org.NewStore(pool),
 		Targets:        s.targets,
 		Egress:         s.egress,
 		Skills:         s.skills,
@@ -426,7 +432,8 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 	s.backlog.OnComplete = s.workflows.TaskEnded
 
 	srv := &httpapi.Server{
-		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
+		GitHubApp: s.githubApp,
+		Pool:      pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		/* Das Gespräch. Ohne ihn läuft der Chat-Endpunkt in ein nil, und der
 		   Test bekommt ein EOF statt einer Antwort. */
 		Chat:  chat.New(pool),

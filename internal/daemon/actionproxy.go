@@ -675,8 +675,11 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	// Sub-agent runner: lets a plugin (dev:agent) start a nested runtime run in
 	// the project checkout without knowing the daemon.
 	ctx = target.WithSubAgent(ctx, p.client.subAgentRunner(p.taskID))
+	if cred.ActorSlug != "" {
+		ctx = target.WithActor(ctx, target.Actor{Slug: cred.ActorSlug, Name: cred.ActorName, Org: cred.ActorOrg})
+	}
 	data, err := sys.Execute(ctx, action, params,
-		target.Credential{BaseURL: cred.BaseURL, Token: cred.Token, CA: cred.CA})
+		target.Credential{BaseURL: cred.BaseURL, Token: cred.Token, CA: cred.CA, Login: cred.Login})
 	return data, substituted, err
 }
 

@@ -134,6 +134,16 @@ type InjectCredentials struct {
 	// as an action parameter: a trust anchor belongs beside the token, not in
 	// the recording of every single call (see target.Credential).
 	CA string `json:"ca,omitempty"`
+	// Login is the account the token acts as when the control plane knows it
+	// and the system cannot be asked — a GitHub App installation's bot
+	// ("name[bot]"). See target.Credential.Login.
+	Login string `json:"login,omitempty"`
+	// Actor* name the agent the credential is brokered for. Several agents can
+	// act under one identity (a GitHub App); the plugin names the agent as
+	// author and signature (target.Actor).
+	ActorSlug string `json:"actor_slug,omitempty"`
+	ActorName string `json:"actor_name,omitempty"`
+	ActorOrg  string `json:"actor_org,omitempty"`
 	// Path delivers the value as a FILE at this path in the agent home instead
 	// of as an environment variable — the form some engines require for their
 	// subscription login (spec/19). Written for the run, removed after it.

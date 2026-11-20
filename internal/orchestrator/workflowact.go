@@ -123,7 +123,8 @@ func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, ac
 	if o.ReqLog != nil {
 		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&agent.OrgID, &agent.ID, nil))
 	}
-	_, err = sys.Execute(cctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token, CA: cred.CA})
+	cctx = target.WithActor(cctx, target.Actor{Slug: cred.ActorSlug, Name: cred.ActorName, Org: cred.ActorOrg})
+	_, err = sys.Execute(cctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token, CA: cred.CA, Login: cred.Login})
 	record := map[string]any{"action": subject, "via": "workflow", "ok": err == nil}
 	if err != nil {
 		record["error"] = err.Error()

@@ -373,6 +373,10 @@ func (o *Orchestrator) hiringTargets(ctx context.Context, agent agents.Agent) ma
 			}
 			if p.Enabled && stored != nil {
 				t.Credentials, t.Missing = credentialState(p.Name, p.Kind, stored)
+				if p.Name == "github" && t.Credentials == "missing" && o.githubAppInstalled(ctx, agent.OrgID) {
+					// A GitHub App mints the token; nothing has to be stored.
+					t.Credentials, t.Missing = "in place", nil
+				}
 			}
 			out = append(out, t)
 		}

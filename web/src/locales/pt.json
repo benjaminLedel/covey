@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "Disponíveis",
     "toAvailable": "Para os disponíveis",
-    "kindWasm": "Código (wasm)"
+    "kindWasm": "Código (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Em vez de guardar um token, ligue uma GitHub App: o covey cria os tokens de acesso sozinho, nada expira e ninguém precisa de uma conta de bot.",
+      "connectShared": "Ligar ao GitHub",
+      "connectSharedHint": "Instala a App do covey nos repositórios que escolher; os seus agentes aparecem como {{bot}}.",
+      "createOwn": "Criar a própria GitHub App",
+      "createOwnHint": "Uma App da sua organização com nome próprio (p. ex. acme-agents[bot]). O GitHub entrega a chave diretamente ao covey; ninguém a copia.",
+      "githubOrg": "Organização do GitHub (vazio = conta pessoal)",
+      "appName": "Nome da App",
+      "create": "Criar no GitHub",
+      "connected": "Ligado como {{bot}} · {{account}}",
+      "notInstalled": "A App {{app}} foi criada mas ainda não está instalada.",
+      "install": "Instalar",
+      "disconnect": "Desligar",
+      "orToken": "Ou guarde antes um token abaixo:",
+      "noSite": "Requer um endereço do site (COVEY_SITE_URL) para que o GitHub o possa reencaminhar.",
+      "outcomeConnected": "O GitHub está ligado.",
+      "outcomeRequested": "Instalação pedida — um owner da organização do GitHub ainda tem de a aprovar.",
+      "outcomeError": "Não foi possível ligar o GitHub:",
+      "routingHint": "Todos os agentes partilham o nome da App. Dirija-se a um com a etiqueta agent:<slug> ou um comentário /covey <slug>; as respostas voltam ao agente que escreveu o issue ou o pull request."
+    }
   },
   "egress": {
     "title": "Acesso à internet",

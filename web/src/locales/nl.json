@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "Beschikbaar",
     "toAvailable": "Naar de beschikbare",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Koppel een GitHub App in plaats van een token op te slaan: covey maakt de toegangstokens zelf aan, niets verloopt en niemand heeft een botaccount nodig.",
+      "connectShared": "Verbinden met GitHub",
+      "connectSharedHint": "Installeert de App van covey op de repositories die je kiest; je agents verschijnen als {{bot}}.",
+      "createOwn": "Eigen GitHub App maken",
+      "createOwnHint": "Een App van je organisatie met een eigen naam (bijv. acme-agents[bot]). GitHub geeft de sleutel rechtstreeks aan covey; niemand kopieert hem.",
+      "githubOrg": "GitHub-organisatie (leeg = persoonlijk account)",
+      "appName": "Naam van de App",
+      "create": "Aanmaken op GitHub",
+      "connected": "Verbonden als {{bot}} · {{account}}",
+      "notInstalled": "App {{app}} is aangemaakt maar nog niet geïnstalleerd.",
+      "install": "Installeren",
+      "disconnect": "Ontkoppelen",
+      "orToken": "Of sla hieronder in plaats daarvan een token op:",
+      "noSite": "Vereist een siteadres (COVEY_SITE_URL) zodat GitHub je kan terugsturen.",
+      "outcomeConnected": "GitHub is verbonden.",
+      "outcomeRequested": "Installatie aangevraagd — een owner van de GitHub-organisatie moet die nog goedkeuren.",
+      "outcomeError": "Verbinden met GitHub is mislukt:",
+      "routingHint": "Alle agents delen de naam van de App. Spreek er één aan met het label agent:<slug> of een opmerking /covey <slug>; antwoorden gaan terug naar de agent die het issue of de pull request schreef."
+    }
   },
   "egress": {
     "title": "Internettoegang",

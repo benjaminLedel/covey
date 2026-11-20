@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "利用可能",
     "toAvailable": "利用可能なものへ",
-    "kindWasm": "コード（wasm）"
+    "kindWasm": "コード（wasm）",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "トークンを保存する代わりに GitHub App を接続します。covey がアクセストークンを自ら発行するため、期限切れがなく、ボットアカウントも不要です。",
+      "connectShared": "GitHub と接続",
+      "connectSharedHint": "選択したリポジトリに covey の App をインストールします。エージェントは {{bot}} として表示されます。",
+      "createOwn": "独自の GitHub App を作成",
+      "createOwnHint": "独自の名前を持つ組織の App（例: acme-agents[bot]）。GitHub が鍵を covey に直接渡すため、誰もコピーしません。",
+      "githubOrg": "GitHub 組織（空欄 = 個人アカウント）",
+      "appName": "App の名前",
+      "create": "GitHub で作成",
+      "connected": "{{bot}} として接続済み · {{account}}",
+      "notInstalled": "App {{app}} は作成済みですが、まだインストールされていません。",
+      "install": "インストール",
+      "disconnect": "切断",
+      "orToken": "または、下にトークンを保存してください:",
+      "noSite": "GitHub から戻るにはサイトアドレス（COVEY_SITE_URL）が必要です。",
+      "outcomeConnected": "GitHub に接続しました。",
+      "outcomeRequested": "インストールを申請しました。GitHub 組織のオーナーによる承認が必要です。",
+      "outcomeError": "GitHub への接続に失敗しました:",
+      "routingHint": "すべてのエージェントが App の名前を共有します。ラベル agent:<slug> またはコメント /covey <slug> で特定のエージェントを指定してください。返信は issue や pull request を書いたエージェントに戻ります。"
+    }
   },
   "egress": {
     "title": "インターネット接続",

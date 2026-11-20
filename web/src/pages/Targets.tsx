@@ -8,6 +8,7 @@ import { TargetSetupWizard } from "./targets/SetupWizard";
 import { CatalogTab } from "./targets/Catalog";
 import { TeamsAppPanel } from "./targets/TeamsApp";
 import { TeamsUserPanel } from "./targets/TeamsUser";
+import { GitHubAppOutcome } from "./targets/GitHubApp";
 
 const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
@@ -75,7 +76,10 @@ export default function Targets({ me }: { me: Principal }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [detail, setDetail] = useState<string | null>(null);
-  const [wizard, setWizard] = useState<string | null>(null);
+  // Back from github.com (GitHub App flows): reopen GitHub's assistant.
+  const [wizard, setWizard] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("github") ? "github" : null,
+  );
   const [confirmDel, setConfirmDel] = useState<TargetPlugin | null>(null);
   const [form, setForm] = useState<null | "manifest" | "mcp">(null);
 
@@ -158,6 +162,7 @@ export default function Targets({ me }: { me: Principal }) {
       </p>
 
       <TeamsAppPanel me={me} />
+      <GitHubAppOutcome />
       <TeamsUserPanel me={me} />
 
       <nav className="subnav" role="tablist" aria-label={t("targets.title")}>

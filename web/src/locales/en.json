@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "Available",
     "toAvailable": "To the available ones",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Instead of storing a token, connect a GitHub App: covey creates the access tokens itself, nothing expires, and nobody needs a bot account.",
+      "connectShared": "Connect with GitHub",
+      "connectSharedHint": "Installs covey's App on the repositories you choose; your agents appear as {{bot}}.",
+      "createOwn": "Create own GitHub App",
+      "createOwnHint": "An App of your organisation with its own name (e.g. acme-agents[bot]). GitHub hands covey its key directly — nobody copies one.",
+      "githubOrg": "GitHub organisation (empty = personal account)",
+      "appName": "Name of the App",
+      "create": "Create on GitHub",
+      "connected": "Connected as {{bot}} · {{account}}",
+      "notInstalled": "App {{app}} is created but not installed yet.",
+      "install": "Install",
+      "disconnect": "Disconnect",
+      "orToken": "Or store a token below instead:",
+      "noSite": "Needs a site address (COVEY_SITE_URL) so that GitHub can send you back.",
+      "outcomeConnected": "GitHub is connected.",
+      "outcomeRequested": "Installation requested — an owner of the GitHub organisation still has to approve it.",
+      "outcomeError": "Connecting GitHub failed:",
+      "routingHint": "All agents share the App's name. Address one with the label agent:<slug> or a comment /covey <slug>; replies go back to the agent that wrote the issue or pull request."
+    }
   },
   "egress": {
     "title": "Internet access",

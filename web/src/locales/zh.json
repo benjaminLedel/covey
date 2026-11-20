@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "可用",
     "toAvailable": "去看可用的",
-    "kindWasm": "代码（wasm）"
+    "kindWasm": "代码（wasm）",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "无需保存令牌，连接一个 GitHub App：covey 会自行生成访问令牌，不会过期，也无需机器人账户。",
+      "connectShared": "连接 GitHub",
+      "connectSharedHint": "在你选择的仓库中安装 covey 的 App；你的代理将显示为 {{bot}}。",
+      "createOwn": "创建自己的 GitHub App",
+      "createOwnHint": "属于你组织、拥有独立名称的 App（例如 acme-agents[bot]）。GitHub 会直接把密钥交给 covey，无需任何人复制。",
+      "githubOrg": "GitHub 组织（留空 = 个人账户）",
+      "appName": "App 名称",
+      "create": "在 GitHub 上创建",
+      "connected": "已作为 {{bot}} 连接 · {{account}}",
+      "notInstalled": "App {{app}} 已创建，但尚未安装。",
+      "install": "安装",
+      "disconnect": "断开连接",
+      "orToken": "或者在下方改为保存令牌：",
+      "noSite": "需要站点地址（COVEY_SITE_URL），以便 GitHub 将你送回。",
+      "outcomeConnected": "GitHub 已连接。",
+      "outcomeRequested": "已申请安装——仍需 GitHub 组织的所有者批准。",
+      "outcomeError": "连接 GitHub 失败：",
+      "routingHint": "所有代理共享 App 的名称。使用标签 agent:<slug> 或评论 /covey <slug> 指定某个代理；回复会返回给撰写该 issue 或 pull request 的代理。"
+    }
   },
   "egress": {
     "title": "互联网访问",

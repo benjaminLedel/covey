@@ -35,6 +35,7 @@ import (
 	"covey/internal/config"
 	"covey/internal/dream"
 	"covey/internal/egress"
+	"covey/internal/githubapp"
 	"covey/internal/guardrails"
 	"covey/internal/homestore"
 	"covey/internal/identity"
@@ -213,6 +214,9 @@ type Server struct {
 	TeamsApp *teamsapp.Service
 	// TeamsUser is "Teams as a person" (#712); nil = not offered.
 	TeamsUser *teamsuser.Service
+	// GitHubApp connects organisations to GitHub through a GitHub App (the
+	// platform's shared one or their own). nil = not offered.
+	GitHubApp *githubapp.Service
 	// SSO is single sign-on per organisation (#723); nil = not offered.
 	SSO        *sso.Service
 	SessionTTL time.Duration
@@ -611,6 +615,11 @@ func (s *Server) Handler() http.Handler {
 	// Whom a member writes to directly (#440): any agent, or those of their
 	// own departments.
 	mux.Handle("GET /api/v1/teamsuser", s.rbac(anyRole, s.handleTeamsUserStatus))
+	// GitHub Apps: connect the shared App, create an own one, disconnect.
+	mux.Handle("GET /api/v1/integrations/github", s.rbac(anyRole, s.handleGitHubAppStatus))
+	mux.Handle("POST /api/v1/integrations/github/connect", s.rbac(securityRoles, s.handleGitHubAppConnect))
+	mux.Handle("POST /api/v1/integrations/github/manifest", s.rbac(securityRoles, s.handleGitHubAppManifest))
+	mux.Handle("DELETE /api/v1/integrations/github", s.rbac(securityRoles, s.handleGitHubAppDisconnect))
 	mux.Handle("POST /api/v1/teamsuser/delegate", s.rbac(manage, s.handleTeamsUserDelegate))
 	mux.Handle("DELETE /api/v1/teamsuser/delegations/{agent}", s.rbac(manage, s.handleTeamsUserRevoke))
 	mux.Handle("GET /api/v1/teamsapp", s.rbac(anyRole, s.handleTeamsAppStatus))
@@ -955,6 +964,11 @@ func (s *Server) Handler() http.Handler {
 	// bot.
 	mux.HandleFunc("POST /api/webhooks/teamsapp/{bot}", s.logIncoming(s.handleTeamsAppWebhook))
 	mux.HandleFunc("GET /api/teamsuser/callback", s.handleTeamsUserCallback)
+	// GitHub App flows come back here (public; bound by sealed state + flow
+	// cookie), and every organisation's App webhooks arrive at one address.
+	mux.HandleFunc("GET "+ghManifestBack, s.handleGitHubManifestReturn)
+	mux.HandleFunc("GET "+ghInstallBack, s.handleGitHubInstallReturn)
+	mux.HandleFunc("POST /api/webhooks/github-app", s.logIncoming(s.handleGitHubAppWebhook))
 	mux.HandleFunc("GET /api/teamsapp/signin", s.handleTeamsAppPersonSignIn)
 	mux.HandleFunc("GET /api/teamsapp/person-callback", s.handleTeamsAppPersonCallback)
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))

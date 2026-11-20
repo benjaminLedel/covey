@@ -290,6 +290,10 @@ func (s *Server) handleGetOwnOrg(w http.ResponseWriter, r *http.Request) {
 		// endpoint that any member may call for more than a yes or no.
 		if token, err := s.Secrets.Get(r.Context(), p.OrgID, system+"_token"); err == nil && strings.TrimSpace(token) != "" {
 			out.PlatformRepoCanFile = true
+		} else if system == "github" && s.GitHubApp != nil {
+			if c, err := s.GitHubApp.Get(r.Context(), p.OrgID); err == nil && c.Installed() {
+				out.PlatformRepoCanFile = true
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
