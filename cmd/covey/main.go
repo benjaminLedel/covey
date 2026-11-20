@@ -1383,6 +1383,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	platform := map[string]orchestrator.PlatformSystem{}
 	teamsApp := teamsapp.New(pool, registry, box, log)
 	teamsUser := teamsuser.New(pool, box, teamsApp, log)
+	gitHubApp, err := newGitHubAppService(cfg.GitHubApp, pool, box, log)
+	if err != nil {
+		return err
+	}
 	if teamsApp != nil {
 		teamsApp.Enabled = func(ctx context.Context, orgID uuid.UUID) bool {
 			_, err := targets.System(ctx, orgID, teamsys.Name)
@@ -1402,7 +1406,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Platform: platform,
 		Pool:     pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
-		Chat: chat.New(pool), Org: org.NewStore(pool),
+		GitHubApp: gitHubApp,
+		Chat:      chat.New(pool), Org: org.NewStore(pool),
 		Runtimes:   runtimeStore,
 		Targets:    targets,
 		Skills:     skillStore,
@@ -1535,6 +1540,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		UnsignedWebhooks: cfg.UnsignedWebhooks,
 		TeamsApp:         teamsApp,
 		TeamsUser:        teamsUser,
+		GitHubApp:        gitHubApp,
 		// Single sign-on per organisation (#723): configured by each
 		// organisation in the interface; nothing to set on the server.
 		SSO:            &sso.Service{Pool: pool, Box: box},

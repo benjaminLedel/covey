@@ -342,3 +342,28 @@ func clearCoveyEnv(t *testing.T) {
 		}
 	}
 }
+
+// The shared GitHub App is offered only when it is configured completely, and
+// its webhook secret is not mistaken for a target system "github_app".
+func TestGitHubAppFromEnv(t *testing.T) {
+	clearCoveyEnv(t)
+	t.Setenv("COVEY_GITHUB_APP_ID", "77")
+	t.Setenv("COVEY_GITHUB_APP_SLUG", "covey")
+	t.Setenv("COVEY_GITHUB_APP_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----\\nx\\n-----END RSA PRIVATE KEY-----")
+	t.Setenv("COVEY_GITHUB_APP_WEBHOOK_SECRET", "s")
+	t.Setenv("COVEY_GITHUB_APP_CLIENT_ID", "cid")
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.GitHubApp.ID != 77 || c.GitHubApp.Slug != "covey" || c.GitHubApp.Enabled() {
+		t.Fatalf("without a client secret the App is incomplete: %+v", c.GitHubApp)
+	}
+	if _, ok := c.WebhookSecrets["github_app"]; ok {
+		t.Fatal("COVEY_GITHUB_APP_WEBHOOK_SECRET must not become a system webhook secret")
+	}
+	t.Setenv("COVEY_GITHUB_APP_CLIENT_SECRET", "cs")
+	if c, _ = FromEnv(); !c.GitHubApp.Enabled() {
+		t.Fatal("complete configuration must enable the shared App")
+	}
+}

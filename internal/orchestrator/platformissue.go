@@ -188,6 +188,11 @@ func (o *Orchestrator) platformRepo(ctx context.Context, orgID uuid.UUID) (strin
 // broker, nothing in a sandbox: the agent never sees it, which is why it can be
 // the token of a bot account that may write issues and nothing else.
 func (o *Orchestrator) platformIssueCredential(ctx context.Context, orgID uuid.UUID, system string) (target.Credential, string) {
+	if system == "github" {
+		if t, c, err := o.GitHubApp.Token(ctx, orgID); err == nil {
+			return target.Credential{BaseURL: o.GitHubApp.BaseURL(), Token: t.Value, Login: c.BotLogin()}, ""
+		}
+	}
 	token, err := o.Secrets.Get(ctx, orgID, system+"_token")
 	if err != nil || strings.TrimSpace(token) == "" {
 		return target.Credential{}, fmt.Sprintf(

@@ -78,6 +78,10 @@ type setupState struct {
 	Probe    bool         `json:"probe"`
 	Agents   []setupAgent `json:"agents"`
 	SetupDoc string       `json:"setup_doc,omitempty"`
+	// GitHub only: how the organisation is connected. "app" when a GitHub
+	// App is installed (the token step is then optional), else "token".
+	Connection string           `json:"connection,omitempty"`
+	GitHubApp  *githubAppStatus `json:"github_app,omitempty"`
 }
 
 func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
@@ -198,6 +202,20 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	// with a TypeError before it displays anything. It hit exactly the systems
 	// that need no credentials (browser, dev): there no append ever hangs on
 	// the case distinction above.
+	if name == "github" && s.GitHubApp != nil {
+		st := s.githubAppStatus(r.Context(), p.OrgID)
+		state.GitHubApp, state.Connection = &st, "token"
+		if st.Installed {
+			// The App mints the token; a stored github_token is no longer
+			// required (an agent's own still takes precedence at run time).
+			state.Connection = "app"
+			for i := range state.Credentials {
+				if state.Credentials[i].Key == "github_token" {
+					state.Credentials[i].Optional = true
+				}
+			}
+		}
+	}
 	if state.Credentials == nil {
 		state.Credentials = []setupCredential{}
 	}
@@ -250,7 +268,10 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 	// ref addresses the value the test used, so the outcome is written beside
 	// the one a run would get — an agent's own where the test ran as an agent.
 	ref := secrets.Ref{OrgID: p.OrgID, Key: name + "_token"}
-	if !d.NoCredentials {
+	appCred, viaApp := s.githubAppProbeCredential(r.Context(), name, p.OrgID, agentID)
+	if viaApp {
+		cred = appCred
+	} else if !d.NoCredentials {
 		var token string
 		if agentID != nil {
 			// Lookup names the value Resolve would hand this agent; Open reads
@@ -302,7 +323,7 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 	// What the test saw is kept beside the token — the same columns the
 	// daily check writes, so the wizard's button and the loop tell one
 	// story. A system without credentials has no row to write to.
-	if !d.NoCredentials {
+	if !d.NoCredentials && !viaApp {
 		rec := secrets.Probe{At: time.Now(), Identity: info.Identity, ExpiresAt: info.ExpiresAt,
 			CredentialID: info.ID, Rotatable: info.Rotatable}
 		if err != nil {

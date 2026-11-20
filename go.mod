@@ -22,8 +22,8 @@ require (
 )
 
 require (
-	github.com/benjaminLedel/covey-plugin-pack v0.33.1
-	github.com/benjaminLedel/covey-plugin-sdk v0.7.0
+	github.com/benjaminLedel/covey-plugin-pack v0.33.2-0.20261120073459-fb66883d9198
+	github.com/benjaminLedel/covey-plugin-sdk v0.7.1-0.20261120071623-fd35104274e6
 	github.com/chromedp/cdproto v0.159.1 // indirect
 	github.com/chromedp/chromedp v0.23.0
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect

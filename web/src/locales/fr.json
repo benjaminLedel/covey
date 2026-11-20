@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "Disponibles",
     "toAvailable": "Vers les disponibles",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Au lieu d'enregistrer un jeton, connectez une GitHub App : covey crée lui-même les jetons d'accès, rien n'expire et personne n'a besoin d'un compte bot.",
+      "connectShared": "Connecter avec GitHub",
+      "connectSharedHint": "Installe l'App de covey sur les dépôts que vous choisissez ; vos agents apparaissent comme {{bot}}.",
+      "createOwn": "Créer sa propre GitHub App",
+      "createOwnHint": "Une App de votre organisation avec son propre nom (p. ex. acme-agents[bot]). GitHub transmet la clé directement à covey ; personne ne la copie.",
+      "githubOrg": "Organisation GitHub (vide = compte personnel)",
+      "appName": "Nom de l'App",
+      "create": "Créer sur GitHub",
+      "connected": "Connecté en tant que {{bot}} · {{account}}",
+      "notInstalled": "L'App {{app}} est créée mais pas encore installée.",
+      "install": "Installer",
+      "disconnect": "Déconnecter",
+      "orToken": "Ou enregistrez plutôt un jeton ci-dessous :",
+      "noSite": "Nécessite une adresse de site (COVEY_SITE_URL) pour que GitHub puisse vous renvoyer.",
+      "outcomeConnected": "GitHub est connecté.",
+      "outcomeRequested": "Installation demandée : un propriétaire de l'organisation GitHub doit encore l'approuver.",
+      "outcomeError": "La connexion à GitHub a échoué :",
+      "routingHint": "Tous les agents partagent le nom de l'App. Adressez-vous à l'un d'eux avec le label agent:<slug> ou un commentaire /covey <slug> ; les réponses reviennent à l'agent qui a écrit l'issue ou la pull request."
+    }
   },
   "egress": {
     "title": "Accès internet",

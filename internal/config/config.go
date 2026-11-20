@@ -188,6 +188,11 @@ type Config struct {
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
 	WebhookSecrets map[string]string
+	// GitHubApp is the platform's shared GitHub App (COVEY_GITHUB_APP_*):
+	// organisations connect it with one click instead of storing a token.
+	// Empty ID: not offered; organisations can still create an App of their
+	// own through the manifest flow.
+	GitHubApp GitHubAppConfig
 	// UnsignedWebhooks names the target systems whose webhooks are accepted
 	// without any secret (COVEY_UNSIGNED_WEBHOOKS, comma-separated, e.g.
 	// "zammad,teams") — for local demo doubles that cannot sign. Without it a
@@ -403,6 +408,7 @@ func FromEnv() (Config, error) {
 		S3SecretKey:          getenv("COVEY_S3_SECRET_KEY", ""),
 		S3PathStyle:          getenvBool("COVEY_S3_PATH_STYLE", true),
 		WebhookSecrets:       webhookSecretsFromEnv(),
+		GitHubApp:            gitHubAppFromEnv(),
 		UnsignedWebhooks:     unsignedWebhooksFromEnv(),
 		TickInterval:         getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:              getenv("COVEY_DREAM_AT", "03:00"),
@@ -593,7 +599,9 @@ func webhookSecretsFromEnv() map[string]string {
 			continue
 		}
 		name, ok = strings.CutSuffix(name, "_WEBHOOK_SECRET")
-		if !ok || name == "" || v == "" {
+		if !ok || name == "" || v == "" || name == "GITHUB_APP" {
+			// COVEY_GITHUB_APP_WEBHOOK_SECRET belongs to the shared App, not to
+			// a target system called github_app.
 			continue
 		}
 		out[strings.ToLower(name)] = v
@@ -792,4 +800,37 @@ func unsignedWebhooksFromEnv() map[string]bool {
 		}
 	}
 	return out
+}
+
+// GitHubAppConfig is the platform's shared GitHub App.
+type GitHubAppConfig struct {
+	ID            int64
+	Slug          string
+	PrivateKey    string // PEM; COVEY_GITHUB_APP_PRIVATE_KEY or …_PRIVATE_KEY_FILE
+	WebhookSecret string
+	ClientID      string
+	ClientSecret  string
+}
+
+// Enabled reports whether the shared App is configured completely.
+func (g GitHubAppConfig) Enabled() bool {
+	return g.ID != 0 && g.Slug != "" && g.PrivateKey != "" && g.ClientID != "" && g.ClientSecret != ""
+}
+
+func gitHubAppFromEnv() GitHubAppConfig {
+	id, _ := strconv.ParseInt(strings.TrimSpace(os.Getenv("COVEY_GITHUB_APP_ID")), 10, 64)
+	key := os.Getenv("COVEY_GITHUB_APP_PRIVATE_KEY")
+	if f := strings.TrimSpace(os.Getenv("COVEY_GITHUB_APP_PRIVATE_KEY_FILE")); key == "" && f != "" {
+		if b, err := os.ReadFile(f); err == nil {
+			key = string(b)
+		}
+	}
+	return GitHubAppConfig{
+		ID:            id,
+		Slug:          strings.TrimSpace(os.Getenv("COVEY_GITHUB_APP_SLUG")),
+		PrivateKey:    key,
+		WebhookSecret: os.Getenv("COVEY_GITHUB_APP_WEBHOOK_SECRET"),
+		ClientID:      strings.TrimSpace(os.Getenv("COVEY_GITHUB_APP_CLIENT_ID")),
+		ClientSecret:  os.Getenv("COVEY_GITHUB_APP_CLIENT_SECRET"),
+	}
 }

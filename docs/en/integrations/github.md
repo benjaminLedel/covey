@@ -69,6 +69,13 @@ both at once:
 
 ## 2. Step-by-step instructions
 
+> **Easier: a GitHub App (section 9).** Instead of an account and a token,
+> an organisation connects a GitHub App in the setup assistant — the
+> platform's shared one with one click, or an App of its own created through
+> GitHub's manifest flow. covey mints the tokens itself; nothing expires and
+> nobody copies a key. The steps below are the token route, which keeps
+> working beside it.
+
 ### 2.1 On GitHub: create an account + token
 
 Give the agent an account of its own (`covey-bot`, say) and add it to the target
@@ -394,6 +401,8 @@ has to read both.
 | `COVEY_GITHUB_CHECKOUT_MAX_MB` | `512` | The upper bound on the unpacked size of a `checkout` (section 5) |
 | `COVEY_PUBLIC_URL` | *(empty)* | The externally reachable base URL — needed for the webhook route only |
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts |
+| `COVEY_GITHUB_APP_ID` · `_SLUG` · `_PRIVATE_KEY` (or `_PRIVATE_KEY_FILE`) · `_CLIENT_ID` · `_CLIENT_SECRET` · `_WEBHOOK_SECRET` | *(empty)* | The platform's shared GitHub App (section 9). All but the webhook secret are required for "Connect with GitHub" to be offered |
+| `COVEY_SITE_URL` | *(from the request)* | Where GitHub sends the browser back after creating or installing an App — required for both App flows |
 
 The general variables (egress, the daemon token TTL, …) are in
 [`ops-zammad.md`](./zammad.md), section 6.
@@ -413,3 +422,93 @@ The general variables (egress, the daemon token TTL, …) are in
 | The webhook arrives, nothing happens | The secret does not match, or the event is `CorrelateOnly` and nobody is waiting | Check the signature; see section 1 for which events create tasks |
 | `assign` reports success, nobody is assigned | GitHub silently swallows an unknown assignee | The plugin checks the login beforehand — if it still happens, the account has no repository access |
 | `get_job_log` fails at the redirect | The egress allowlist lacks the blob storage host | Import the built-in **GitHub** template (6.1) |
+
+---
+
+## 9. GitHub Apps
+
+A GitHub App replaces the bot account and its token. The control plane holds
+the App's private key, mints an **installation token** per request (valid for
+an hour, cached until ten minutes before expiry) and brokers it to the plugin
+like any other credential. The key never reaches a sandbox; an own App's key
+is sealed with the master key in its own table, not among the secrets, so it
+cannot be assigned to an agent or used as a `{{secret:…}}` placeholder.
+
+### 9.1 Two ways in
+
+| | Shared App ("Connect with GitHub") | Own App ("Create own GitHub App") |
+|---|---|---|
+| Offered when | the instance sets `COVEY_GITHUB_APP_*` | always (needs `COVEY_SITE_URL`) |
+| What the admin does | click, pick repositories on GitHub | name the App, click "Create", pick repositories |
+| Bot name on GitHub | `<slug>[bot]` of the platform, e.g. `covey[bot]` | the organisation's own, e.g. `acme-agents[bot]` |
+| Webhooks | one address for every organisation | the same address, signed with the App's own secret |
+
+Both flows leave covey for github.com and come back to
+`/api/integrations/github/manifest` (own App: GitHub hands over the App's
+credentials once, by code) and `/api/integrations/github/installed` (the
+installation). What binds the return to the organisation is a state sealed
+with the master key; what binds it to the browser that started is a short-lived
+flow cookie. An installation id from the browser is never trusted on its own:
+
+- **own App:** covey asks GitHub, under the App's JWT, whether the
+  installation exists for that App. A private App can only be installed by
+  its owner.
+- **shared App:** it is public, so anybody can install it. The App therefore
+  requests user authorisation during installation; covey exchanges the code
+  for the installing user's token and accepts the installation only if that
+  user can see it (`GET /user/installations`). Without this check, knowing
+  someone else's installation id would be enough to act in their
+  repositories.
+
+### 9.2 Which credential a run gets
+
+1. a `github_token` the **agent** owns (an agent-scoped secret) — someone gave
+   this agent its own account on purpose;
+2. the organisation's **installed GitHub App**;
+3. the organisation's `github_token`, as before.
+
+A connected App that fails (uninstalled, suspended) is reported as such; covey
+does not silently fall back to another account's token.
+
+### 9.3 Telling agents apart under one name
+
+With an App every agent of the organisation writes as the same bot. What an
+agent leaves behind therefore names it:
+
+- a hidden marker `<!-- covey-agent: <slug> -->` in issues, pull requests,
+  comments and reviews;
+- a signature line `— <agent> · <organisation> (covey)`;
+- the agent as **commit author** (`<slug>@agents.covey.work`), the bot as
+  committer.
+
+Incoming events at `POST /api/webhooks/github-app` are routed to exactly one
+agent with GitHub in its `ACCESS.md`:
+
+1. a **mention** in the new text: `/covey <slug>` or `@<app> <slug>`;
+2. a **label** `agent:<slug>` on the issue or pull request;
+3. the **author** of the issue or pull request (its marker) — review comments
+   go back to the agent that opened the PR;
+4. the organisation's **only** agent with GitHub access.
+
+With several candidates and none of these, the event is acknowledged but not
+delivered (`"outcome": "not routed"`) — starting several agents on the same
+item would be worse. Events written by any bot (`sender.type == "Bot"`) do not
+wake anybody, so agents do not wake each other in a loop.
+
+### 9.4 Setting up the shared App (operators)
+
+Create the App on GitHub (Settings › Developer settings › GitHub Apps › New):
+
+| Field | Value |
+|---|---|
+| Callback URL **and** Setup URL | `<COVEY_SITE_URL>/api/integrations/github/installed` |
+| Request user authorization (OAuth) during installation | **on** |
+| Webhook URL | `<COVEY_SITE_URL>/api/webhooks/github-app`, with a secret |
+| Permissions | Metadata r, Contents rw, Issues rw, Pull requests rw, Actions r, Checks r |
+| Events | Issues, Issue comment, Pull request, Pull request review, Pull request review comment |
+| Where can this App be installed? | Any account |
+
+Then set `COVEY_GITHUB_APP_ID`, `_SLUG`, `_PRIVATE_KEY_FILE`, `_CLIENT_ID`,
+`_CLIENT_SECRET` and `_WEBHOOK_SECRET` and restart. The log says
+`shared GitHub App offered` when it is complete.
+

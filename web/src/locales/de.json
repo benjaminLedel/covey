@@ -1856,7 +1856,28 @@
     },
     "tabAvailable": "Vorhanden",
     "toAvailable": "Zu den vorhandenen",
-    "kindWasm": "Code (wasm)"
+    "kindWasm": "Code (wasm)",
+    "githubApp": {
+      "title": "GitHub App",
+      "desc": "Statt einen Token zu hinterlegen, eine GitHub App verbinden: covey erzeugt die Zugangstokens selbst, nichts läuft ab, und niemand braucht ein Bot-Konto.",
+      "connectShared": "Mit GitHub verbinden",
+      "connectSharedHint": "Installiert die App von covey in den Repositories, die du auswählst; deine Agenten erscheinen als {{bot}}.",
+      "createOwn": "Eigene GitHub App erstellen",
+      "createOwnHint": "Eine App deiner Organisation mit eigenem Namen (z. B. acme-agents[bot]). GitHub übergibt covey den Schlüssel direkt – niemand kopiert ihn.",
+      "githubOrg": "GitHub-Organisation (leer = persönliches Konto)",
+      "appName": "Name der App",
+      "create": "Auf GitHub erstellen",
+      "connected": "Verbunden als {{bot}} · {{account}}",
+      "notInstalled": "App {{app}} ist erstellt, aber noch nicht installiert.",
+      "install": "Installieren",
+      "disconnect": "Trennen",
+      "orToken": "Oder stattdessen unten einen Token hinterlegen:",
+      "noSite": "Braucht eine Seitenadresse (COVEY_SITE_URL), damit GitHub dich zurückschicken kann.",
+      "outcomeConnected": "GitHub ist verbunden.",
+      "outcomeRequested": "Installation angefragt – ein Owner der GitHub-Organisation muss sie noch freigeben.",
+      "outcomeError": "GitHub verbinden ist fehlgeschlagen:",
+      "routingHint": "Alle Agenten teilen sich den Namen der App. Einen bestimmten sprichst du mit dem Label agent:<slug> oder dem Kommentar /covey <slug> an; Antworten gehen an den Agenten, der das Issue oder den Pull Request geschrieben hat."
+    }
   },
   "egress": {
     "title": "Internetzugriff",
