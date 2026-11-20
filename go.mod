@@ -5,7 +5,7 @@ go 1.26.6
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/emersion/go-imap/v2 v2.0.0-beta.8
+	github.com/emersion/go-imap/v2 v2.0.0-beta.9
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
