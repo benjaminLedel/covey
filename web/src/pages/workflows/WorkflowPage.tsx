@@ -12,12 +12,11 @@ import {
   MarkerType,
   ReactFlow,
   ReactFlowProvider,
-  applyNodeChanges,
   useReactFlow,
   type Connection,
   type Edge,
   type Node,
-  type NodeChange,
+  NodeChangeset,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./workflows.css";
@@ -292,11 +291,12 @@ function Editor({ me }: { me: Principal }) {
     });
   }, [doc, positions, tab, run, path, selectedLink, available, exitLabel]);
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    const kept = changes.filter((c) => c.type === "position" || c.type === "dimensions");
-    setNodes((ns) => applyNodeChanges(kept, ns));
+  const onNodesChange = useCallback((changes: NodeChangeset<Node>) => {
+    const moved = changes.getByType("position");
+    const kept = new NodeChangeset<Node>([...moved, ...changes.getByType("dimensions")]);
+    setNodes((ns) => kept.applyTo(ns));
     // A block put down somewhere else is a change to keep.
-    if (kept.some((c) => c.type === "position" && c.dragging === false)) {
+    if (moved.some((c) => c.dragging === false)) {
       setDirty(true);
       setMessage("");
     }
