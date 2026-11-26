@@ -462,6 +462,32 @@ func (s *Store) SetMCPTools(ctx context.Context, orgID uuid.UUID, name string, t
 	return nil
 }
 
+// Describe is target.Describe for this organization: what the platform needs
+// to know about a system (its credential flags, label, scopes) without running
+// it. target.Describe only knows the plugins compiled into the binary; a wasm
+// plugin from the catalogue declares the same flags in the description stored
+// at install time, and is read from there without compiling the module.
+//
+// The stored row wins over the compiled registry, as it does in System: the
+// row's kind decides which plugin the organization actually uses. Manifest and
+// MCP plugins have no descriptor and report false, as before. A nil store
+// knows only the compiled plugins.
+func (s *Store) Describe(ctx context.Context, orgID uuid.UUID, name string) (target.Descriptor, bool) {
+	if s != nil {
+		var kind string
+		var manifest []byte
+		err := s.pool.QueryRow(ctx, `SELECT kind, manifest FROM target_plugins
+			WHERE org_id=$1 AND name=$2`, orgID, name).Scan(&kind, &manifest)
+		if err == nil && kind == "wasm" {
+			if d, ok := wasmplug.StoredDescription(manifest); ok {
+				return d.Descriptor(), true
+			}
+			return target.Descriptor{}, false
+		}
+	}
+	return target.Describe(name)
+}
+
 // Kind returns the plugin type (builtin|custom|mcp) — the broker branches on it
 // (e.g. for mcp the token/URL secrets are optional).
 func (s *Store) Kind(ctx context.Context, orgID uuid.UUID, name string) (string, error) {

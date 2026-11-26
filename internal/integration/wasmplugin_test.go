@@ -12,8 +12,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"covey/internal/backlog"
 	"covey/internal/marketplace"
+	"covey/internal/target/wasmplug"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -172,5 +175,136 @@ func TestWasmPluginRefusesARubbishModule(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatal("a module that does not compile must not be stored")
+	}
+}
+
+// TestWasmPluginDeclaresNoCredentials is #777: a wasm plugin whose sources are
+// all public could not say so, and every lookup — broker, setup assistant,
+// list_targets — took it for a plugin that needs <name>_token and <name>_url.
+// The declaration is read from the description stored at install time.
+func TestWasmPluginDeclaresNoCredentials(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	if _, err := s.targets.PutFromCatalog(ctx, s.orgID, "wasm", buildDemoWasm(t), "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	declare := func(value string) { declareWasmCredentials(t, s, "demo", value) }
+	setupKeys := func() map[string]bool {
+		t.Helper()
+		admin := login(t, s, "admin@test.local", "admin-passwort")
+		resp := admin.do(http.MethodGet, "/api/v1/targets/demo/setup", nil)
+		defer resp.Body.Close()
+		var state struct {
+			Credentials []struct {
+				Key      string `json:"key"`
+				Optional bool   `json:"optional"`
+			} `json:"credentials"`
+		}
+		json.NewDecoder(resp.Body).Decode(&state)
+		required := map[string]bool{}
+		for _, c := range state.Credentials {
+			required[c.Key] = !c.Optional
+		}
+		return required
+	}
+
+	// Declaring nothing is today's behaviour: both secrets are asked for.
+	d, ok := s.targets.Describe(ctx, s.orgID, "demo")
+	if !ok || d.NoCredentials || d.CredentialsOptional || d.BaseURLOptional {
+		t.Fatalf("an undeclared module needs its secrets: %+v %v", d, ok)
+	}
+	if got := setupKeys(); !got["demo_token"] || !got["demo_url"] {
+		t.Errorf("setup without a declaration = %v, want demo_token and demo_url required", got)
+	}
+
+	declare(wasmplug.CredentialsNone)
+	if d, ok := s.targets.Describe(ctx, s.orgID, "demo"); !ok || !d.NoCredentials || !d.BaseURLOptional {
+		t.Errorf("credentials \"none\": %+v %v", d, ok)
+	}
+	if got := setupKeys(); len(got) != 0 {
+		t.Errorf("setup of a plugin that needs no secret still asks for %v", got)
+	}
+
+	declare(wasmplug.CredentialsOptional)
+	if d, _ := s.targets.Describe(ctx, s.orgID, "demo"); !d.CredentialsOptional || !d.BaseURLOptional || d.NoCredentials {
+		t.Errorf("credentials \"optional\": %+v", d)
+	}
+	if got := setupKeys(); got["demo_token"] || got["demo_url"] {
+		t.Errorf("setup of an optional plugin requires %v", got)
+	}
+
+	// A value covey does not know keeps the broker closed.
+	declare("nothing-please")
+	if d, _ := s.targets.Describe(ctx, s.orgID, "demo"); d.NoCredentials || d.CredentialsOptional || d.BaseURLOptional {
+		t.Errorf("an unknown declaration opened the broker: %+v", d)
+	}
+}
+
+// declareWasmCredentials rewrites what a stored module declares about its
+// credentials, as a newer build of the same module would have at install time.
+func declareWasmCredentials(t *testing.T, s *stack, name, value string) {
+	t.Helper()
+	ctx := context.Background()
+	var raw []byte
+	if err := s.pool.QueryRow(ctx, `SELECT manifest FROM target_plugins WHERE org_id=$1 AND name=$2`,
+		s.orgID, name).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var st wasmplug.Stored
+	if err := json.Unmarshal(raw, &st); err != nil {
+		t.Fatal(err)
+	}
+	st.Describe.Credentials = value
+	raw, _ = json.Marshal(st)
+	if _, err := s.pool.Exec(ctx, `UPDATE target_plugins SET manifest=$3 WHERE org_id=$1 AND name=$2`,
+		s.orgID, name, raw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestWasmPluginWithoutCredentialsIsBrokered: the broker is where #777 showed —
+// "credential for vulndb denied: no secret stored or assigned: vulndb_token".
+// A module declaring "none" is granted with nothing stored, and the action runs.
+func TestWasmPluginWithoutCredentialsIsBrokered(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	if _, err := s.targets.PutFromCatalog(ctx, s.orgID, "wasm", buildDemoWasm(t), "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.targets.SetEnabled(ctx, s.orgID, "demo", true); err != nil {
+		t.Fatal(err)
+	}
+	declareWasmCredentials(t, s, "demo", wasmplug.CredentialsNone)
+
+	agent, err := s.registry.Create(ctx, s.orgID, "public-reader", "Public reader", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md":   "# Reader\n\n## Role\nReads public sources.",
+		"ACCESS.md": "- system: demo scope: read",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Shout",
+		`[mock:action demo/shout {"text":"quiet"}]
+[mock:result done]`, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "task done", 20*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	var granted, denied int
+	if err := s.pool.QueryRow(ctx, `SELECT
+		  count(*) FILTER (WHERE (payload->>'granted')::bool),
+		  count(*) FILTER (WHERE NOT (payload->>'granted')::bool)
+		FROM recording_events
+		WHERE agent_id=$1 AND kind='credential' AND payload->>'system'='demo'`, agent.ID).Scan(&granted, &denied); err != nil {
+		t.Fatal(err)
+	}
+	if granted == 0 || denied != 0 {
+		t.Errorf("credential for demo: %d granted, %d denied — want a grant without any secret stored", granted, denied)
 	}
 }

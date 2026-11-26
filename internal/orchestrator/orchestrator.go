@@ -865,14 +865,17 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	if viaApp {
 		cred = appCred
-	} else if d, _ := target.Describe(system); !d.NoCredentials {
+	} else if d, _ := o.Targets.Describe(ctx, orgID, system); !d.NoCredentials {
+		// The same rules as the broker: an optional secret is passed on when it
+		// is stored and not missed when it is not, and a plugin that brings its
+		// endpoint along does not need <name>_url.
 		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
-		if err != nil {
+		if err != nil && !d.CredentialsOptional {
 			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
 		baseURL, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_url")
-		if err != nil {
+		if err != nil && !d.CredentialsOptional && !d.BaseURLOptional {
 			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
@@ -3489,8 +3492,10 @@ func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Age
 	// Local systems (NoCredentials, e.g. the dev plugin) need no secrets — the
 	// actions run entirely inside the sandbox. The checks above (ACCESS.md,
 	// activation, guard rails) still apply; what is granted is an empty
-	// credential.
-	if d, ok := target.Describe(req.System); ok && d.NoCredentials {
+	// credential. A wasm plugin declaring credentials "none" lands here too:
+	// it reaches only the hosts it declares, and those never get a token.
+	desc, described := o.Targets.Describe(ctx, agent.OrgID, req.System)
+	if described && desc.NoCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 			map[string]any{"system": req.System, "granted": true, "local": true})
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
@@ -3500,7 +3505,7 @@ func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Age
 	// e.g. an NVD API key that lifts the public rate limit): a missing secret
 	// must not deny — the plugin works without one, only more slowly. Whatever
 	// is stored is passed on.
-	if d, ok := target.Describe(req.System); ok && d.CredentialsOptional {
+	if described && desc.CredentialsOptional {
 		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 		ca := o.brokerCA(ctx, agent, req.System)
@@ -3541,7 +3546,7 @@ func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Age
 	// does not need at all.
 	baseURL, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 	if err != nil {
-		if d, ok := target.Describe(req.System); !ok || !d.BaseURLOptional {
+		if !described || !desc.BaseURLOptional {
 			return deny("no secret stored or assigned: " + req.System + "_url")
 		}
 		baseURL = ""

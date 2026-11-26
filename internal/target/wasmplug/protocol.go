@@ -21,7 +21,11 @@
 // can read stdin and write stdout can implement it — Go, TinyGo, Rust.
 package wasmplug
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
+)
 
 // Invocation is what the host writes to the module's stdin, as one JSON line.
 type Invocation struct {
@@ -150,6 +154,18 @@ type Description struct {
 	// never sees the token — it says where the HOST should put it. Empty =
 	// "Authorization: Bearer {token}", the same default a manifest has.
 	Auth AuthDesc `json:"auth,omitempty"`
+	// Credentials says whether the plugin needs a brokered secret at all — the
+	// module's counterpart of the descriptor flags a compiled plugin sets:
+	//
+	//	""         (the default) <name>_token and <name>_url are required
+	//	"optional" granted without a secret; whatever is stored is passed on
+	//	           (an API key that only lifts a public rate limit)
+	//	"none"     the plugin never needs a secret — it reaches only the hosts
+	//	           it declares, and those never get a credential anyway
+	//
+	// Both "optional" and "none" make <name>_url optional too. Any other value
+	// reads as the default: a typo has to keep the broker closed, not open it.
+	Credentials string `json:"credentials,omitempty"`
 	// Hosts are additional hosts this plugin needs to reach, beyond the one
 	// brokered base URL — an OAuth token endpoint, a second API, a public
 	// vulnerability database. They are declared, not requested at runtime, so
@@ -218,4 +234,29 @@ type ActionDesc struct {
 type PollResult struct {
 	HasWork   bool   `json:"has_work"`
 	Signature string `json:"signature,omitempty"`
+}
+
+// The values of Description.Credentials.
+const (
+	CredentialsRequired = ""
+	CredentialsOptional = "optional"
+	CredentialsNone     = "none"
+)
+
+// Descriptor is what the platform knows about a module without compiling it:
+// the store keeps the description from install time, and the broker, the setup
+// assistant and the credential checks read their flags from here, the same
+// ones target.Describe hands out for a compiled plugin.
+func (d Description) Descriptor() target.Descriptor {
+	td := target.Descriptor{
+		Name: d.Name, Label: d.Label, Description: d.Description,
+		Kind: "wasm", Category: d.Category, Scopes: d.Scopes,
+	}
+	switch d.Credentials {
+	case CredentialsNone:
+		td.NoCredentials, td.BaseURLOptional = true, true
+	case CredentialsOptional:
+		td.CredentialsOptional, td.BaseURLOptional = true, true
+	}
+	return td
 }

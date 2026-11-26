@@ -163,9 +163,9 @@ func (o *Orchestrator) checkCredential(ctx context.Context, st secrets.Stored) {
 	warn := ""
 	switch {
 	case rejected:
-		warn = fmt.Sprintf("%s refused the credential %s: %s", systemLabel(system), st.Key, firstLine(reason))
+		warn = fmt.Sprintf("%s refused the credential %s: %s", o.systemLabel(ctx, st.OrgID, system), st.Key, firstLine(reason))
 	case expiresAt != nil && now.After(*expiresAt):
-		warn = fmt.Sprintf("%s has expired (%s) — %s will refuse it", st.Key, expiresAt.Format("2006-01-02"), systemLabel(system))
+		warn = fmt.Sprintf("%s has expired (%s) — %s will refuse it", st.Key, expiresAt.Format("2006-01-02"), o.systemLabel(ctx, st.OrgID, system))
 	case expiresAt != nil && expiresAt.Sub(now) < credentialWarnAhead:
 		days := int(expiresAt.Sub(now).Hours() / 24)
 		warn = fmt.Sprintf("%s expires on %s (in %d days)", st.Key, expiresAt.Format("2006-01-02"), days)
@@ -195,7 +195,7 @@ func (o *Orchestrator) storedCredential(ctx context.Context, st secrets.Stored, 
 	}
 	cred := target.Credential{Token: token, BaseURL: sibling(system + "_url"), CA: sibling(system + "_ca")}
 	if cred.BaseURL == "" {
-		if d, ok := target.Describe(system); !ok || !d.BaseURLOptional {
+		if d, ok := o.Targets.Describe(ctx, st.OrgID, system); !ok || !d.BaseURLOptional {
 			// Half a setup. The wizard says so where it is being set up; a
 			// probe against nowhere would only write "no URL" beside the
 			// token every day.
@@ -298,7 +298,7 @@ func (o *Orchestrator) noteTargetRejection(ctx context.Context, agent agents.Age
 	o.recordCredential(ctx, st, map[string]any{"system": system, "granted": false, "reason": "rejected",
 		"error": firstLine(ev.Error), "agent": agent.ID})
 	if st.WarnedAt == nil {
-		o.warnCredential(ctx, st, fmt.Sprintf("%s refused the credential %s: %s", systemLabel(system), st.Key, firstLine(ev.Error)))
+		o.warnCredential(ctx, st, fmt.Sprintf("%s refused the credential %s: %s", o.systemLabel(ctx, st.OrgID, system), st.Key, firstLine(ev.Error)))
 	}
 }
 
@@ -349,8 +349,8 @@ func (o *Orchestrator) recordCredential(ctx context.Context, st secrets.Stored, 
 }
 
 // systemLabel is the plugin's display name, or the name where there is none.
-func systemLabel(system string) string {
-	if d, ok := target.Describe(system); ok && d.Label != "" {
+func (o *Orchestrator) systemLabel(ctx context.Context, orgID uuid.UUID, system string) string {
+	if d, ok := o.Targets.Describe(ctx, orgID, system); ok && d.Label != "" {
 		return d.Label
 	}
 	return system

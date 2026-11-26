@@ -115,9 +115,10 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The flags (which credentials, which scopes) stand in the descriptor of
-	// the compiled plugin. Manifest and MCP plugins have none — there the
-	// fields stay empty, and the assistant shows correspondingly less.
-	plugin, _ := target.Describe(name)
+	// the compiled plugin, or in the description a wasm module declared at
+	// install time. Manifest and MCP plugins have none — there the fields stay
+	// empty, and the assistant shows correspondingly less.
+	plugin, _ := s.Targets.Describe(r.Context(), p.OrgID, name)
 	state.Scopes = plugin.Scopes
 	// A manifest plugin has no descriptor, but its scope vocabulary stands in
 	// the file — otherwise the assistant would offer no scopes at all for
@@ -263,7 +264,7 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d, _ := target.Describe(name)
+	d, _ := s.Targets.Describe(r.Context(), p.OrgID, name)
 	var cred target.Credential
 	// ref addresses the value the test used, so the outcome is written beside
 	// the one a run would get — an agent's own where the test ran as an agent.

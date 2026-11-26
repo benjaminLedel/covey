@@ -203,7 +203,7 @@ func (o *Orchestrator) platformIssueCredential(ctx context.Context, orgID uuid.U
 	base, _ := o.Secrets.Get(ctx, orgID, system+"_url")
 	ca, _ := o.Secrets.Get(ctx, orgID, system+"_ca")
 	if base == "" {
-		if d, ok := target.Describe(system); !ok || !d.BaseURLOptional {
+		if d, ok := o.Targets.Describe(ctx, orgID, system); !ok || !d.BaseURLOptional {
 			return target.Credential{}, fmt.Sprintf("no %s_url is stored — half a setup", system)
 		}
 	}
