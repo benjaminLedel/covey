@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Stored is how a wasm plugin sits in the database and travels to the daemon:
@@ -64,4 +66,37 @@ func StoredDescription(raw []byte) (Description, bool) {
 		return Description{}, false
 	}
 	return s.Describe, true
+}
+
+// The values Description.Credentials knows. Anything else reads as the
+// default: a word the host does not recognise must not open the broker.
+const (
+	CredentialsRequired = ""
+	CredentialsOptional = "optional"
+	CredentialsNone     = "none"
+)
+
+// Descriptor translates a module's self-declaration into the descriptor the
+// control plane decides on, so that a stored plugin answers the same questions
+// a compiled one answers through target.Describe — above all which secrets the
+// broker must insist on.
+//
+// "none" is NoCredentials and "optional" is CredentialsOptional; both make
+// <name>_url optional as well, because a plugin that may run without a token
+// has no brokered system it could not run without either.
+func (d Description) Descriptor() target.Descriptor {
+	out := target.Descriptor{
+		Name: d.Name, Label: d.Label, Description: d.Description,
+		Kind: "wasm", Category: d.Category, Scopes: d.Scopes,
+	}
+	if out.Category == "" {
+		out.Category = target.CategoryOther
+	}
+	switch d.Credentials {
+	case CredentialsNone:
+		out.NoCredentials, out.BaseURLOptional = true, true
+	case CredentialsOptional:
+		out.CredentialsOptional, out.BaseURLOptional = true, true
+	}
+	return out
 }

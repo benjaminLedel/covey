@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"covey/internal/target/wasmplug"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -30,13 +31,23 @@ func TestCredentialStateSaysWhatANewColleagueCouldUse(t *testing.T) {
 		{"frei-642", "builtin", nil, "not needed", nil},
 		{"frei-642", "builtin", []string{"frei-642_token"}, "in place", nil},
 		{"server-642", "mcp", nil, "not needed", nil},
+		// A wasm plugin from the catalogue says it in its description.
+		{"pub-wasm", "wasm", nil, "not needed", nil},
+		{"opt-wasm", "wasm", nil, "not needed", nil},
+		{"opt-wasm", "wasm", []string{"opt-wasm_token"}, "in place", nil},
+		{"req-wasm", "wasm", nil, "missing", []string{"req-wasm_token", "req-wasm_url"}},
 	}
+	wasm := map[string]string{"pub-wasm": "none", "opt-wasm": "optional", "req-wasm": ""}
 	for _, c := range cases {
 		stored := map[string]bool{}
 		for _, k := range c.stored {
 			stored[k] = true
 		}
-		got, missing := credentialState(c.name, c.kind, stored)
+		d, known := target.Describe(c.name)
+		if cred, ok := wasm[c.name]; ok {
+			d, known = wasmplug.Description{Name: c.name, Credentials: cred}.Descriptor(), true
+		}
+		got, missing := credentialState(c.name, c.kind, d, known, stored)
 		if got != c.want || !reflect.DeepEqual(missing, c.missing) {
 			t.Errorf("%s (%s) with %v: %q %v, want %q %v", c.name, c.kind, c.stored, got, missing, c.want, c.missing)
 		}

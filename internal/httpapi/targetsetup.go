@@ -97,12 +97,14 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	var state setupState
 	var kind string
 	var definition json.RawMessage
+	var plugin target.Descriptor
 	for _, pl := range list {
 		if pl.Name != name {
 			continue
 		}
 		found = true
 		kind, definition = pl.Kind, pl.Manifest
+		plugin, _ = pl.Descriptor()
 		state = setupState{
 			Name:     pl.Name,
 			Label:    pl.Label,
@@ -115,9 +117,9 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The flags (which credentials, which scopes) stand in the descriptor of
-	// the compiled plugin. Manifest and MCP plugins have none — there the
-	// fields stay empty, and the assistant shows correspondingly less.
-	plugin, _ := target.Describe(name)
+	// the compiled plugin, or in the self-description of a wasm plugin, which
+	// Plugin.Descriptor translates. Manifest and MCP plugins have none — there
+	// the fields stay empty, and the assistant shows correspondingly less.
 	state.Scopes = plugin.Scopes
 	// A manifest plugin has no descriptor, but its scope vocabulary stands in
 	// the file — otherwise the assistant would offer no scopes at all for
@@ -263,7 +265,9 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d, _ := target.Describe(name)
+	// The store's descriptor rather than target.Describe: a wasm plugin that
+	// declared it needs no credentials is tested without any.
+	d, _ := s.Targets.Describe(r.Context(), p.OrgID, name)
 	var cred target.Credential
 	// ref addresses the value the test used, so the outcome is written beside
 	// the one a run would get — an agent's own where the test ran as an agent.

@@ -169,6 +169,19 @@ func wasmNotes(d wasmplug.Description, size int) []string {
 	} else if d.Webhook.Signature == "" {
 		notes = append(notes, "the webhook declares no signature — anyone who knows the URL can create tasks for this agent")
 	}
+	// What the broker will insist on is worth reading before installing, and
+	// a misspelt value is worth catching here: it does not fail, it quietly
+	// reads as "required", and the plugin is denied for a secret it never
+	// needed.
+	switch d.Credentials {
+	case wasmplug.CredentialsRequired:
+	case wasmplug.CredentialsNone:
+		notes = append(notes, "declares credentials: none — the broker grants it without any secret, and a relative fetch has no base URL to go to")
+	case wasmplug.CredentialsOptional:
+		notes = append(notes, "declares credentials: optional — the broker grants it without a secret and passes on whatever is stored")
+	default:
+		notes = append(notes, fmt.Sprintf("credentials %q is not a value covey knows (\"\", \"optional\", \"none\") — it reads as required, and the broker will deny without %s_token", d.Credentials, d.Name))
+	}
 	var undocumented int
 	for _, a := range d.Actions {
 		if a.Doc == "" {

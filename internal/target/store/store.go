@@ -135,8 +135,10 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 				if d.Category != "" {
 					p.Category = d.Category
 				}
+				p.SetupDoc = wasmSetupDoc(p.Name, d.Credentials)
+			} else {
+				p.SetupDoc = customSetupDoc(p.Name)
 			}
-			p.SetupDoc = customSetupDoc(p.Name)
 		case "mcp":
 			p.Category = target.CategoryOther
 			if c, err := mcp.ParseConfig(p.Manifest); err == nil {
@@ -166,9 +168,31 @@ func deref(s *string) string {
 // route and secret names follow the convention, the details (auth header,
 // actions) are in the manifest itself.
 func customSetupDoc(name string) string {
-	return fmt.Sprintf(`1. Store under Secrets and assign to the agent:
+	return setupDocWith(name, fmt.Sprintf(`1. Store under Secrets and assign to the agent:
    %[1]s_url   = base URL of the system
-   %[1]s_token = API token (sent via the auth header defined in the manifest)
+   %[1]s_token = API token (sent via the auth header defined in the manifest)`, name))
+}
+
+// wasmSetupDoc is customSetupDoc for a wasm plugin, whose first step depends on
+// what the module declared about its credentials: a plugin that needs none
+// must not be introduced with two secrets nobody has to store.
+func wasmSetupDoc(name, credentials string) string {
+	switch credentials {
+	case wasmplug.CredentialsNone:
+		return setupDocWith(name, `1. No secrets are needed: the plugin declares that it works without
+   credentials, and the broker grants it without any.`)
+	case wasmplug.CredentialsOptional:
+		return setupDocWith(name, fmt.Sprintf(`1. Optionally store under Secrets and assign to the agent:
+   %[1]s_url   = base URL of the system
+   %[1]s_token = API token
+   The plugin declares that it works without them; whatever is stored is
+   passed on.`, name))
+	}
+	return customSetupDoc(name)
+}
+
+func setupDocWith(name, credentialStep string) string {
+	return fmt.Sprintf(`%[3]s
 
 2. Enable it in the agent's ACCESS.md:
    - system: %[1]s scope: read,write
@@ -178,7 +202,7 @@ func customSetupDoc(name string) string {
    Signature secret: value of COVEY_%[2]s_WEBHOOK_SECRET (process env, empty = check off)
 
 The webhook's field mapping and the available actions are defined by the
-uploaded JSON manifest.`, name, strings.ToUpper(name))
+uploaded JSON manifest.`, name, strings.ToUpper(name), credentialStep)
 }
 
 // mcpSetupDoc is the generic setup guide of an MCP plugin — no webhook
@@ -365,6 +389,55 @@ func (s *Store) Definition(ctx context.Context, orgID uuid.UUID, name string) (t
 		return nil, err
 	}
 	return build(name, kind, manifest)
+}
+
+// Descriptor answers target.Describe for a listed plugin: the compiled
+// registry's descriptor, or — for a wasm plugin — the one its stored
+// self-description translates into. Without it a wasm plugin's declaration
+// that it needs no credentials would reach nobody: the broker, the setup
+// assistant and list_targets all read these flags, and target.Describe only
+// knows compiled plugins. Manifest and MCP plugins have no descriptor.
+func (p Plugin) Descriptor() (target.Descriptor, bool) {
+	if d, ok := target.Describe(p.Name); ok {
+		return d, true
+	}
+	if p.Kind != "wasm" {
+		return target.Descriptor{}, false
+	}
+	d, ok := wasmplug.StoredDescription(p.Manifest)
+	if !ok {
+		return target.Descriptor{}, false
+	}
+	desc := d.Descriptor()
+	// The row's name is the one everything else uses; the module said the
+	// same when it was packed.
+	desc.Name = p.Name
+	return desc, true
+}
+
+// Describe is target.Describe for an organisation: compiled plugins first,
+// then the organisation's stored wasm plugins, read from the stored
+// description — no compiling, so the broker can ask it on every credential
+// request. Activation is not checked here; the runtime path asks System for
+// that first.
+func (s *Store) Describe(ctx context.Context, orgID uuid.UUID, name string) (target.Descriptor, bool) {
+	if d, ok := target.Describe(name); ok {
+		return d, true
+	}
+	// Only the description leaves the database: the module beside it is
+	// megabytes of base64 that nothing here reads.
+	var describe []byte
+	if err := s.pool.QueryRow(ctx, `SELECT manifest->'describe' FROM target_plugins
+		WHERE org_id=$1 AND name=$2 AND kind='wasm'`, orgID, name).Scan(&describe); err != nil || describe == nil {
+		return target.Descriptor{}, false
+	}
+	stored, err := json.Marshal(struct {
+		Describe json.RawMessage `json:"describe"`
+	}{describe})
+	if err != nil {
+		return target.Descriptor{}, false
+	}
+	return Plugin{Name: name, Kind: "wasm", Manifest: stored}.Descriptor()
 }
 
 // build turns a stored row into the target system it describes.

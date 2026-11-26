@@ -185,6 +185,21 @@ func TestWasmNotesNameThePrivileges(t *testing.T) {
 		}
 	}
 
+	// What the broker will insist on, and a value it will not understand.
+	for cred, want := range map[string]string{
+		"none":     "credentials: none",
+		"optional": "credentials: optional",
+		"None":     "not a value covey knows",
+	} {
+		notes := strings.Join(wasmNotes(wasmplug.Description{Name: "pub", Credentials: cred}, 1024), "\n")
+		if !strings.Contains(notes, want) {
+			t.Errorf("credentials %q: the notes do not mention %q:\n%s", cred, want, notes)
+		}
+	}
+	if strings.Contains(joined, "credentials") {
+		t.Error("a plugin without a credentials declaration needs no note about it")
+	}
+
 	// A module below the size threshold says nothing about its size.
 	if strings.Contains(strings.Join(wasmNotes(d, 1024), "\n"), "TinyGo") {
 		t.Error("a small module was reported as too large")

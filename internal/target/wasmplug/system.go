@@ -338,7 +338,17 @@ func (s *System) fetch(cred target.Credential, allowHTTP bool) Fetcher {
 
 		full := path
 		if foreign == "" {
-			full = strings.TrimRight(cred.BaseURL, "/") + path
+			// A plugin that declared its credentials optional, or none, is
+			// granted without a <name>_url. A relative path then has nothing
+			// to be relative to, and requesting the bare path would only
+			// produce an error about a missing scheme.
+			base := strings.TrimRight(strings.TrimSpace(cred.BaseURL), "/")
+			if base == "" {
+				return FetchResponse{Error: fmt.Sprintf(
+					"no base URL for %[1]s: the path %[2]q is relative, and no %[1]s_url is stored — store one, or fetch an absolute URL on a declared host",
+					s.desc.Name, path)}
+			}
+			full = base + path
 		}
 		if len(req.Query) > 0 {
 			q := url.Values{}

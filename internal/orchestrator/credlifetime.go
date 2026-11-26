@@ -195,7 +195,7 @@ func (o *Orchestrator) storedCredential(ctx context.Context, st secrets.Stored, 
 	}
 	cred := target.Credential{Token: token, BaseURL: sibling(system + "_url"), CA: sibling(system + "_ca")}
 	if cred.BaseURL == "" {
-		if d, ok := target.Describe(system); !ok || !d.BaseURLOptional {
+		if d, ok := o.describe(ctx, st.OrgID, system); !ok || !d.BaseURLOptional {
 			// Half a setup. The wizard says so where it is being set up; a
 			// probe against nowhere would only write "no URL" beside the
 			// token every day.

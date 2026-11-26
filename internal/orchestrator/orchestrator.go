@@ -842,6 +842,20 @@ func (o *Orchestrator) system(ctx context.Context, orgID uuid.UUID, name string)
 	return sys, nil
 }
 
+// describe is target.Describe for the organisation: the compiled registry,
+// then the organisation's stored wasm plugins (targetstore.Store.Describe).
+// Without a store (tests) the compiled registry has to do.
+//
+// Where NoCredentials means "runs locally" rather than "needs no secret" — the
+// workflow refusal in ActAs — the compiled registry is asked directly instead:
+// a wasm plugin is never local, whatever it says about its credentials.
+func (o *Orchestrator) describe(ctx context.Context, orgID uuid.UUID, name string) (target.Descriptor, bool) {
+	if o.Targets != nil {
+		return o.Targets.Describe(ctx, orgID, name)
+	}
+	return target.Describe(name)
+}
+
 func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) (bool, string) {
 	system, kind, _ := strings.Cut(condition, ":")
 	// Through the store, not through the compiled registry: a manifest plugin
@@ -865,14 +879,16 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	if viaApp {
 		cred = appCred
-	} else if d, _ := target.Describe(system); !d.NoCredentials {
+	} else if d, _ := o.describe(ctx, orgID, system); !d.NoCredentials {
+		// The same rules the broker applies: a secret the plugin declared
+		// optional is resolved best effort rather than required.
 		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
-		if err != nil {
+		if err != nil && !d.CredentialsOptional {
 			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
 		baseURL, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_url")
-		if err != nil {
+		if err != nil && !d.BaseURLOptional {
 			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
@@ -3486,11 +3502,17 @@ func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Age
 			map[string]any{"rule": "deny_system", "system": req.System, "pattern": v.Rule.Pattern})
 		return deny("forbidden by guard rail")
 	}
+	// What the plugin says about its credentials: a compiled plugin in its
+	// descriptor, a stored wasm plugin in its description. target.Describe
+	// alone knows only the first, and a catalogue plugin that needs no secret
+	// was denied for one.
+	d, described := o.describe(ctx, agent.OrgID, req.System)
 	// Local systems (NoCredentials, e.g. the dev plugin) need no secrets — the
-	// actions run entirely inside the sandbox. The checks above (ACCESS.md,
+	// actions run entirely inside the sandbox. The same holds for a wasm plugin
+	// that declared credentials "none". The checks above (ACCESS.md,
 	// activation, guard rails) still apply; what is granted is an empty
 	// credential.
-	if d, ok := target.Describe(req.System); ok && d.NoCredentials {
+	if described && d.NoCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 			map[string]any{"system": req.System, "granted": true, "local": true})
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
@@ -3499,8 +3521,9 @@ func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Age
 	// Systems whose secret only RAISES what they may do (CredentialsOptional,
 	// e.g. an NVD API key that lifts the public rate limit): a missing secret
 	// must not deny — the plugin works without one, only more slowly. Whatever
-	// is stored is passed on.
-	if d, ok := target.Describe(req.System); ok && d.CredentialsOptional {
+	// is stored is passed on. A wasm plugin says so with credentials
+	// "optional".
+	if described && d.CredentialsOptional {
 		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 		ca := o.brokerCA(ctx, agent, req.System)
@@ -3541,7 +3564,7 @@ func (o *Orchestrator) brokerCredentialFor(ctx context.Context, agent agents.Age
 	// does not need at all.
 	baseURL, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 	if err != nil {
-		if d, ok := target.Describe(req.System); !ok || !d.BaseURLOptional {
+		if !described || !d.BaseURLOptional {
 			return deny("no secret stored or assigned: " + req.System + "_url")
 		}
 		baseURL = ""

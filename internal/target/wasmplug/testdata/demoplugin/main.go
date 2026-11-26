@@ -46,6 +46,13 @@ type fetchResp struct {
 
 var in *bufio.Reader
 
+// credentials is what the fixture declares under "credentials". Empty by
+// default, as most plugins leave it; a test that needs a plugin which runs
+// without secrets builds the same fixture with
+// -ldflags "-X main.credentials=none" (or optional) instead of keeping a
+// second copy of it.
+var credentials string
+
 func main() {
 	in = bufio.NewReaderSize(os.Stdin, 1<<20)
 	line, err := in.ReadBytes('\n')
@@ -69,6 +76,7 @@ func main() {
 			"scopes":      []string{"read", "write"},
 			"probe":       true,
 			"poll":        true,
+			"credentials": credentials,
 			// Declared, so an operator sees before installing that this module
 			// reads out of the agent's checkout.
 			"workdir": true,

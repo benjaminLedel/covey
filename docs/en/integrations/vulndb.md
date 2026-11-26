@@ -63,6 +63,13 @@ pairs yourself and send them through `query_batch`.
 > keep their access.
 
 1. Enable the plugin in the org (no secrets).
+
+   > **Which version.** "No secrets" holds from vulndb 1.2.0, which declares
+   > `credentials: none` in its description, on a covey that reads that
+   > declaration ([`spec/22`](../../../spec/22-plugin-marketplace.md)). With
+   > an older module or an older covey the broker still asks for
+   > `vulndb_token`, and every action fails with
+   > `no secret stored or assigned: vulndb_token`.
 2. In the agent's `ACCESS.md`:
    ```
    - system: vulndb scope: read

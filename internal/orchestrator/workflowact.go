@@ -52,7 +52,9 @@ func (o *Orchestrator) SignsItems(ctx context.Context, orgID uuid.UUID, system s
 // executes in the control plane's own process, and for such a system that
 // would be a shell on the control plane's host, outside every sandbox, with
 // its environment and network (#698). Its place is the agent's sandbox,
-// which a workflow step does not reach yet.
+// which a workflow step does not reach yet. The compiled registry is asked on
+// purpose: a wasm plugin that declared credentials "none" is not local — it
+// runs in the host's WebAssembly sandbox wherever it is executed.
 func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, action string, params json.RawMessage, pending string) (string, error) {
 	if d, ok := target.Describe(system); ok && d.NoCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindGuardrail,
