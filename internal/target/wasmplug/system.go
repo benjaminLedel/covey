@@ -338,6 +338,13 @@ func (s *System) fetch(cred target.Credential, allowHTTP bool) Fetcher {
 
 		full := path
 		if foreign == "" {
+			// A plugin that needs no secret may still make a relative request.
+			// Without a base URL that would go to the bare path, and the error
+			// would be about a URL nobody can find. Name the missing secret.
+			if strings.TrimSpace(cred.BaseURL) == "" {
+				return FetchResponse{Error: fmt.Sprintf(
+					"no %s_url is stored — the relative path %q needs the base URL of the target system", s.desc.Name, path)}
+			}
 			full = strings.TrimRight(cred.BaseURL, "/") + path
 		}
 		if len(req.Query) > 0 {

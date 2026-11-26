@@ -53,6 +53,10 @@ func (o *Orchestrator) SignsItems(ctx context.Context, orgID uuid.UUID, system s
 // would be a shell on the control plane's host, outside every sandbox, with
 // its environment and network (#698). Its place is the agent's sandbox,
 // which a workflow step does not reach yet.
+//
+// The compiled registry is asked on purpose, not the organisation's store: a
+// wasm plugin that declares it needs no credentials still runs inside its
+// module and reaches only the hosts it declares — nothing local about it.
 func (o *Orchestrator) ActAs(ctx context.Context, agent agents.Agent, system, action string, params json.RawMessage, pending string) (string, error) {
 	if d, ok := target.Describe(system); ok && d.NoCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindGuardrail,

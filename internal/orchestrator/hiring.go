@@ -322,8 +322,10 @@ type hiringTarget struct {
 // them. An MCP server carries its endpoint and may need no auth, and a
 // system whose secret only raises its limits works without one: both are
 // "not needed" unless something is stored.
-func credentialState(name, kind string, stored map[string]bool) (string, []string) {
-	d, known := target.Describe(name)
+//
+// d and known are the system's descriptor as the organisation's store reports
+// it, so a wasm plugin's declared credentials count as a compiled plugin's do.
+func credentialState(name, kind string, d target.Descriptor, known bool, stored map[string]bool) (string, []string) {
 	switch {
 	case known && d.NoCredentials:
 		return "not needed", nil
@@ -372,7 +374,8 @@ func (o *Orchestrator) hiringTargets(ctx context.Context, agent agents.Agent) ma
 				Scopes: p.Scopes, Enabled: p.Enabled,
 			}
 			if p.Enabled && stored != nil {
-				t.Credentials, t.Missing = credentialState(p.Name, p.Kind, stored)
+				d, known := o.Targets.Describe(ctx, agent.OrgID, p.Name)
+				t.Credentials, t.Missing = credentialState(p.Name, p.Kind, d, known, stored)
 				if p.Name == "github" && t.Credentials == "missing" && o.githubAppInstalled(ctx, agent.OrgID) {
 					// A GitHub App mints the token; nothing has to be stored.
 					t.Credentials, t.Missing = "in place", nil

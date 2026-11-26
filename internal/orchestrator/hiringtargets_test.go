@@ -36,7 +36,8 @@ func TestCredentialStateSaysWhatANewColleagueCouldUse(t *testing.T) {
 		for _, k := range c.stored {
 			stored[k] = true
 		}
-		got, missing := credentialState(c.name, c.kind, stored)
+		d, known := target.Describe(c.name)
+		got, missing := credentialState(c.name, c.kind, d, known, stored)
 		if got != c.want || !reflect.DeepEqual(missing, c.missing) {
 			t.Errorf("%s (%s) with %v: %q %v, want %q %v", c.name, c.kind, c.stored, got, missing, c.want, c.missing)
 		}
