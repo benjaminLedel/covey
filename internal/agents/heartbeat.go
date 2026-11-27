@@ -39,12 +39,74 @@ var heartbeatKeywords = map[string]bool{
 	"nur-zwischen:": true,
 }
 
+type heartbeatDialect struct {
+	every, daily, title, task string
+}
+
+var heartbeatDialects = []heartbeatDialect{
+	{"every:", "daily:", "title:", "task:"},
+	{"cada:", "diario:", "título:", "tarea:"},
+	{"toutes-les:", "quotidien:", "titre:", "tâche:"},
+	{"ogni:", "giornaliero:", "titolo:", "compito:"},
+	{"elke:", "dagelijks:", "titel:", "taak:"},
+	{"co:", "codziennie:", "tytuł:", "zadanie:"},
+	{"a-cada:", "diário:", "título:", "tarefa:"},
+	{"間隔:", "毎日:", "タイトル:", "タスク:"},
+	{"每隔:", "每天:", "标题:", "任务:"},
+}
+
+func heartbeatColon(key string) string {
+	if stem, ok := strings.CutSuffix(key, "："); ok {
+		return stem + ":"
+	}
+	return key
+}
+
+// A translated schedule and a title opt a line into its dialect. In particular,
+// words like "daily:" in legacy titles or tasks remain ordinary text.
+func localizedHeartbeat(fields []string) *heartbeatDialect {
+	first := heartbeatColon(fields[0])
+	for i := range heartbeatDialects {
+		dialect := &heartbeatDialects[i]
+		if first != dialect.every && first != dialect.daily {
+			continue
+		}
+		for _, field := range fields[1:] {
+			if key := heartbeatColon(field); key == dialect.title || key == "titel:" {
+				return dialect
+			}
+		}
+	}
+	return nil
+}
+
+func (d *heartbeatDialect) keyword(field string) string {
+	if d != nil {
+		field = heartbeatColon(field)
+		switch field {
+		case d.every:
+			return "alle:"
+		case d.daily:
+			return "täglich:"
+		case d.title:
+			return "titel:"
+		case d.task:
+			return "aufgabe:"
+		}
+	}
+	if heartbeatKeywords[field] {
+		return field
+	}
+	return ""
+}
+
 // ParseHeartbeat reads HEARTBEAT.md lines of the form
 //
 //   - alle: 30m      titel: Check inbox     aufgabe: Check new tickets and triage them.
 //   - täglich: 09:00 titel: Daily report    aufgabe: Summarise yesterday.
 //   - alle: 5m nur-wenn: email titel: Inbox aufgabe: Work through the unread mails.
 //   - alle: 5m nur-zwischen: 08:00-18:00 Europe/Berlin titel: Queue aufgabe: …
+//   - daily: 07:00 title: Daily review task: Follow the review playbook.
 //
 // nur-wenn: <system> only fires the entry if the target system plugin reports
 // work in the control plane's cheap pre-check (target.WorkChecker, e.g. unread
@@ -64,21 +126,29 @@ func ParseHeartbeat(content string) ([]Heartbeat, error) {
 	for _, raw := range strings.Split(content, "\n") {
 		line := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "-"))
 		fields := strings.Fields(line)
-		if len(fields) == 0 || !heartbeatKeywords[fields[0]] {
+		if len(fields) == 0 {
+			continue
+		}
+		dialect := localizedHeartbeat(fields)
+		if dialect.keyword(fields[0]) == "" {
 			continue
 		}
 		var hb Heartbeat
-		for i := 0; i < len(fields); i++ {
-			if !heartbeatKeywords[fields[i]] {
-				continue
+		for i := 0; i < len(fields); {
+			key := dialect.keyword(fields[i])
+			if dialect != nil && (key == "alle:" || key == "täglich:" || key == "taeglich:") &&
+				(hb.Every != 0 || hb.DailyAt != "") {
+				return nil, fmt.Errorf("heartbeat %q: only one schedule is allowed", line)
 			}
 			// Value: all tokens up to the next key (titel/aufgabe are free text).
-			var val []string
-			for j := i + 1; j < len(fields) && !heartbeatKeywords[fields[j]]; j++ {
-				val = append(val, fields[j])
+			next := i + 1
+			for next < len(fields) && dialect.keyword(fields[next]) == "" {
+				next++
 			}
+			val := fields[i+1 : next]
+			i = next
 			v := strings.Join(val, " ")
-			switch fields[i] {
+			switch key {
 			case "alle:":
 				every, err := parseEvery(v)
 				if err != nil {

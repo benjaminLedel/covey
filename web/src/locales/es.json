@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Tareas periódicas",
-          "desc": "Lo que hace por sí mismo con regularidad: un bloque por tarea con alle: o täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Revisar la bandeja\n  aufgabe: …"
+          "desc": "Usa una línea por tarea. Usa cada: para un intervalo o diario: para una hora fija.",
+          "placeholder": "- cada: 30m título: Revisar la bandeja tarea: Revisa los mensajes nuevos."
         }
       },
       "edit": "Editar",
@@ -961,6 +961,8 @@
       "undone": "deshecho"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Esta línea parece un horario, pero Covey no ha programado ninguna tarea a partir de ella.",
+      "ignoredHeartbeatScheduleHint": "Revisa las claves del horario y del título y ponlas en la misma línea. Ejemplo: - diario: 07:00 título: Revisión diaria.",
       "title": "Configuración: {{count}} hallazgo(s)"
     },
     "performance": {

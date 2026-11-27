@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Tarefas recorrentes",
-          "desc": "O que faz sozinho regularmente – um bloco por tarefa com alle: ou täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Verificar a caixa\n  aufgabe: …"
+          "desc": "Use uma linha por tarefa. Use a-cada: para um intervalo ou diário: para uma hora fixa.",
+          "placeholder": "- a-cada: 30m título: Verificar a caixa de entrada tarefa: Verifique as novas mensagens."
         }
       },
       "edit": "Editar",
@@ -961,6 +961,8 @@
       "undone": "anulado"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Esta linha parece um agendamento, mas Covey não programou nenhuma tarefa recorrente a partir dela.",
+      "ignoredHeartbeatScheduleHint": "Verifique as chaves do horário e do título e coloque-as na mesma linha. Exemplo: - diário: 07:00 título: Revisão diária.",
       "title": "Configuração: {{count}} achado(s)"
     },
     "performance": {

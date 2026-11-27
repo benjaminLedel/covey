@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Tâches récurrentes",
-          "desc": "Ce qu'il fait de lui-même à intervalles réguliers – un bloc par tâche avec alle: ou täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Relever la boîte\n  aufgabe: …"
+          "desc": "Utilisez une ligne par tâche. Utilisez toutes-les: pour un intervalle ou quotidien: pour une heure fixe.",
+          "placeholder": "- toutes-les: 30m titre: Vérifier la boîte de réception tâche: Consultez les nouveaux messages."
         }
       },
       "edit": "Modifier",
@@ -961,6 +961,8 @@
       "undone": "annulé"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Cette ligne ressemble à une planification, mais Covey n’a créé aucune tâche récurrente à partir de celle-ci.",
+      "ignoredHeartbeatScheduleHint": "Vérifiez les clés de planification et de titre et placez-les sur la même ligne. Exemple : - quotidien: 07:00 titre: Revue quotidienne.",
       "title": "Configuration : {{count}} constat(s)"
     },
     "performance": {

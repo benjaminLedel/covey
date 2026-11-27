@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "定期任务",
-          "desc": "它定期主动做的事——每个任务一个块，用 alle: 或 täglich:。",
-          "placeholder": "- alle: 30m\n  titel: 查看收件箱\n  aufgabe: …"
+          "desc": "每项任务写在一行。固定间隔用「每隔:」，每天固定时间用「每天:」。",
+          "placeholder": "- 每隔: 30m 标题: 查看收件箱 任务: 检查新消息。"
         }
       },
       "edit": "编辑",
@@ -961,6 +961,8 @@
       "undone": "已撤销"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "这一行看起来像是计划设置，但 Covey 没有将其登记为定期任务。",
+      "ignoredHeartbeatScheduleHint": "检查时间和标题的键，并将它们写在同一行。示例：- 每天: 07:00 标题: 每日检查",
       "title": "配置：{{count}} 条结论"
     },
     "performance": {

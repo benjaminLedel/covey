@@ -39,6 +39,21 @@ Two schedule forms, exactly one per entry:
 - **`alle:`** (every) — an interval (`30m`, `2h`, `1d`). Due as soon as the interval has elapsed since the last run.
 - **`täglich:`** (daily) — a fixed time of day (`HH:MM`, server time). Due once per day from that time onward.
 
+Use one line per task. Localized entries start with the schedule key and include a title on the same line, for example `- daily: 07:00 title: Daily review task: Follow the daily review playbook.` The schedule key selects the set of aliases for that line independently of the UI language. Leave whitespace after each key. Existing German title, task and condition keys are also accepted on localized lines.
+
+| Language | Interval | Daily | Title | Instructions |
+| --- | --- | --- | --- | --- |
+| German | `alle:` | `täglich:`, `taeglich:` | `titel:` | `aufgabe:` |
+| English | `every:` | `daily:` | `title:` | `task:` |
+| Spanish | `cada:` | `diario:` | `título:` | `tarea:` |
+| French | `toutes-les:` | `quotidien:` | `titre:` | `tâche:` |
+| Italian | `ogni:` | `giornaliero:` | `titolo:` | `compito:` |
+| Dutch | `elke:` | `dagelijks:` | `titel:` | `taak:` |
+| Polish | `co:` | `codziennie:` | `tytuł:` | `zadanie:` |
+| Portuguese | `a-cada:` | `diário:` | `título:` | `tarefa:` |
+| Japanese | `間隔:` | `毎日:` | `タイトル:` | `タスク:` |
+| Chinese | `每隔:` | `每天:` | `标题:` | `任务:` |
+
 Optional per entry:
 
 - **`nur-wenn:`** (only-if) — the name of a target system that has to report work first when the entry fires. The control plane asks the plugin through the optional `target.WorkChecker` interface (`HasWork`) with self-resolved secrets — for `email`, for instance: "are there unread mails in the working set?" If the system reports no work, the run is skipped without waking the agent; `last_fired_at` is advanced regardless, so the schedule keeps polling as usual. The check is fail-open: if the condition cannot be evaluated (plugin without `WorkChecker`, missing secrets, connection error), the heartbeat fires as usual — a broken condition must not leave work lying around. This turns the polling intake of webhook-less systems into a cheap control-plane check; the expensive runtime only starts when something is genuinely there.

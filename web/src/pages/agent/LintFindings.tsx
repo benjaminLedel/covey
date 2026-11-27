@@ -1,6 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, type LintFinding } from "../../api";
+
+export const agentLintQuery = (agentId: string) => queryOptions({
+  queryKey: ["agent-lint", agentId],
+  queryFn: () => api<LintFinding[] | null>(`/agents/${agentId}/lint`),
+  retry: false,
+});
 
 // The config lint on the agent page.
 //
@@ -13,18 +19,24 @@ import { api, type LintFinding } from "../../api";
 //
 // Deliberately above the tab bar, not in its own tab: a finding you first have
 // to unfold is a finding you do not read.
-export function LintFindings({ agentId }: { agentId: string }) {
+export function LintFindings({
+  agentId,
+  file,
+  excludeFile,
+}: {
+  agentId: string;
+  file?: string;
+  excludeFile?: string;
+}) {
   const { t } = useTranslation();
-  const lint = useQuery({
-    queryKey: ["agent-lint", agentId],
-    queryFn: () => api<LintFinding[] | null>(`/agents/${agentId}/lint`),
-    retry: false,
-  });
-  const findings = lint.data ?? [];
+  const lint = useQuery(agentLintQuery(agentId));
+  const findings = (lint.data ?? []).filter((f) =>
+    (!file || f.file === file) && (!excludeFile || f.file !== excludeFile),
+  );
   if (findings.length === 0) return null;
 
   return (
-    <div className="card mt-3" style={{ padding: "10px 14px" }}>
+    <div className="card mt-3" role={file ? "status" : undefined} style={{ padding: "10px 14px" }}>
       <div className="text-xs mb-2" style={{ fontWeight: 600 }}>
         {t("agent.lint.title", { count: findings.length })}
       </div>
@@ -41,7 +53,9 @@ export function LintFindings({ agentId }: { agentId: string }) {
             >
               {f.rule}
             </span>
-            <span style={{ fontWeight: 600 }}>{f.message}</span>
+            <span style={{ fontWeight: 600 }}>
+              {f.rule === "heartbeat-schedule-ignored" ? t("agent.lint.ignoredHeartbeatSchedule") : f.message}
+            </span>
             {f.file && (
               <span className="muted mono">
                 {f.file}
@@ -49,7 +63,9 @@ export function LintFindings({ agentId }: { agentId: string }) {
               </span>
             )}
           </div>
-          <div className="muted" style={{ marginTop: 2 }}>{f.hint}</div>
+          <div className="muted" style={{ marginTop: 2 }}>
+            {f.rule === "heartbeat-schedule-ignored" ? t("agent.lint.ignoredHeartbeatScheduleHint") : f.hint}
+          </div>
         </div>
       ))}
     </div>
