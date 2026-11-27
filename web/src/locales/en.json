@@ -383,6 +383,10 @@
     "slug": "Slug",
     "budget": "Budget",
     "guided": {
+      "configRole": "Role",
+      "configResponsibilities": "Responsibilities",
+      "configOrganisation": "Organisation",
+      "configSupervisor": "Supervisor: {{name}}. Escalate to them.",
       "step": {
         "who": "Who",
         "job": "Job",

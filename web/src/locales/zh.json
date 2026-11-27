@@ -383,6 +383,10 @@
     "slug": "Slug",
     "budget": "预算",
     "guided": {
+      "configRole": "角色",
+      "configResponsibilities": "职责",
+      "configOrganisation": "组织",
+      "configSupervisor": "负责人：{{name}}。请向此人升级处理。",
       "step": {
         "who": "是谁",
         "job": "做什么",

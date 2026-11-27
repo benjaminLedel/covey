@@ -383,6 +383,10 @@
     "slug": "Slug",
     "budget": "Presupuesto",
     "guided": {
+      "configRole": "Rol",
+      "configResponsibilities": "Responsabilidades",
+      "configOrganisation": "Organización",
+      "configSupervisor": "Responsable: {{name}}. Escala las dudas a esta persona.",
       "step": {
         "who": "Quién",
         "job": "Tarea",

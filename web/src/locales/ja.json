@@ -383,6 +383,10 @@
     "slug": "スラッグ",
     "budget": "予算",
     "guided": {
+      "configRole": "役割",
+      "configResponsibilities": "担当範囲",
+      "configOrganisation": "組織",
+      "configSupervisor": "上長: {{name}}。問題はこの人にエスカレーションしてください。",
       "step": {
         "who": "誰が",
         "job": "仕事",

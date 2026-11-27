@@ -383,6 +383,10 @@
     "slug": "Slug",
     "budget": "Budget",
     "guided": {
+      "configRole": "Rol",
+      "configResponsibilities": "Verantwoordelijkheden",
+      "configOrganisation": "Organisatie",
+      "configSupervisor": "Leidinggevende: {{name}}. Escaleer naar deze persoon.",
       "step": {
         "who": "Wie",
         "job": "Taak",

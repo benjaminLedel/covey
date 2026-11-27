@@ -63,10 +63,10 @@ export function GuidedCreate({ onBack, onDone }: { onBack: () => void; onDone: (
       // second, hidden place for the same statement.
       const files: Record<string, string> = {};
       if (role.trim()) {
-        files["SOUL.md"] = `# ${name.trim()}\n\n## Rolle\n${role.trim()}\n`;
+        files["SOUL.md"] = `# ${name.trim()}\n\n## ${t("dashboard.guided.configRole")}\n${role.trim()}\n`;
       }
       if (remit.trim()) {
-        files["CAPABILITIES.md"] = `# Zuständigkeit\n\n${remit.trim()}\n`;
+        files["CAPABILITIES.md"] = `# ${t("dashboard.guided.configResponsibilities")}\n\n${remit.trim()}\n`;
       }
       const access = Object.entries(systems)
         .filter(([, sc]) => sc.length > 0 || systems[""] !== undefined)
@@ -76,7 +76,7 @@ export function GuidedCreate({ onBack, onDone }: { onBack: () => void; onDone: (
       }
       const boss = org.data?.humans.find((h) => h.id === supervisor);
       if (boss) {
-        files["ORG.md"] = `# Organisation\n\nVorgesetzt: ${boss.display_name}. Dorthin eskalieren.\n`;
+        files["ORG.md"] = `# ${t("dashboard.guided.configOrganisation")}\n\n${t("dashboard.guided.configSupervisor", { name: boss.display_name })}\n`;
       }
       if (Object.keys(files).length > 0) {
         await put(`/agents/${agent.id}/config`, { files });
