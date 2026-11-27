@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "定期タスク",
-          "desc": "自分から定期的に行うこと。タスクごとに alle: または täglich: のブロックを書きます。",
-          "placeholder": "- alle: 30m\n  titel: 受信箱を確認\n  aufgabe: …"
+          "desc": "タスクごとに1行で記述します。一定間隔には「間隔:」、毎日決まった時刻には「毎日:」を使います。",
+          "placeholder": "- 間隔: 30m タイトル: 受信箱を確認 タスク: 新着メッセージを確認する。"
         }
       },
       "edit": "編集",
@@ -961,6 +961,8 @@
       "undone": "元に戻しました"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "この行はスケジュールのようですが、Covey は定期タスクとして登録しませんでした。",
+      "ignoredHeartbeatScheduleHint": "スケジュールとタイトルのキーを確認し、同じ行に記述してください。例: - 毎日: 07:00 タイトル: 日次レビュー",
       "title": "設定: {{count}} 件の指摘"
     },
     "performance": {

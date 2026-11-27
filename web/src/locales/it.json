@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Attività ricorrenti",
-          "desc": "Ciò che fa da solo a intervalli regolari: un blocco per attività con alle: o täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Controllare la posta\n  aufgabe: …"
+          "desc": "Usa una riga per attività. Usa ogni: per un intervallo o giornaliero: per un orario fisso.",
+          "placeholder": "- ogni: 30m titolo: Controllare la posta compito: Controlla i nuovi messaggi."
         }
       },
       "edit": "Modifica",
@@ -961,6 +961,8 @@
       "undone": "annullato"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Questa riga sembra una pianificazione, ma Covey non ha programmato alcuna attività ricorrente.",
+      "ignoredHeartbeatScheduleHint": "Controlla le chiavi della pianificazione e del titolo e mettile sulla stessa riga. Esempio: - giornaliero: 07:00 titolo: Revisione giornaliera.",
       "title": "Configurazione: {{count}} rilievi"
     },
     "performance": {

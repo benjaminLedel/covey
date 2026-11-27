@@ -48,6 +48,66 @@ Prose lines like this one are ignored.
 	}
 }
 
+func TestParseLocalizedHeartbeats(t *testing.T) {
+	cases := []struct {
+		lang, interval, daily string
+	}{
+		{"en", "every: 30m title: Inbox task: Check messages", "daily: 07:00 title: Inbox task: Check messages"},
+		{"es", "cada: 30m título: Inbox tarea: Check messages", "diario: 07:00 título: Inbox tarea: Check messages"},
+		{"fr", "toutes-les: 30m titre: Inbox tâche: Check messages", "quotidien: 07:00 titre: Inbox tâche: Check messages"},
+		{"it", "ogni: 30m titolo: Inbox compito: Check messages", "giornaliero: 07:00 titolo: Inbox compito: Check messages"},
+		{"nl", "elke: 30m titel: Inbox taak: Check messages", "dagelijks: 07:00 titel: Inbox taak: Check messages"},
+		{"pl", "co: 30m tytuł: Inbox zadanie: Check messages", "codziennie: 07:00 tytuł: Inbox zadanie: Check messages"},
+		{"pt", "a-cada: 30m título: Inbox tarefa: Check messages", "diário: 07:00 título: Inbox tarefa: Check messages"},
+		{"ja", "間隔: 30m タイトル: Inbox タスク: Check messages", "毎日： 07:00 タイトル： Inbox タスク： Check messages"},
+		{"zh", "每隔: 30m 标题: Inbox 任务: Check messages", "每天： 07:00 标题： Inbox 任务： Check messages"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.lang, func(t *testing.T) {
+			got, err := ParseHeartbeat("- " + tc.interval + "\n" + tc.daily)
+			if err != nil || len(got) != 2 {
+				t.Fatalf("expected two schedules, got %+v, %v", got, err)
+			}
+			if got[0] != (Heartbeat{Name: "Inbox", Task: "Check messages", Every: 30 * time.Minute}) ||
+				got[1] != (Heartbeat{Name: "Inbox", Task: "Check messages", DailyAt: "07:00"}) {
+				t.Fatalf("unexpected schedules: %+v", got)
+			}
+		})
+	}
+}
+
+func TestHeartbeatLocalizationPreservesLegacyText(t *testing.T) {
+	content := "daily: notes about the schedule\n" +
+		"- taeglich: 07:00 titel: Check daily: inbox aufgabe: Run every: morning. Record title: and task: in the log."
+	got, err := ParseHeartbeat(content)
+	want := Heartbeat{
+		Name: "Check daily: inbox", Task: "Run every: morning. Record title: and task: in the log.", DailyAt: "07:00",
+	}
+	if err != nil || len(got) != 1 || got[0] != want {
+		t.Fatalf("expected %+v, got %+v, %v", want, got, err)
+	}
+}
+
+func TestLocalizedHeartbeatValidation(t *testing.T) {
+	for _, line := range []string{
+		"- daily: 25:00 title: Inbox",
+		"- daily: 07:00 title:",
+		"- daily: 07:00 täglich: 08:00 title: Inbox",
+		"- every: 30m daily: 08:00 title: Inbox",
+	} {
+		if _, err := ParseHeartbeat(line); err == nil {
+			t.Errorf("expected an error for %q", line)
+		}
+	}
+	got, err := ParseHeartbeat("- daily: 07:00 nur-wenn: email nur-zwischen: 06:00-09:00 UTC titel: Inbox aufgabe: Read mail")
+	want := Heartbeat{
+		Name: "Inbox", Task: "Read mail", DailyAt: "07:00", OnlyIf: "email", Window: "06:00-09:00", WindowZone: "UTC",
+	}
+	if err != nil || len(got) != 1 || got[0] != want {
+		t.Fatalf("expected %+v, got %+v, %v", want, got, err)
+	}
+}
+
 func TestParseHeartbeatWindow(t *testing.T) {
 	hbs, err := ParseHeartbeat(`- alle: 5m nur-zwischen: 8:00-18:00 Europe/Berlin nur-wenn: salesforce titel: Tag aufgabe: Queue sichten.
 - alle: 15m nur-zwischen: 18:00-08:00 titel: Nacht

@@ -165,7 +165,9 @@ An agent on covey is configured through markdown files (config-as-code). You may
 - CAPABILITIES.md — concrete capabilities and what the agent may/should do.
 - PLAYBOOKS.md — recurring procedures step by step.
 - ORG.md — embedding into the organization, whom to escalate to.
-- HEARTBEAT.md — periodic "what is up?" impulses (optional).
+- HEARTBEAT.md — recurring tasks (optional). Put the schedule, title and instructions on one line per task.
+  Example: "- daily: 07:00 title: Daily review task: Follow the daily review playbook."
+  For intervals use "every: 30m". When revising an entry, keep its syntax and its nur-wenn: and nur-zwischen: conditions unless the user asks to change them.
 - ACCESS.md — which target systems the agent may use (broker scopes, tool allowlist). Structured text view onto the tools store; keep exactly the format of the current state (comment lines with '#', then entries). Changes take effect on the broker accesses and may require the security role when saving.
 - EGRESS.md — which hosts the agent may reach outbound (templates + own hosts). Structured text view onto the egress store; likewise keep exactly the existing format; saving may require the security role.
 

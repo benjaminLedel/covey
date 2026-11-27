@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Zadania cykliczne",
-          "desc": "Co robi sam regularnie – jeden blok na zadanie z alle: lub täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Przejrzyj skrzynkę\n  aufgabe: …"
+          "desc": "Użyj jednego wiersza na zadanie. Użyj co: dla interwału lub codziennie: dla stałej godziny.",
+          "placeholder": "- co: 30m tytuł: Sprawdź skrzynkę zadanie: Przejrzyj nowe wiadomości."
         }
       },
       "edit": "Edytuj",
@@ -961,6 +961,8 @@
       "undone": "cofnięto"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Ten wiersz wygląda jak harmonogram, ale Covey nie zaplanował na jego podstawie zadania cyklicznego.",
+      "ignoredHeartbeatScheduleHint": "Sprawdź klucze harmonogramu i tytułu oraz umieść je w tym samym wierszu. Przykład: - codziennie: 07:00 tytuł: Codzienny przegląd.",
       "title": "Konfiguracja: {{count}} ustaleń"
     },
     "performance": {

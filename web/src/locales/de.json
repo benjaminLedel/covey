@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Wiederkehrende Aufgaben",
-          "desc": "Was er regelmäßig von selbst tut – je Aufgabe ein Block mit alle: oder täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Posteingang sichten\n  aufgabe: …"
+          "desc": "Eine Zeile pro Aufgabe. Nutze alle: für ein Intervall oder täglich: für eine feste Uhrzeit.",
+          "placeholder": "- alle: 30m titel: Posteingang sichten aufgabe: Prüfe neue Nachrichten."
         }
       },
       "edit": "Bearbeiten",
@@ -961,6 +961,8 @@
       "undone": "zurückgenommen"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Diese Zeile sieht wie ein Zeitplan aus, wurde aber nicht als wiederkehrende Aufgabe registriert.",
+      "ignoredHeartbeatScheduleHint": "Setze Zeitplan und Titel in dieselbe Zeile, zum Beispiel: - täglich: 07:00 titel: Tagesübersicht.",
       "title": "Konfiguration: {{count}} Befund(e)"
     },
     "performance": {

@@ -101,6 +101,9 @@ var commentActions = []string{"comment", "comment_mr", "comment_pr", "comment_ex
 // working state ("#83 CSV import", "MR !1641").
 var stageWithItemID = regexp.MustCompile(`[#!]\d+`)
 
+var heartbeatSchedulePrefix = regexp.MustCompile(`^([\p{L}][\p{L}\p{M}\p{Nd}_-]*(?:[ \t]+[\p{L}][\p{L}\p{M}\p{Nd}_-]*)*)[:：][ \t]*([^ \t]+)`)
+var heartbeatClockLike = regexp.MustCompile(`^[0-9]{1,2}:[0-9]{2}$`)
+
 // maxAgentStages is the number of self-created columns from which on a board no
 // longer shows states but a history.
 const maxAgentStages = 8
@@ -117,6 +120,7 @@ func Lint(s Subject) []Finding {
 	systems := lintSystems(s.Files["ACCESS.md"])
 	hbs, _ := ParseHeartbeat(s.Files["HEARTBEAT.md"])
 
+	out = append(out, lintIgnoredHeartbeatSchedules(s)...)
 	out = append(out, lintIntervals(s, hbs, systems)...)
 	out = append(out, lintVisibleTrace(s, hbs)...)
 	out = append(out, lintBlockedOnPolling(s, systems)...)
@@ -130,6 +134,54 @@ func Lint(s Subject) []Finding {
 		return out[i].Severity == SeverityWarn && out[j].Severity != SeverityWarn
 	})
 	return out
+}
+
+func lintIgnoredHeartbeatSchedules(s Subject) []Finding {
+	var out []Finding
+	for i, raw := range strings.Split(s.Files["HEARTBEAT.md"], "\n") {
+		line := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "-"))
+		match := heartbeatSchedulePrefix.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		fields := strings.Fields(line)
+		// A heading like "Office hours: 07:00" can be an ordinary note.
+		if strings.ContainsAny(match[1], " \t") && !hasHeartbeatTitleKey(fields[1:]) {
+			continue
+		}
+		if localizedHeartbeat(fields).keyword(fields[0]) != "" {
+			continue // The parser validates this line when the file is saved.
+		}
+		// Reuse the parser's interval grammar. A clock-shaped value still
+		// looks like a schedule even if its hour or minute is out of range.
+		if !heartbeatClockLike.MatchString(match[2]) {
+			if _, err := parseEvery(match[2]); err != nil {
+				continue
+			}
+		}
+		out = append(out, Finding{
+			AgentSlug: s.Slug, Rule: "heartbeat-schedule-ignored", Severity: SeverityWarn,
+			File: "HEARTBEAT.md", Line: i + 1,
+			Message: "This line looks like a schedule, but Covey did not register a recurring task from it.",
+			Hint:    "Check the schedule and title keys and put them on the same line, for example: - daily: 07:00 title: Daily review.",
+		})
+	}
+	return out
+}
+
+func hasHeartbeatTitleKey(fields []string) bool {
+	for _, field := range fields {
+		key := heartbeatColon(field)
+		if key == "titel:" {
+			return true
+		}
+		for _, dialect := range heartbeatDialects {
+			if key == dialect.title {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func lintSystems(access string) map[string]bool {

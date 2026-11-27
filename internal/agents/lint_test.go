@@ -26,6 +26,34 @@ func hasRule(fs []Finding, rule string) bool {
 	return false
 }
 
+func TestLintIgnoredHeartbeatSchedules(t *testing.T) {
+	findings := Lint(Subject{Files: map[string]string{
+		"HEARTBEAT.md": "# Daily checks\n" +
+			"- daliy: 07:00 title: Misspelled\n" +
+			"daily: 08:00\n" +
+			"Notes: check the morning report.\n" +
+			"- every: 30m title: Valid task\n" +
+			"- alle: 30m titel: Legacy task\n" +
+			"- 毎日： 09:00 タイトル： Valid task\n" +
+			"- evrey: 2h30m title: Misspelled interval\n" +
+			"- every ngm: 12h title: Extra word\n" +
+			"Office hours: 07:00\n" +
+			"Release: 5beta\n" +
+			"- evry: 1.5h title: Decimal interval\n" +
+			"- eve56ry: 12h title: Key with digits\n" +
+			"- daily: 07:00 title: Valid daily schedule\n",
+	}})
+	wantLines := []int{2, 3, 8, 9, 12, 13}
+	if len(findings) != len(wantLines) {
+		t.Fatalf("expected warnings on lines %v, got %+v", wantLines, findings)
+	}
+	for i, f := range findings {
+		if f.Rule != "heartbeat-schedule-ignored" || f.File != "HEARTBEAT.md" || f.Line != wantLines[i] {
+			t.Errorf("expected a warning on line %d, got %+v", wantLines[i], f)
+		}
+	}
+}
+
 // TestLintIntervalDependsOnSystems is the core of the interval rule: the same
 // interval is fine or ruinous depending on the target system. Checking a
 // mailbox every 2 minutes is normal; cloning a repo every 2 minutes is not.

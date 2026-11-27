@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Terugkerende taken",
-          "desc": "Wat hij uit zichzelf regelmatig doet – één blok per taak met alle: of täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Inbox doornemen\n  aufgabe: …"
+          "desc": "Gebruik één regel per taak. Gebruik elke: voor een interval of dagelijks: voor een vast tijdstip.",
+          "placeholder": "- elke: 30m titel: Inbox controleren taak: Bekijk nieuwe berichten."
         }
       },
       "edit": "Bewerken",
@@ -961,6 +961,8 @@
       "undone": "ongedaan gemaakt"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "Deze regel lijkt op een planning, maar Covey heeft er geen terugkerende taak voor ingepland.",
+      "ignoredHeartbeatScheduleHint": "Controleer de sleutels voor het schema en de titel en zet ze op dezelfde regel. Voorbeeld: - dagelijks: 07:00 titel: Dagelijkse controle.",
       "title": "Configuratie: {{count}} bevinding(en)"
     },
     "performance": {

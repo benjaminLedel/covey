@@ -668,8 +668,8 @@
         },
         "heartbeat": {
           "title": "Recurring tasks",
-          "desc": "What it does on its own at regular times – one block per task with alle: or täglich:.",
-          "placeholder": "- alle: 30m\n  titel: Check the inbox\n  aufgabe: …"
+          "desc": "Use one line per task. Use every: for an interval or daily: for a fixed time.",
+          "placeholder": "- every: 30m title: Check the inbox task: Review new messages."
         }
       },
       "edit": "Edit",
@@ -961,6 +961,8 @@
       "undone": "undone"
     },
     "lint": {
+      "ignoredHeartbeatSchedule": "This line looks like a schedule, but Covey did not register a recurring task from it.",
+      "ignoredHeartbeatScheduleHint": "Check the schedule and title keys and put them on the same line, for example: - daily: 07:00 title: Daily review.",
       "title": "Configuration: {{count}} finding(s)"
     },
     "performance": {

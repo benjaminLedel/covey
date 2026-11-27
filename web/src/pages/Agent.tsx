@@ -200,7 +200,10 @@ export default function AgentPage({ me }: { me: Principal }) {
 
       <Performance agentId={a.id} />
 
-      <LintFindings agentId={a.id} />
+      <LintFindings
+        agentId={a.id}
+        excludeFile={tab === "einstellungen" && sp.get("sub") === "config" ? "HEARTBEAT.md" : undefined}
+      />
 
       <div className="flex gap-1 mb-4 mt-5" style={{ borderBottom: "0.5px solid var(--border)" }}>
         {(

@@ -15,6 +15,7 @@ import { Link } from "react-router";
 import { Markdown } from "../../components/Markdown";
 import { NavIcon } from "../../components/navicons";
 import Section from "../../components/Section";
+import { agentLintQuery, LintFindings } from "./LintFindings";
 
 /* The files a team lead writes, in reading order, under plain names (#745).
    The file name stays as a small label: it is what the agent, the bundle and
@@ -59,6 +60,7 @@ export function Config({
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const heartbeatHeading = useRef<HTMLDivElement>(null);
   const cfg = useQuery({
     queryKey: ["config", agentId],
     queryFn: () => api<ConfigVersion>(`/agents/${agentId}/config`),
@@ -83,13 +85,19 @@ export function Config({
     qc.invalidateQueries({ queryKey: ["agent-tools", agentId] });
     qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
     qc.invalidateQueries({ queryKey: ["heartbeats", agentId] });
+    return qc.invalidateQueries({ queryKey: agentLintQuery(agentId).queryKey });
   };
   const save = useMutation({
-    mutationFn: () => put(`/agents/${agentId}/config`, { files }),
-    onSuccess: () => {
+    mutationFn: (_heartbeatChanged: boolean) => put<ConfigVersion>(`/agents/${agentId}/config`, { files }),
+    onSuccess: async (config, heartbeatChanged) => {
+      qc.setQueryData(["config", agentId], config);
       setDraft(null);
       setEditing(new Set());
-      invalidate();
+      await invalidate();
+      const findings = qc.getQueryData(agentLintQuery(agentId).queryKey);
+      if (heartbeatChanged && findings?.some((f) => f.file === "HEARTBEAT.md")) {
+        heartbeatHeading.current?.scrollIntoView({ block: "center" });
+      }
     },
   });
   const discard = () => {
@@ -127,7 +135,7 @@ export function Config({
           const empty = content.trim() === "";
           return (
             <section key={d.file} className="cfg-doc">
-              <div className="cfg-doc-head">
+              <div className="cfg-doc-head" ref={d.key === "heartbeat" ? heartbeatHeading : undefined}>
                 <div className="min-w-0">
                   <h3 className="cfg-doc-title">
                     {t(`agent.config.doc.${d.key}.title`)}
@@ -149,6 +157,9 @@ export function Config({
                   </button>
                 )}
               </div>
+              {d.key === "heartbeat" && !changed.includes(d.file) && (
+                <LintFindings agentId={agentId} file={d.file} />
+              )}
               {isEditing ? (
                 <textarea
                   className={`cfg-editor${"code" in d ? " code" : ""}`}
@@ -226,7 +237,7 @@ export function Config({
           <button className="btn" onClick={discard} disabled={save.isPending}>
             {t("agent.config.discard")}
           </button>
-          <button className="btn primary" onClick={() => save.mutate()} disabled={save.isPending}>
+          <button className="btn primary" onClick={() => save.mutate(changed.includes("HEARTBEAT.md"))} disabled={save.isPending}>
             <NavIcon name="check" />
             {t("agent.config.saveVersion", { v: version + 1 })}
           </button>
